@@ -64,3 +64,24 @@ def test_prestress_summary_bg40():
     assert abs(out["friction_mpa"] - 21.5) < 0.2
     assert abs(out["creep_mpa"] - 59.5) < 0.5
     assert abs(out["shrinkage_mpa"] - 22.3) < 0.3
+
+
+def test_default_project_has_no_blocking_validation_errors():
+    from core.validation import ensure_project_schema, issue_counts, validate_project, workflow_status
+
+    d = ensure_project_schema(BG40_DEFAULT)
+    issues = validate_project(d)
+    counts = issue_counts(issues)
+    assert counts["ERROR"] == 0
+    workflow = workflow_status(d, issues)
+    assert all(row["Status"] in {"READY", "REVIEW"} for row in workflow)
+
+
+def test_schema_is_added_to_legacy_project():
+    from copy import deepcopy
+    from core.validation import PROJECT_SCHEMA_VERSION, ensure_project_schema
+
+    legacy = deepcopy(BG40_DEFAULT)
+    legacy.pop("meta", None)
+    out = ensure_project_schema(legacy)
+    assert out["meta"]["schema_version"] == PROJECT_SCHEMA_VERSION

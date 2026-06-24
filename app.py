@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
-from copy import deepcopy
-from pathlib import Path
-
 import pandas as pd
 import streamlit as st
 
 from core.bg40_defaults import BG40_DEFAULT
+from core.validation import (
+    PROJECT_SCHEMA_VERSION,
+    ensure_project_schema,
+    issue_counts,
+    validate_project,
+    workflow_status,
+)
 from core.calculations import (
     aashto_creep_coefficient,
     aashto_shrinkage_strain,
@@ -71,9 +75,9 @@ st.markdown(CSS, unsafe_allow_html=True)
 # Session state
 # -----------------------------------------------------------------------------
 if "project" not in st.session_state:
-    st.session_state.project = deepcopy(BG40_DEFAULT)
-if "current_page" not in st.session_state:
-    st.session_state.current_page = "Setup"
+    st.session_state.project = ensure_project_schema(BG40_DEFAULT)
+else:
+    st.session_state.project = ensure_project_schema(st.session_state.project)
 
 D = st.session_state.project
 
@@ -96,6 +100,47 @@ def card(title: str, value: str, note: str = "", mode: str = "") -> None:
     )
 
 
+
+
+def active_qa() -> tuple[list, dict, list[dict[str, str]]]:
+    issues = validate_project(D)
+    counts = issue_counts(issues)
+    workflow = workflow_status(D, issues)
+    return issues, counts, workflow
+
+
+def issue_dataframe(issues: list) -> pd.DataFrame:
+    if not issues:
+        return pd.DataFrame(columns=["Level", "Category", "Message", "Code basis", "Recommendation"])
+    return pd.DataFrame(
+        [
+            {
+                "Level": issue.level,
+                "Category": issue.category,
+                "Message": issue.message,
+                "Code basis": issue.code_basis,
+                "Recommendation": issue.recommendation,
+            }
+            for issue in issues
+        ]
+    )
+
+
+def workflow_dataframe(workflow: list[dict[str, str]]) -> pd.DataFrame:
+    return pd.DataFrame(workflow, columns=["Workflow item", "Status", "QA note"])
+
+
+def sidebar_status(label: str, status: str) -> None:
+    if status == "READY":
+        st.success(label)
+    elif status == "REVIEW":
+        st.warning(label)
+    elif status == "BLOCKED":
+        st.error(label)
+    else:
+        st.info(label)
+
+
 def render_sidebar() -> None:
     with st.sidebar:
         st.markdown(
@@ -116,13 +161,29 @@ def render_sidebar() -> None:
             "Results Dashboard",
             "Report / QA",
         ]
-        choice = st.radio("WORKSPACE", pages, index=pages.index(st.session_state.current_page), label_visibility="visible")
-        st.session_state.current_page = choice
+        if "current_page" not in st.session_state or st.session_state.current_page not in pages:
+            st.session_state.current_page = pages[0]
+        st.radio(
+            "WORKSPACE",
+            pages,
+            key="current_page",
+            label_visibility="visible",
+        )
+        issues, counts, workflow = active_qa()
+        blocking = counts["ERROR"] > 0
         st.markdown("---")
         st.markdown("**PROJECT STATUS**")
-        st.success("Model Current")
-        st.success("AASHTO 5.8.6 torsion active")
-        st.info("MVP: BG40 defaults loaded")
+        st.success("Reference project data active")
+        st.success("AASHTO 5.8.6 torsion basis active")
+        if blocking:
+            st.error(f"QA gate blocked: {counts['ERROR']} error(s)")
+        elif counts["WARNING"]:
+            st.warning(f"QA review: {counts['WARNING']} warning(s)")
+        else:
+            st.success("QA gate ready")
+        for row in workflow[:4]:
+            sidebar_status(f"{row['Workflow item']}: {row['Status']}", row["Status"])
+        st.info(f"Schema {PROJECT_SCHEMA_VERSION}")
         st.markdown("---")
         st.markdown("**ACTIVE CONTEXT**")
         st.caption(f"Project: **{D['project']['name']}**")
@@ -141,7 +202,7 @@ def render_sidebar() -> None:
         uploaded = st.file_uploader("Load Project JSON", type=["json"])
         if uploaded is not None:
             try:
-                st.session_state.project = json.loads(uploaded.read().decode("utf-8"))
+                st.session_state.project = ensure_project_schema(json.loads(uploaded.read().decode("utf-8")))
                 st.rerun()
             except Exception as exc:  # noqa: BLE001
                 st.error(f"Could not load JSON: {exc}")
@@ -166,15 +227,20 @@ def render_header() -> None:
 
 def page_setup() -> None:
     st.subheader("Setup Workspace")
+    issues, counts, workflow = active_qa()
+    qa_value = "Blocked" if counts["ERROR"] else ("Review" if counts["WARNING"] else "Ready")
+    qa_mode = "warn" if counts["ERROR"] or counts["WARNING"] else "pass"
+    next_action = "Resolve QA errors" if counts["ERROR"] else ("Review warnings" if counts["WARNING"] else "Proceed to ULS Shear & Torsion")
+
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        card("Model Status", "Current", "BG40 default data loaded", "pass")
+        card("Model Status", "Current", D["meta"].get("dataset_status", "Reference data active"), "pass")
     with c2:
-        card("Design Code", "AASHTO LRFD 2014", "EN actions used for FEA demands", "pass")
+        card("QA Gate", qa_value, f"{counts['ERROR']} error(s), {counts['WARNING']} warning(s)", qa_mode)
     with c3:
-        card("Tendon System", "External / Unbonded", "φv = 0.85 for segmental construction", "pass")
+        card("Design Code", "AASHTO LRFD 2014", "EN actions used for FEA demands", "pass")
     with c4:
-        card("Recommended Action", "Review inputs", "Then open ULS Shear & Torsion")
+        card("Recommended Action", next_action, "Commercial workflow gate")
 
     st.markdown("### Project Data")
     with st.container(border=True):
@@ -193,16 +259,31 @@ def page_setup() -> None:
                 index=0 if "External" in D["project"]["tendon_system"] else 1,
             )
 
+    # Re-evaluate after editable setup values have been updated.
+    issues, counts, workflow = active_qa()
+    st.markdown("### Workflow Completeness")
+    st.dataframe(workflow_dataframe(workflow), use_container_width=True, hide_index=True)
+
+    st.markdown("### Engineering QA Gate")
+    if counts["ERROR"]:
+        st.error("QA gate is blocked. Calculation results should not be used until the error items are corrected.")
+    elif counts["WARNING"]:
+        st.warning("QA gate is ready with review warnings. Check the warnings before issuing results.")
+    else:
+        st.success("QA gate ready. No blocking engineering validation errors were found.")
+
+    with st.expander("Show validation details", expanded=bool(counts["ERROR"] or counts["WARNING"])):
+        st.dataframe(issue_dataframe(issues), use_container_width=True, hide_index=True)
+
     st.markdown(
         """
         <div class="note-box">
-        <b>Scope guard:</b> This MVP is a design-check and report-assist app. It does not replace the FEA model.
-        FEA/CSI/MIDAS output should be imported or keyed in as design demand.
+        <b>Engineering scope guard:</b> This application performs independent design checks based on user-defined section properties
+        and imported or keyed FEA demand envelopes. It does not replace the primary structural analysis model.
         </div>
         """,
         unsafe_allow_html=True,
     )
-
 
 def page_section_tendon() -> None:
     st.subheader("Section / Tendon")
@@ -486,9 +567,24 @@ def page_results() -> None:
 def page_report() -> None:
     st.subheader("Report / QA")
     m, s, l = D["materials"], D["section"], D["loads"]
+    issues, counts, workflow = active_qa()
     phi_v = 0.85 if "External" in D["project"]["tendon_system"] else 0.90
     tors = torsion_aashto_586(l["Tu_knm"], s["Aoh_mm2"], s["ph_mm"], m["fy_mpa"], phi_v)
     Al_design = max(tors["Al_mm2"], l["fea_Al_max_mm2"])
+
+    st.markdown("### QA Summary")
+    q1, q2, q3 = st.columns(3)
+    with q1:
+        card("Errors", str(counts["ERROR"]), "Blocking engineering issues", "warn" if counts["ERROR"] else "pass")
+    with q2:
+        card("Warnings", str(counts["WARNING"]), "Engineer review required" if counts["WARNING"] else "No warnings", "warn" if counts["WARNING"] else "pass")
+    with q3:
+        card("Schema", PROJECT_SCHEMA_VERSION, "Versioned project file")
+
+    st.dataframe(workflow_dataframe(workflow), use_container_width=True, hide_index=True)
+    st.markdown("### Validation Issues")
+    st.dataframe(issue_dataframe(issues), use_container_width=True, hide_index=True)
+
     report_md = f"""
 # Segmental Box Girder Pro — Calculation Summary
 
@@ -497,6 +593,7 @@ def page_report() -> None:
 - Span length: {D['project']['span_m']} m
 - Design basis: {D['project']['design_code']}
 - Tendon system: {D['project']['tendon_system']}
+- Project schema: {PROJECT_SCHEMA_VERSION}
 
 ## AASHTO LRFD 2014 Article 5.8.6 Torsion
 - φv = {phi_v:.2f}
@@ -509,11 +606,17 @@ def page_report() -> None:
 - Al,FEA,max = {l['fea_Al_max_mm2']:,.0f} mm²
 - Al,design = {Al_design:,.0f} mm²
 
+## QA Gate
+- Errors: {counts['ERROR']}
+- Warnings: {counts['WARNING']}
+- Information items: {counts['INFO']}
+
 ## QA Notes
-- The app is a calculation assistant, not an FEA replacement.
+- This application performs independent design checks and does not replace the primary FEA model.
 - Review all imported FEA demand values before final issue.
 - AASHTO empirical loss factors require the code-specified units for intermediate factors.
 """
+    st.markdown("### Markdown Export Preview")
     st.markdown(report_md)
     st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_summary.md", "text/markdown", use_container_width=True)
 

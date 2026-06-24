@@ -1,21 +1,23 @@
 # Segmental Box Girder Pro
 
-Streamlit MVP for PT segmental box girder design-review checks.
+Commercial-grade MVP foundation for independent PT segmental box-girder design review.
 
-## Scope
+This app is built as a design-check and report-assist tool for bridge engineers. It does **not** replace the primary FEA model. FEA output from CSI/MIDAS or equivalent software must be imported or keyed in as design demand.
 
-This app is a design-check and report-assist workspace. It does **not** replace CSiBridge / SAP2000 / MIDAS FEA analysis.
+## Current milestone
 
-The first MVP includes:
+**Commercial Architecture Foundation M1**
 
-- BG40 default project data
-- Project setup and JSON save/load
-- Section/tendon inputs
-- Prestress loss calculations
-- EN 1991-2 centrifugal force reduction check
-- AASHTO LRFD 2014 Article 5.8.6 torsion checks
-- ULS shear/torsion dashboard
-- Markdown calculation summary export
+- Streamlit workspace with professional sidebar workflow
+- Single-click workspace navigation using direct `st.session_state.current_page` binding
+- Versioned project schema: `0.2.0-commercial-m1`
+- Engineering validation layer with error/warning/info issue levels
+- Workflow completeness summary
+- AASHTO LRFD 2014 Article 5.8.6 shear/torsion checks
+- EN 1991-2 centrifugal-force check
+- AASHTO-style prestress loss calculations with unit notes
+- JSON save/load with legacy schema upgrade
+- Unit tests for core engineering calculations and schema validation
 
 ## Run
 
@@ -24,9 +26,27 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## Engineering Notes
+## Test
 
-- Internal units: kN, m, MPa, mm.
-- AASHTO empirical prestress-loss factors use code-specified units for intermediate factors, e.g. V/S in inches and concrete strength in ksi.
-- For normal-weight concrete segmental construction with external / unbonded tendons, `φv = 0.85` is used for shear/torsion resistance.
-- FEA demands should be reviewed and imported/keyed in before final design issue.
+```bash
+python -m pytest -q
+```
+
+## Engineering priority
+
+1. Engineering correctness
+2. Numerical consistency
+3. Workflow completeness
+4. QA robustness
+5. UI/UX polish
+
+Never sacrifice engineering correctness for UI polish.
+
+## Internal units
+
+- Forces: kN
+- Geometry: m for general bridge dimensions; mm for section/torsion reinforcement checks
+- Stress: MPa = N/mm²
+- Moments/torsion: kN·m in UI, converted to N·mm internally
+
+Important: AASHTO empirical creep/shrinkage factors use code-specified intermediate units. The app evaluates `V/S` in inches and concrete strength in ksi for those correction factors, then reports final losses in MPa.

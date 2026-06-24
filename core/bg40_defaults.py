@@ -8,6 +8,12 @@ Internal units used by calculation functions:
 """
 
 BG40_DEFAULT = {
+    "meta": {
+        "schema_version": "0.2.0-commercial-m1",
+        "app_name": "Segmental Box Girder Pro",
+        "dataset_status": "BG40 baseline dataset loaded",
+        "schema_note": "Versioned project schema for commercial-grade QA and reproducibility.",
+    },
     "project": {
         "name": "BG40",
         "description": "PT Segmental Box Girder · Track Doubling Project (Khon Kaen – Nong Khai)",

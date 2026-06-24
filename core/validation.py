@@ -1,0 +1,231 @@
+from __future__ import annotations
+
+from copy import deepcopy
+from dataclasses import dataclass
+from typing import Dict, Iterable, Literal
+
+PROJECT_SCHEMA_VERSION = "0.2.0-commercial-m1"
+
+IssueLevel = Literal["ERROR", "WARNING", "INFO"]
+
+
+@dataclass(frozen=True)
+class ValidationIssue:
+    level: IssueLevel
+    category: str
+    message: str
+    code_basis: str = ""
+    recommendation: str = ""
+
+
+def ensure_project_schema(project: Dict) -> Dict:
+    """Return a project dict with required commercial metadata keys.
+
+    This function is deliberately non-destructive: it fills missing keys only and
+    keeps legacy MVP project files loadable.
+    """
+    data = deepcopy(project)
+    meta = data.setdefault("meta", {})
+    meta.setdefault("schema_version", PROJECT_SCHEMA_VERSION)
+    meta.setdefault("app_name", "Segmental Box Girder Pro")
+    meta.setdefault("dataset_status", "BG40 baseline dataset loaded")
+    meta.setdefault("schema_note", "Versioned project schema for commercial-grade QA and reproducibility.")
+    return data
+
+
+def issue_counts(issues: Iterable[ValidationIssue]) -> Dict[str, int]:
+    counts = {"ERROR": 0, "WARNING": 0, "INFO": 0}
+    for issue in issues:
+        counts[issue.level] += 1
+    return counts
+
+
+def _is_external_tendon(project: Dict) -> bool:
+    tendon = project.get("project", {}).get("tendon_system", "")
+    return "External" in tendon or "Unbonded" in tendon
+
+
+def validate_project(project: Dict) -> list[ValidationIssue]:
+    """Engineering QA validation for the active project inputs.
+
+    The checks are intentionally conservative. They are not a substitute for code
+    review, but they catch common unit and workflow errors before calculations are
+    trusted.
+    """
+    issues: list[ValidationIssue] = []
+    p = project.get("project", {})
+    m = project.get("materials", {})
+    s = project.get("section", {})
+    ps = project.get("prestress", {})
+    loads = project.get("loads", {})
+    rail = project.get("rail_loads", {})
+
+    def require_positive(value: float, label: str, category: str, unit: str = "") -> None:
+        suffix = f" {unit}" if unit else ""
+        if value <= 0:
+            issues.append(
+                ValidationIssue(
+                    "ERROR",
+                    category,
+                    f"{label} must be greater than zero. Current value = {value:g}{suffix}.",
+                    recommendation="Correct the input before using any design result.",
+                )
+            )
+
+    span = float(p.get("span_m", 0.0))
+    depth = float(p.get("depth_m", 0.0))
+    width = float(p.get("width_m", 0.0))
+    require_positive(span, "Span length L", "Geometry", "m")
+    require_positive(depth, "Section depth D", "Geometry", "m")
+    require_positive(width, "Total width B", "Geometry", "m")
+    if span > 0 and depth > 0:
+        slenderness = span / depth
+        if slenderness < 10 or slenderness > 30:
+            issues.append(
+                ValidationIssue(
+                    "WARNING",
+                    "Geometry",
+                    f"Span/depth ratio L/D = {slenderness:.1f}. Verify this is intentional for a PT segmental box girder.",
+                    recommendation="Check geometry definition and whether D is the structural depth at the critical section.",
+                )
+            )
+    if width > 0 and depth > 0 and width < depth:
+        issues.append(
+            ValidationIssue(
+                "WARNING",
+                "Geometry",
+                "Total bridge width is less than section depth. This is unusual for a box girder cross-section.",
+                recommendation="Confirm that B and D have not been swapped.",
+            )
+        )
+
+    for key, label in [
+        ("fc_mpa", "Concrete strength f′c"),
+        ("Ec_mpa", "Concrete modulus Ec"),
+        ("fy_mpa", "Rebar yield strength fy"),
+        ("Ep_mpa", "Prestressing steel modulus Ep"),
+        ("fpi_mpa", "Initial prestress fpi"),
+    ]:
+        require_positive(float(m.get(key, 0.0)), label, "Materials", "MPa")
+    fpi = float(m.get("fpi_mpa", 0.0))
+    fpu = float(m.get("fpu_mpa", 0.0))
+    if fpi > 0 and fpu > 0:
+        if fpi >= fpu:
+            issues.append(
+                ValidationIssue(
+                    "ERROR",
+                    "Materials",
+                    "Initial prestress fpi is greater than or equal to fpu.",
+                    recommendation="Check strand grade and jacking stress.",
+                )
+            )
+        elif fpi / fpu > 0.80:
+            issues.append(
+                ValidationIssue(
+                    "WARNING",
+                    "Materials",
+                    f"fpi/fpu = {fpi / fpu:.3f}. Confirm that this complies with the project jacking-stress limit.",
+                    code_basis="AASHTO LRFD prestressing limits / project criteria",
+                )
+            )
+
+    for key, label, unit in [
+        ("Ac_m2", "Gross area Ac", "m²"),
+        ("I33_m4", "Moment of inertia I33", "m⁴"),
+        ("Aoh_mm2", "Closed torsion area Aoh", "mm²"),
+        ("ph_mm", "Closed torsion perimeter ph", "mm"),
+        ("dv_mm", "Effective shear depth dv", "mm"),
+        ("dweb_mm", "Web lever arm / web depth dweb", "mm"),
+        ("tcr_knm", "Torsional cracking resistance Tcr", "kN·m"),
+    ]:
+        require_positive(float(s.get(key, 0.0)), label, "Section", unit)
+
+    require_positive(float(ps.get("Aps_total_mm2", 0.0)), "Total prestressing area Aps,total", "Prestress", "mm²")
+    require_positive(float(ps.get("num_tendons", 0.0)), "Number of tendons", "Prestress")
+    vs_in = float(ps.get("V_over_S_in", 0.0))
+    require_positive(vs_in, "V/S for AASHTO creep/shrinkage factors", "Prestress losses", "in")
+    if vs_in > 20.0:
+        issues.append(
+            ValidationIssue(
+                "WARNING",
+                "Prestress losses",
+                f"V/S = {vs_in:.2f} in is high. This may indicate that V/S was entered in mm instead of inches.",
+                code_basis="AASHTO empirical creep/shrinkage factors",
+                recommendation="Convert V/S from mm to inches before evaluating ks.",
+            )
+        )
+    rh = float(ps.get("RH_percent", 0.0))
+    if rh <= 0 or rh > 100:
+        issues.append(
+            ValidationIssue(
+                "ERROR",
+                "Prestress losses",
+                f"Relative humidity RH must be between 0 and 100 percent. Current RH = {rh:g}%.",
+                recommendation="Enter RH as a percent, e.g. 75 for 75%.",
+            )
+        )
+
+    for key, label, unit in [
+        ("Vu_kn", "ULS shear demand Vu", "kN"),
+        ("Tu_knm", "ULS torsion demand Tu", "kN·m"),
+        ("Vc_per_web_kn", "Concrete shear resistance Vc per web", "kN"),
+        ("stirrup_bar_dia_mm", "Closed stirrup bar diameter", "mm"),
+        ("stirrup_spacing_mm", "Closed stirrup spacing", "mm"),
+        ("stirrup_legs_per_web", "Closed stirrup legs per web", ""),
+    ]:
+        require_positive(float(loads.get(key, 0.0)), label, "ULS demand / reinforcement", unit)
+
+    speed = float(rail.get("speed_kmh", 0.0))
+    radius = float(rail.get("radius_m", 0.0))
+    lf = float(rail.get("Lf_m", 0.0))
+    require_positive(speed, "Train speed V", "Rail actions", "km/h")
+    require_positive(radius, "Curve radius R", "Rail actions", "m")
+    require_positive(lf, "Loaded influence length Lf", "Rail actions", "m")
+    if speed > 300:
+        issues.append(
+            ValidationIssue(
+                "WARNING",
+                "Rail actions",
+                "EN 1991-2 centrifugal reduction formula shown in the app is limited to the stated speed range up to 300 km/h.",
+                code_basis="EN 1991-2 Art. 6.5.1",
+                recommendation="Confirm project-specific treatment for higher speeds.",
+            )
+        )
+
+    if _is_external_tendon(project):
+        issues.append(
+            ValidationIssue(
+                "INFO",
+                "AASHTO 5.8.6",
+                "External / unbonded tendon system detected; φv = 0.85 is used for segmental shear/torsion checks.",
+                code_basis="AASHTO LRFD 2014 Table 5.5.4.2.2-1",
+            )
+        )
+
+    return issues
+
+
+def workflow_status(project: Dict, issues: list[ValidationIssue] | None = None) -> list[Dict[str, str]]:
+    issues = issues if issues is not None else validate_project(project)
+    error_categories = {i.category for i in issues if i.level == "ERROR"}
+    warning_categories = {i.category for i in issues if i.level == "WARNING"}
+
+    rows = [
+        ("Geometry", "Section", "Project and closed-cell torsion geometry"),
+        ("Materials", "Materials", "Concrete, rebar, and prestressing properties"),
+        ("Prestress Losses", "Prestress losses", "Friction, elastic shortening, creep, shrinkage, relaxation"),
+        ("FEA Demand", "ULS demand / reinforcement", "Imported or keyed ULS actions and reinforcement"),
+        ("Rail Actions", "Rail actions", "EN centrifugal-force inputs"),
+        ("ULS Shear/Torsion", "AASHTO 5.8.6", "Segmental box-girder shear/torsion design basis"),
+        ("Report / QA", "Report", "Calculation trace and issue summary"),
+    ]
+    out = []
+    for item, category, note in rows:
+        if category in error_categories:
+            status = "BLOCKED"
+        elif category in warning_categories:
+            status = "REVIEW"
+        else:
+            status = "READY"
+        out.append({"Workflow item": item, "Status": status, "QA note": note})
+    return out

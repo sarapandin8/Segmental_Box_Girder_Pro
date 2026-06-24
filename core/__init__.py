@@ -1,1 +1,1 @@
-# Core package for Segmental Box Girder Pro
+"""Core package for Segmental Box Girder Pro."""
