@@ -62,13 +62,41 @@ def test_m22_fea_status_does_not_overstate_import_engine():
     assert "full envelope checks" in src
 
 
-def test_m22_schema_version_is_updated():
+def test_m3a_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.3.2-commercial-m2.2"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.3.3-commercial-m3a"' in validation_src
 
 
-def test_readme_documents_m22_status_honesty():
+def test_readme_documents_m3a_load_milestone():
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "Commercial M2.2" in readme
-    assert "Baseline Ready" in readme
-    assert "station-by-station FEA import remains pending" in readme
+    assert "Commercial M3A" in readme
+    assert "1.3 Design Loads" in readme
+    assert "Full station-by-station FEA import remains pending" in readme
+    assert "Full national DPT lookup database" in readme
+
+
+def test_m3a_load_pages_use_editable_tables_and_code_basis():
+    src = _src()
+    assert "st.data_editor" in src
+    assert "sdl_component_editor" in src
+    assert "Code basis:" in src
+    assert "EN 1991-2 Art. 6.4.3" in src
+    assert "EN 1991-2 Art. 6.5.3" in src
+    assert "EN 1991-2 Art. 6.5.2" in src
+    assert "EN 1991-2 Art. 6.5.1" in src
+    assert "DPT 1301/1302-61" in src
+
+
+def test_m3a_load_figures_and_plotly_modebar_are_present():
+    src = _src()
+    assert "u20_loading_diagram" in src
+    assert "rail_horizontal_forces_diagram" in src
+    assert "wind_bridge_direction_diagram" in src
+    assert "response_spectrum_figure" in src
+    assert "PLOTLY_CONFIG" in src
+
+
+def test_m3a_no_duplicate_sdl_summary_input_pattern():
+    src = _src()
+    assert 'D["load_components"]["sdl_components"] = edited.to_dict("records")' in src
+    assert "FEA summary reads from the same load schema" in src

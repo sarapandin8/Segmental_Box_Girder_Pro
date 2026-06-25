@@ -6,8 +6,24 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+import plotly.graph_objects as go
 
 from core.bg40_defaults import BG40_DEFAULT
+from core.dpt_seismic import dpt_general_spectrum, lookup_general_ss_s1, response_spectrum_points
+from core.load_models import (
+    en_dynamic_factor_standard_maintenance,
+    hunting_force_en1991,
+    longitudinal_force_en1991,
+    sdl_totals,
+    wind_load_en1991_dpt,
+)
+from visualization.load_figures import (
+    PLOTLY_CONFIG,
+    rail_horizontal_forces_diagram,
+    response_spectrum_figure,
+    u20_loading_diagram,
+    wind_bridge_direction_diagram,
+)
 from core.calculations import (
     aashto_creep_coefficient,
     aashto_shrinkage_strain,
@@ -179,6 +195,22 @@ def card(title: str, value: str, note: str = "", mode: str = "") -> None:
     )
 
 
+def code_basis_card(title: str, code_basis: str, note: str = "") -> None:
+    st.markdown(
+        f"""
+        <div class="note-box"><b>{title}</b><br>
+        <span class="small-muted">Code basis: {code_basis}</span>
+        {('<br>' + note) if note else ''}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def show_plotly(fig) -> None:
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+
+
 def small_context(title: str, value: str, note: str = "") -> None:
     st.markdown(
         f"""
@@ -237,52 +269,59 @@ def material_derived() -> dict[str, float]:
     }
 
 
-def load_derived() -> dict[str, float]:
+def load_derived() -> dict[str, Any]:
     lc = D["load_components"]
     rail = D["rail_loads"]
     span = float(D["project"]["span_m"])
-    Lphi = min(float(lc["dynamic_L_left_m"]), float(lc["dynamic_L_right_m"]))
-    phi_calc = 2.16 / (sqrt(Lphi) - 0.20) + 0.73
-    traction = min(float(lc["lf_traction_kn_m"]) * float(lc["lf_length_m"]), float(lc["lf_traction_cap_kn"]))
-    braking = min(float(lc["lf_braking_kn_m"]) * float(lc["lf_length_m"]), float(lc["lf_braking_cap_kn"]))
-    LF_design = max(traction, braking)
-    dtot_ws = float(lc["wind_dtot_ws_m"])
-    dtot_wl = float(lc["wind_dtot_ws_wl_m"])
-    rho = float(lc["wind_air_density_kg_m3"])
-    vb = float(lc["wind_vb_m_s"])
-    ws = 0.5 * rho * vb**2 * float(lc["wind_c_ws"]) * (dtot_ws * span) / 1000.0
-    ws_wl = 0.5 * rho * vb**2 * float(lc["wind_c_ws_wl"]) * (dtot_wl * span) / 1000.0
-    SMS = float(lc["seismic_Fa"]) * float(lc["seismic_Ss_g"])
-    SM1 = float(lc["seismic_Fv"]) * float(lc["seismic_S1_g"])
-    SDS = (2.0 / 3.0) * SMS
-    SD1 = (2.0 / 3.0) * SM1
-    T = float(lc["seismic_T_s"])
-    Sa = SD1 / T if T > 0 else 0.0
-    Cs = Sa * float(lc["seismic_I"]) / float(lc["seismic_R"])
+
+    sdl = sdl_totals(lc["sdl_components"])
+    dyn = en_dynamic_factor_standard_maintenance(float(lc["dynamic_L_left_m"]), float(lc["dynamic_L_right_m"]))
+    lf = longitudinal_force_en1991(
+        float(lc["lf_length_m"]),
+        span,
+        float(lc["lf_traction_kn_m"]),
+        float(lc["lf_braking_kn_m"]),
+        float(lc["lf_traction_cap_kn"]),
+        float(lc["lf_braking_cap_kn"]),
+    )
+    hf = hunting_force_en1991(
+        float(lc.get("hf_qsk_kn", 100.0)),
+        float(lc.get("hf_alpha", 0.8)),
+        bool(lc.get("hf_reduce_alpha_below_one", False)),
+    )
+    ws = wind_load_en1991_dpt(
+        float(lc["wind_air_density_kg_m3"]),
+        float(lc["wind_vb_m_s"]),
+        float(lc["wind_c_ws"]),
+        float(lc["wind_c_ws_wl"]),
+        float(lc["wind_dtot_ws_m"]),
+        float(lc["wind_dtot_ws_wl_m"]),
+        span,
+    )
     cf = en_centrifugal_percentage(float(rail["speed_kmh"]), float(rail["radius_m"]), float(rail["Lf_m"]))
-    sdl_df = pd.DataFrame(lc["sdl_components"])
+    try:
+        eq = dpt_general_spectrum(
+            float(lc["seismic_Ss_g"]),
+            float(lc["seismic_S1_g"]),
+            str(lc.get("seismic_soil_class", "D")),
+            float(lc["seismic_T_s"]),
+            float(lc["seismic_I"]),
+            float(lc["seismic_R"]),
+        )
+    except Exception:
+        eq = {"Fa": 0.0, "Fv": 0.0, "SMS": 0.0, "SM1": 0.0, "SDS": 0.0, "SD1": 0.0, "T0": 0.0, "Ts": 0.0, "Sa": 0.0, "Cs": 0.0, "category_sds": "-", "category_sd1": "-", "category_governing": "-", "spectrum_branch": "blocked"}
+
     return {
-        "sdl_single_total": float(sdl_df["Single Track (kN/m)"].sum()),
-        "sdl_double_total": float(sdl_df["Double Track (kN/m)"].sum()),
-        "Lphi": Lphi,
-        "dynamic_phi_calc": phi_calc,
-        "traction_kn": traction,
-        "braking_kn": braking,
-        "LF_design_kn": LF_design,
-        "LF_design_kn_m": LF_design / span if span else 0.0,
-        "WSsuper_kn": ws,
-        "WSsuper_WL_kn": ws_wl,
-        "WSsuper_kn_m": ws / span if span else 0.0,
-        "WSsuper_WL_kn_m": ws_wl / span if span else 0.0,
-        "SMS": SMS,
-        "SM1": SM1,
-        "SDS": SDS,
-        "SD1": SD1,
-        "Sa": Sa,
-        "Cs": Cs,
+        "sdl_single_total": sdl["single_total"],
+        "sdl_double_total": sdl["double_total"],
+        "Lphi": dyn["Lphi_m"],
+        "dynamic_phi_calc": dyn["phi"],
+        **lf,
+        **{f"hf_{k}": v for k, v in hf.items()},
+        **ws,
+        **{f"eq_{k}": v for k, v in eq.items()},
         **{f"cf_{k}": v for k, v in cf.items()},
     }
-
 
 def prestress_inputs() -> dict[str, Any]:
     m = D["materials"]
@@ -607,28 +646,103 @@ def page_criteria_loads(sub: str) -> None:
                 ["Aps,total", md["Aps_total_calc_mm2"], D["prestress"]["Aps_total_mm2"], "mm²"],
             ], columns=["Calculated item", "App calculated", "Report / used", "Unit"]), use_container_width=True, hide_index=True)
     elif sub == "1.3 Loads":
-        st.markdown("### 1.3 Design Loads")
-        tabs = st.tabs(["DL/SDL", "LL + IM", "LF / HF / CF", "Wind", "Creep & Shrinkage", "Earthquake"])
+        st.markdown("### 1.3 Design Loads — FEA load input generator")
+        st.markdown('<div class="note-box"><b>One-source rule:</b> each load is entered once in the report-driven schema. Report Preview, FEA Load Summary, QA checks, and Save/Load JSON read from the same source.</div>', unsafe_allow_html=True)
+        tabs = st.tabs(["SDL", "LL + IM", "LF / HF", "CF", "Wind", "CR&SH", "EQ", "FEA Summary"])
+
         with tabs[0]:
-            st.caption("Self-weight is calculated by FEA using γc. SDL table is editable baseline input.")
+            code_basis_card("1.3.2 Superimposed Dead Load (SDL)", "BG40 R10 project load schedule / FEA permanent appurtenance loads", "Editable component table. Total and adopted design values are recalculated from this single table.")
             sdl_df = pd.DataFrame(D["load_components"]["sdl_components"])
-            st.dataframe(sdl_df, use_container_width=True, hide_index=True)
-            c1, c2 = st.columns(2)
+            edited = st.data_editor(
+                sdl_df,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                column_config={
+                    "Single Track (kN/m)": st.column_config.NumberColumn(format="%.2f"),
+                    "Double Track (kN/m)": st.column_config.NumberColumn(format="%.2f"),
+                    "Include": st.column_config.CheckboxColumn(default=True),
+                },
+                key="sdl_component_editor",
+            )
+            D["load_components"]["sdl_components"] = edited.to_dict("records")
+            ld = load_derived()
+            c1, c2, c3, c4 = st.columns(4)
             with c1:
-                card("SDL Single Track", f"{ld['sdl_single_total']:.2f} kN/m", f"Design = {D['load_components']['design_sdl_single_kn_m']:.0f} kN/m")
+                card("Total SDL — single", f"{ld['sdl_single_total']:.2f} kN/m", "sum of included rows")
             with c2:
-                card("SDL Double Track", f"{ld['sdl_double_total']:.2f} kN/m", f"Design = {D['load_components']['design_sdl_double_kn_m']:.0f} kN/m", "pass")
+                card("Total SDL — double", f"{ld['sdl_double_total']:.2f} kN/m", "sum of included rows", "pass")
+            with c3:
+                editable_value(["load_components", "design_sdl_single_kn_m"], "Adopted single-track SDL (kN/m)", 1.0)
+            with c4:
+                editable_value(["load_components", "design_sdl_double_kn_m"], "Adopted double-track SDL (kN/m)", 1.0)
+            st.markdown("#### FEA SDL input summary")
+            st.dataframe(pd.DataFrame([
+                ["SDL", "Superimposed dead load", D["load_components"]["design_sdl_double_kn_m"], "kN/m", "Gravity / along span", "Double-track adopted design value", "User editable + app total"],
+            ], columns=["Load Pattern", "Description", "Value", "Unit", "Direction", "Application", "Source"]), use_container_width=True, hide_index=True)
+
         with tabs[1]:
-            c1, c2, c3 = st.columns(3)
+            code_basis_card("1.3.3 Live Load + Impact (LL+IM)", "EN 1991-2 Art. 6.4.3 and Art. 6.4.5", "Railway live load is U20 = 0.8 × LM71. Adopted impact/dynamic factor is a FEA load input value.")
+            show_plotly(u20_loading_diagram())
+            c1, c2, c3, c4 = st.columns(4)
             with c1:
                 editable_value(["load_components", "dynamic_L_left_m"], "L_left (m)", 1.0)
             with c2:
                 editable_value(["load_components", "dynamic_L_right_m"], "L_right (m)", 1.0)
             with c3:
-                editable_value(["load_components", "dynamic_factor_design"], "Design IM / φ", 0.01, "%.2f")
-            st.latex(r"L_\phi=\min(L_{left},L_{right}),\qquad \phi=\frac{2.16}{\sqrt{L_\phi}-0.2}+0.73")
-            card("Dynamic factor", f"φcalc = {ld['dynamic_phi_calc']:.4f}", f"Use IM = {D['load_components']['dynamic_factor_design']:.2f}", "pass")
+                editable_value(["load_components", "u20_scale_factor"], "U20 scale factor", 0.01, "%.2f")
+            with c4:
+                editable_value(["load_components", "dynamic_factor_design"], "Adopted IM / φ", 0.01, "%.2f")
+            ld = load_derived()
+            st.latex(r"L_\phi=\min(L_{left},L_{right})")
+            st.latex(r"\phi=\frac{2.16}{\sqrt{L_\phi}-0.2}+0.73")
+            st.latex(fr"L_\phi=\min({D['load_components']['dynamic_L_left_m']:.1f},{D['load_components']['dynamic_L_right_m']:.1f})={ld['Lphi']:.1f}\,\mathrm{{m}}")
+            st.latex(fr"\phi=\frac{{2.16}}{{\sqrt{{{ld['Lphi']:.1f}}}-0.2}}+0.73={ld['dynamic_phi_calc']:.4f}")
+            c1, c2 = st.columns(2)
+            with c1:
+                card("Calculated dynamic factor", f"φcalc = {ld['dynamic_phi_calc']:.4f}", "EN 1991-2 Art. 6.4.5")
+            with c2:
+                card("Adopted FEA factor", f"IM = {D['load_components']['dynamic_factor_design']:.2f}", "conservative design value", "pass")
+            st.markdown("#### FEA LL+IM input summary")
+            st.dataframe(pd.DataFrame([
+                ["LL+IM", "U20 = 0.8 × LM71", D["load_components"]["dynamic_factor_design"], "factor", "Vertical railway load", "Railway load lane / track model", "App calculated + user-adopted"],
+            ], columns=["Load Pattern", "Load model", "Value", "Unit", "Direction", "Application", "Source"]), use_container_width=True, hide_index=True)
+
         with tabs[2]:
+            code_basis_card("1.3.4 Longitudinal Force (LF) and 1.3.5 Hunting Force (HF)", "EN 1991-2 Art. 6.5.3 and Art. 6.5.2", "LF is longitudinal braking/traction at rail level. HF is the EN nosing force Qsk, concentrated transverse at top of rail.")
+            show_plotly(rail_horizontal_forces_diagram())
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                editable_value(["load_components", "lf_length_m"], "LF loaded length Lab (m)", 1.0)
+                editable_value(["load_components", "lf_traction_kn_m"], "Traction rate (kN/m)", 1.0)
+            with c2:
+                editable_value(["load_components", "lf_braking_kn_m"], "Braking rate (kN/m)", 1.0)
+                editable_value(["load_components", "lf_traction_cap_kn"], "Traction cap (kN)", 100.0)
+            with c3:
+                editable_value(["load_components", "lf_braking_cap_kn"], "Braking cap (kN)", 100.0)
+                editable_value(["load_components", "hf_qsk_kn"], "HF / Qsk (kN)", 10.0)
+            editable_value(["load_components", "hf_alpha"], "α classification factor shown for traffic-load context", 0.01, "%.2f")
+            D["load_components"]["hf_reduce_alpha_below_one"] = st.checkbox("Allow α < 1 reduction for HF only when project requirements explicitly state so", value=bool(D["load_components"].get("hf_reduce_alpha_below_one", False)))
+            ld = load_derived()
+            st.latex(r"Q_{lak}=33L_{ab}\leq1000\,\mathrm{kN}")
+            st.latex(r"Q_{lbk}=20L_{ab}\leq6000\,\mathrm{kN}")
+            st.latex(r"LF=\max(Q_{lak},Q_{lbk}),\qquad w_{LF}=LF/L")
+            st.latex(fr"Q_{{lak}}={D['load_components']['lf_traction_kn_m']:.0f}({D['load_components']['lf_length_m']:.1f})={ld['Qlak_raw_kn']:.0f}\rightarrow {ld['Qlak_kn']:.0f}\,\mathrm{{kN}}");
+            st.latex(fr"Q_{{lbk}}={D['load_components']['lf_braking_kn_m']:.0f}({D['load_components']['lf_length_m']:.1f})={ld['Qlbk_raw_kn']:.0f}\rightarrow {ld['Qlbk_kn']:.0f}\,\mathrm{{kN}}");
+            st.latex(fr"LF=\max({ld['Qlak_kn']:.0f},{ld['Qlbk_kn']:.0f})={ld['LF_design_kn']:.0f}\,\mathrm{{kN}}={ld['LF_design_kn_m']:.1f}\,\mathrm{{kN/m}}");
+            st.markdown("#### HF / Nosing force")
+            st.latex(r"Q_{sk}=100\,\mathrm{kN}")
+            st.info(str(ld["hf_decision_basis"]))
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                card("Design LF", f"{ld['LF_design_kn']:.0f} kN", f"{ld['LF_design_kn_m']:.1f} kN/m", "pass")
+            with c2:
+                card("Adopted HF", f"{ld['hf_HF_adopted_kn']:.0f} kN", "concentrated transverse load", "pass")
+            with c3:
+                card("Dynamic factor on HF", "Not applied", "EN nosing force", "pass")
+
+        with tabs[3]:
+            code_basis_card("1.3.6 Centrifugal Force (CF)", "EN 1991-2 Art. 6.5.1", "Applies where horizontal curvature is relevant. For straight/large-radius spans this is often non-governing but still traceable.")
             c1, c2, c3 = st.columns(3)
             with c1:
                 editable_value(["rail_loads", "speed_kmh"], "V (km/h)", 10.0)
@@ -636,28 +750,47 @@ def page_criteria_loads(sub: str) -> None:
                 editable_value(["rail_loads", "radius_m"], "R (m)", 100.0)
             with c3:
                 editable_value(["rail_loads", "Lf_m"], "Lf (m)", 1.0)
-            st.dataframe(pd.DataFrame([
-                ["Traction", ld["traction_kn"], "kN"],
-                ["Braking", ld["braking_kn"], "kN"],
-                ["Design LF", ld["LF_design_kn"], "kN"],
-                ["Design LF distributed", ld["LF_design_kn_m"], "kN/m"],
-                ["Centrifugal reduction f", ld["cf_f"], "-"],
-                ["Centrifugal C", ld["cf_C_percent"], "% of LL"],
-            ], columns=["Item", "Value", "Unit"]), use_container_width=True, hide_index=True)
-        with tabs[3]:
-            c1, c2, c3 = st.columns(3)
+            ld = load_derived()
+            st.latex(r"C=\frac{V^2f}{127R}")
+            st.latex(r"f=1-\left(\frac{V-120}{1000}\right)\left(\frac{814}{V}+1.75\right)\left(1-\sqrt{\frac{2.88}{L_f}}\right)\quad (f\ge 0.35)")
+            st.latex(fr"f={ld['cf_f']:.4f},\qquad C=\frac{{{D['rail_loads']['speed_kmh']:.0f}^2({ld['cf_f']:.2f})}}{{127({D['rail_loads']['radius_m']:.0f})}}={ld['cf_C_reduced']:.5f}")
+            c1, c2 = st.columns(2)
             with c1:
-                editable_value(["load_components", "wind_vb_m_s"], "vb (m/s)", 1.0)
+                card("Centrifugal factor", f"{ld['cf_C_percent']:.2f}% of LL", "excluding impact")
             with c2:
-                editable_value(["load_components", "wind_dtot_ws_m"], "dtot,WS (m)", 0.1)
-            with c3:
-                editable_value(["load_components", "wind_dtot_ws_wl_m"], "dtot,WS+WL (m)", 0.1)
-            st.latex(r"F_{Wx}=\frac{1}{2}\rho v_b^2 C A_{ref,x}")
-            st.dataframe(pd.DataFrame([
-                ["WS superstructure", ld["WSsuper_kn"], ld["WSsuper_kn_m"], "kN / kN/m"],
-                ["WS superstructure + WL", ld["WSsuper_WL_kn"], ld["WSsuper_WL_kn_m"], "kN / kN/m"],
-            ], columns=["Item", "Force", "Distributed", "Unit"]), use_container_width=True, hide_index=True)
+                card("Assessment", "Not governing" if ld['cf_C_percent'] < 5 else "Review", "large radius / straight-span assumption", "pass" if ld['cf_C_percent'] < 5 else "warn")
+
         with tabs[4]:
+            code_basis_card("1.3.7 Wind Load (WS)", "EN 1991-1-4 and DPT 1311-50", "App calculates WS and WS+WL using the same parameter set used in the report. Figures are shown as clean app schematics.")
+            show_plotly(wind_bridge_direction_diagram())
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                editable_value(["load_components", "wind_air_density_kg_m3"], "ρair (kg/m³)", 0.01, "%.2f")
+                editable_value(["load_components", "wind_vb0_m_s"], "vb,0 (m/s)", 1.0)
+            with c2:
+                editable_value(["load_components", "wind_cdir"], "cdir", 0.05, "%.2f")
+                editable_value(["load_components", "wind_cseason"], "cseason", 0.05, "%.2f")
+            with c3:
+                D["load_components"]["wind_vb_m_s"] = D["load_components"]["wind_vb0_m_s"] * D["load_components"]["wind_cdir"] * D["load_components"]["wind_cseason"]
+                editable_value(["load_components", "wind_dtot_ws_m"], "dtot,WS (m)", 0.1)
+                editable_value(["load_components", "wind_dtot_ws_wl_m"], "dtot,WS+WL (m)", 0.1)
+            with c4:
+                editable_value(["load_components", "wind_c_ws"], "CWS", 0.1)
+                editable_value(["load_components", "wind_c_ws_wl"], "CWS+WL", 0.1)
+            ld = load_derived()
+            st.latex(r"v_b=c_{dir}c_{season}v_{b,0}")
+            st.latex(r"F_{W,x}=\frac{1}{2}\rho_{air}v_b^2 C A_{ref,x}")
+            st.dataframe(pd.DataFrame([
+                ["vb", D["load_components"]["wind_vb_m_s"], "m/s"],
+                ["q = 0.5ρvb²", ld["q_pa"], "Pa"],
+                ["Aref,x,WS", ld["Aref_ws_m2"], "m²"],
+                ["Aref,x,WS+WL", ld["Aref_ws_wl_m2"], "m²"],
+                ["WSsuper", ld["WSsuper_kn"], f"kN = {ld['WSsuper_kn_m']:.2f} kN/m"],
+                ["WSsuper+WL", ld["WSsuper_WL_kn"], f"kN = {ld['WSsuper_WL_kn_m']:.2f} kN/m"],
+            ], columns=["Item", "Value", "Unit / interpretation"]), use_container_width=True, hide_index=True)
+
+        with tabs[5]:
+            code_basis_card("1.3.8 Creep and Shrinkage Parameters", "AASHTO LRFD 2014 Art. 5.9.5", "Parameters declared here are consumed by Chapter 4 Prestress Losses; final loss calculation remains in the prestress module.")
             p = D["prestress"]
             st.dataframe(pd.DataFrame([
                 ["RH", p["RH_percent"], "%", "Project design assumption"],
@@ -669,14 +802,74 @@ def page_criteria_loads(sub: str) -> None:
                 ["h0", p["h0_m"], "m", "2Ac/u_total"],
             ], columns=["Parameter", "Value", "Unit", "Remarks"]), use_container_width=True, hide_index=True)
             st.markdown('<div class="warn-box"><b>Unit warning:</b> AASHTO empirical creep/shrinkage factors use V/S in inches and concrete strength in ksi for intermediate factors.</div>', unsafe_allow_html=True)
-        with tabs[5]:
-            st.latex(r"S_{DS}=\frac{2}{3}F_aS_s,\qquad S_{D1}=\frac{2}{3}F_vS_1,\qquad C_s=S_a\left(\frac{I}{R}\right)")
+
+        with tabs[6]:
+            code_basis_card("1.3.9 Earthquake (EQ)", "DPT 1301/1302-61 Section 1.4, Section 1.6, and Chapter 3 equivalent static method", "M3A includes the DPT lookup/calculation engine and a seed location database. Full national database extraction is a later QA task.")
+            lc = D["load_components"]
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                lc["seismic_province_th"] = st.text_input("Province / จังหวัด", lc.get("seismic_province_th", "BG40 Baseline"))
+            with c2:
+                lc["seismic_district_th"] = st.text_input("District / อำเภอ", lc.get("seismic_district_th", "BG40 Report Values"))
+            with c3:
+                lc["seismic_soil_class"] = st.selectbox("Soil Class", ["A", "B", "C", "D", "E", "F"], index=["A", "B", "C", "D", "E", "F"].index(lc.get("seismic_soil_class", "D")))
+            lookup = lookup_general_ss_s1(lc["seismic_province_th"], lc["seismic_district_th"])
+            if lookup.get("found"):
+                lc["seismic_Ss_g"] = float(lookup["Ss"])
+                lc["seismic_S1_g"] = float(lookup["S1"])
+                st.success(f"DPT lookup matched: อ.{lookup['district_th']} จ.{lookup['province_th']} — Ss={lookup['Ss']:.3f}, S1={lookup['S1']:.3f} ({lookup['source_table']})")
+            else:
+                st.warning("Location not found in the current M3A seed database. Use manual Ss/S1 below or add the official DPT row in a later database milestone.")
+            c1, c2, c3, c4, c5 = st.columns(5)
+            with c1:
+                editable_value(["load_components", "seismic_Ss_g"], "Ss (g)", 0.001, "%.3f")
+            with c2:
+                editable_value(["load_components", "seismic_S1_g"], "S1 (g)", 0.001, "%.3f")
+            with c3:
+                editable_value(["load_components", "seismic_T_s"], "T (s)", 0.01, "%.3f")
+            with c4:
+                editable_value(["load_components", "seismic_I"], "I", 0.05, "%.2f")
+            with c5:
+                editable_value(["load_components", "seismic_R"], "R", 0.1, "%.1f")
+            ld = load_derived()
+            st.latex(r"S_{MS}=F_aS_S,\qquad S_{M1}=F_vS_1")
+            st.latex(r"S_{DS}=\frac{2}{3}S_{MS},\qquad S_{D1}=\frac{2}{3}S_{M1}")
+            st.latex(r"C_s=S_a\left(\frac{I}{R}\right)\quad\text{with}\quad C_s\ge0.01")
+            st.latex(fr"S_{{DS}}=\frac{{2}}{{3}}({ld['eq_Fa']:.2f})({D['load_components']['seismic_Ss_g']:.3f})={ld['eq_SDS']:.4f}\,g")
+            st.latex(fr"S_{{D1}}=\frac{{2}}{{3}}({ld['eq_Fv']:.2f})({D['load_components']['seismic_S1_g']:.3f})={ld['eq_SD1']:.4f}\,g")
+            st.latex(fr"C_s={ld['eq_Sa']:.4f}\left(\frac{{{D['load_components']['seismic_I']:.2f}}}{{{D['load_components']['seismic_R']:.1f}}}\right)={ld['eq_Cs']:.4f}")
+            spec = response_spectrum_points(ld["eq_SDS"], ld["eq_SD1"], t_max=max(2.5, float(D["load_components"]["seismic_T_s"]) * 1.5))
+            show_plotly(response_spectrum_figure(spec, float(D["load_components"]["seismic_T_s"]), ld["eq_Sa"], "DPT design response spectrum — General Thailand workflow"))
             st.dataframe(pd.DataFrame([
-                ["SDS", ld["SDS"], "g"],
-                ["SD1", ld["SD1"], "g"],
-                ["Sa", ld["Sa"], "g"],
-                ["Cs", ld["Cs"], "-"],
-            ], columns=["Item", "Value", "Unit"]), use_container_width=True, hide_index=True)
+                ["Region", lc.get("seismic_region", "General Thailand"), "-"],
+                ["Ss", lc["seismic_Ss_g"], "g"], ["S1", lc["seismic_S1_g"], "g"],
+                ["Fa", ld["eq_Fa"], "-"], ["Fv", ld["eq_Fv"], "-"],
+                ["SDS", ld["eq_SDS"], "g"], ["SD1", ld["eq_SD1"], "g"],
+                ["T0", ld["eq_T0"], "s"], ["Ts", ld["eq_Ts"], "s"],
+                ["Sa(T)", ld["eq_Sa"], "g"], ["Cs", ld["eq_Cs"], "-"],
+                ["Seismic design category SDS", ld["eq_category_sds"], "DPT Table 1.6-1"],
+                ["Seismic design category SD1", ld["eq_category_sd1"], "DPT Table 1.6-2"],
+                ["Governing category", ld["eq_category_governing"], "more stringent"],
+            ], columns=["Item", "Value", "Unit / source"]), use_container_width=True, hide_index=True)
+            st.markdown('<div class="warn-box"><b>Scope note:</b> DPT 1301/1302-61 is a building seismic design standard. In this bridge app it is used as Thai project seismic parameter basis, consistent with the BG40 report criteria.</div>', unsafe_allow_html=True)
+
+        with tabs[7]:
+            ld = load_derived()
+            rows = [
+                ["DL", "DL", "Self-weight from γc", "Auto", "-", "Gravity", "FEA self-weight", "FEA auto / QA preview"],
+                ["SDL", "SDL", "BG40 R10 SDL schedule", D["load_components"]["design_sdl_double_kn_m"], "kN/m", "Gravity", "Along span", "Editable table"],
+                ["LL+IM", "LL+IM", "EN 1991-2 Art. 6.4.3/6.4.5", f"U20 × {D['load_components']['dynamic_factor_design']:.2f}", "factor", "Vertical", "Railway load model", "App calc + adopted"],
+                ["LF", "LF", "EN 1991-2 Art. 6.5.3", f"{ld['LF_design_kn']:.0f} / {ld['LF_design_kn_m']:.1f}", "kN / kN/m", "Longitudinal", "Rail level", "App calculated"],
+                ["HF", "Qsk", "EN 1991-2 Art. 6.5.2", f"{ld['hf_HF_adopted_kn']:.0f}", "kN", "Transverse", "Top of rail concentrated", "App decision"],
+                ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", "Curved track only", "App calculated"],
+                ["WS", "WS", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure", "App calculated"],
+                ["WS+WL", "WS+WL", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_WL_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure + train", "App calculated"],
+                ["EQ", "Cs", "DPT 1301/1302-61", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", "Equivalent static coefficient", "DPT lookup + app calculated"],
+                ["CR&SH", "CR/SH", "AASHTO LRFD Art. 5.9.5", "parameters", "-", "Long-term", "Prestress loss module", "Declared in 1.3 / calculated in 4"],
+            ]
+            st.dataframe(pd.DataFrame(rows, columns=["Load Pattern", "Symbol", "Code Basis", "Value", "Unit", "Direction", "Application", "Source"]), use_container_width=True, hide_index=True)
+            st.markdown('<div class="note-box"><b>Report/export rule:</b> this FEA summary reads from the same load schema edited above. No duplicate input fields are used.</div>', unsafe_allow_html=True)
+
     elif sub == "1.4 Combinations":
         st.markdown("### 1.4 Load Combinations")
         notation = pd.DataFrame([

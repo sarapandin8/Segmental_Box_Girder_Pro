@@ -1,0 +1,7 @@
+{
+  "standard": "DPT 1301/1302-61",
+  "edition": "ฉบับปรับปรุงครั้งที่ 1",
+  "source_file": "มยผ. 1301-61 มาตรฐานการออกแบบอาคารต้านทานแรงสั่นสะเทือนแผ่นดินไหว.pdf",
+  "database_status": "M3A seed database: includes selected rows needed for app workflow testing; full national district database extraction pending QA.",
+  "important_note": "DPT 1301/1302-61 is a building seismic design standard. In this bridge app it is used as Thai project seismic parameter basis, not as a bridge-specific seismic code."
+}
