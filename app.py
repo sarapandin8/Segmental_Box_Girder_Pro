@@ -21,6 +21,19 @@ from core.dpt_seismic import (
     resolve_location_region,
     response_spectrum_points,
 )
+from core.aashto_seismic import (
+    OPERATIONAL_CATEGORIES,
+    importance_preset_key_from_label,
+    importance_preset_label_from_key,
+    importance_preset_options,
+    importance_value_from_preset,
+    load_connection_r_table,
+    load_substructure_r_table,
+    recommended_substructure_r,
+    substructure_key_from_label,
+    substructure_label_from_key,
+    substructure_options,
+)
 from core.load_models import (
     en_dynamic_factor_standard_maintenance,
     hunting_force_en1991,
@@ -406,6 +419,101 @@ def editable_value(path: list[str], label: str, step: float = 1.0, fmt: str | No
     if fmt:
         kwargs["format"] = fmt
     ref[key] = st.number_input(label, **kwargs)
+
+
+def render_aashto_bridge_seismic_controls(lc: dict[str, Any]) -> dict[str, Any]:
+    """Render one-source I/R controls for the EQ page.
+
+    AASHTO operational category and substructure type are used only to
+    recommend the bridge response modification factor R.  The importance
+    factor I remains a project/DPT input so that the app does not silently
+    mix building-code importance with AASHTO operational category.
+    """
+    st.markdown("#### AASHTO bridge seismic parameters — I/R selection")
+    st.markdown(
+        '<div class="note-box"><b>Bridge seismic basis:</b> DPT 1301/1302-61 supplies the Thai response spectrum and importance factor basis. AASHTO LRFD 2014 Table 3.10.7.1-1 is used here to recommend the bridge substructure response modification factor <b>R</b>. The owner / authority having jurisdiction shall confirm the bridge operational category.</div>',
+        unsafe_allow_html=True,
+    )
+
+    op_current = lc.get("seismic_operational_category", "Essential")
+    if op_current not in OPERATIONAL_CATEGORIES:
+        op_current = "Essential"
+
+    sub_key_current = lc.get("seismic_substructure_key", "single_column_or_pier")
+    sub_label_current = substructure_label_from_key(sub_key_current)
+    sub_labels = substructure_options()
+    if sub_label_current not in sub_labels:
+        sub_label_current = substructure_label_from_key("single_column_or_pier")
+
+    r_modes = ["Auto from AASHTO LRFD 2014 Table 3.10.7.1-1", "Manual R override"]
+    r_mode_current = lc.get("seismic_R_mode", r_modes[0])
+    if r_mode_current not in r_modes:
+        r_mode_current = r_modes[0]
+
+    imp_labels = importance_preset_options()
+    imp_key_current = lc.get("seismic_importance_preset_key", "bg40_default")
+    imp_label_current = importance_preset_label_from_key(imp_key_current)
+    if imp_label_current not in imp_labels:
+        imp_label_current = importance_preset_label_from_key("bg40_default")
+
+    c1, c2, c3 = st.columns([1.0, 1.35, 1.05])
+    with c1:
+        op_category = st.selectbox("AASHTO operational category", OPERATIONAL_CATEGORIES, index=OPERATIONAL_CATEGORIES.index(op_current), key="eq_aashto_operational_category")
+    with c2:
+        sub_label = st.selectbox("Substructure / lateral system", sub_labels, index=sub_labels.index(sub_label_current), key="eq_aashto_substructure_type")
+    with c3:
+        r_mode = st.selectbox("R selection mode", r_modes, index=r_modes.index(r_mode_current), key="eq_r_selection_mode")
+
+    sub_key = substructure_key_from_label(sub_label)
+    rec = recommended_substructure_r(sub_key, op_category)
+    lc["seismic_operational_category"] = op_category
+    lc["seismic_substructure_key"] = sub_key
+    lc["seismic_substructure_label"] = sub_label
+    lc["seismic_R_mode"] = r_mode
+
+    c4, c5, c6 = st.columns([1.2, 0.8, 1.0])
+    with c4:
+        imp_label = st.selectbox("Importance factor I basis", imp_labels, index=imp_labels.index(imp_label_current), key="eq_importance_factor_preset")
+        imp_key = importance_preset_key_from_label(imp_label)
+        lc["seismic_importance_preset_key"] = imp_key
+    with c5:
+        if imp_key == "manual":
+            manual_i = st.number_input("Manual I", value=float(lc.get("seismic_I", 1.25)), min_value=0.5, step=0.05, format="%.2f", key="eq_manual_importance_factor")
+            imp = importance_value_from_preset("manual", manual_i)
+        else:
+            imp = importance_value_from_preset(imp_key)
+            st.metric("I", f"{float(imp['I']):.2f}")
+        lc["seismic_I"] = float(imp["I"])
+        lc["seismic_I_source"] = str(imp["source_reference"])
+    with c6:
+        if r_mode == "Manual R override":
+            r_value = st.number_input("Manual R", value=float(lc.get("seismic_R", rec["R"])), min_value=0.5, step=0.1, format="%.1f", key="eq_manual_response_modification_factor")
+            lc["seismic_R"] = float(r_value)
+            lc["seismic_R_source"] = "User override — verify against AASHTO LRFD and project requirements"
+        else:
+            lc["seismic_R"] = float(rec["R"])
+            lc["seismic_R_source"] = f"{rec['source_reference']} — {op_category} / {sub_label}"
+            st.metric("R", f"{float(rec['R']):.1f}")
+
+    summary = pd.DataFrame([
+        ["Operational category", op_category, "AASHTO Art. 3.10.5 / owner-AHJ classification"],
+        ["Substructure system", sub_label, str(rec["source_reference"])],
+        ["Recommended R", f"{float(lc['seismic_R']):.1f}", lc["seismic_R_source"]],
+        ["Importance factor I", f"{float(lc['seismic_I']):.2f}", lc["seismic_I_source"]],
+        ["Global coefficient", r"Cs = Sa(I/R)", "DPT Ch.3 equivalent static basis with AASHTO R guidance"],
+    ], columns=["Item", "Value", "Source / note"])
+    st.dataframe(summary, use_container_width=True, hide_index=True)
+
+    with st.expander("AASHTO R reference tables used by this app", expanded=False):
+        sub = load_substructure_r_table()[["substructure_label", "critical", "essential", "other", "source_reference"]].copy()
+        sub.columns = ["Substructure", "Critical", "Essential", "Other", "Source"]
+        st.dataframe(sub, use_container_width=True, hide_index=True)
+        conn = load_connection_r_table()[["connection_label", "r_value", "source_reference"]].copy()
+        conn.columns = ["Connection", "R", "Source"]
+        st.dataframe(conn, use_container_width=True, hide_index=True)
+        st.markdown('<div class="warn-box"><b>Connection note:</b> AASHTO connection R-factors are separate from the global substructure R used above. Future member/connection checks should use the connection-specific table, not the global pier/bent R.</div>', unsafe_allow_html=True)
+
+    return {"R": lc["seismic_R"], "I": lc["seismic_I"], "recommended_R": rec}
 
 
 # -----------------------------------------------------------------------------
@@ -853,6 +961,15 @@ def page_criteria_loads(sub: str) -> None:
             with c3:
                 lc["seismic_soil_class"] = st.selectbox("Soil Class", ["A", "B", "C", "D", "E", "F"], index=["A", "B", "C", "D", "E", "F"].index(lc.get("seismic_soil_class", "D")))
 
+            render_aashto_bridge_seismic_controls(lc)
+            tc1, tc2, tc3 = st.columns([0.8, 1.0, 1.0])
+            with tc1:
+                editable_value(["load_components", "seismic_T_s"], "Analysis period T (s)", 0.01, "%.3f")
+            with tc2:
+                st.metric("Active I", f"{float(lc['seismic_I']):.2f}", help=lc.get("seismic_I_source", "Project/DPT basis"))
+            with tc3:
+                st.metric("Active R", f"{float(lc['seismic_R']):.1f}", help=lc.get("seismic_R_source", "AASHTO LRFD bridge R basis"))
+
             region_lookup = resolve_location_region(province, lc["seismic_district_th"])
             if region_lookup.get("found") and region_lookup.get("region") == "Bangkok Basin":
                 lc["seismic_region"] = "Bangkok Basin"
@@ -862,14 +979,9 @@ def page_criteria_loads(sub: str) -> None:
                 with c1:
                     lc["seismic_damping_percent"] = st.selectbox("Damping ratio for Bangkok Basin table", [5.0, 2.5], index=0 if float(lc.get("seismic_damping_percent", 5.0)) == 5.0 else 1)
                 with c2:
-                    editable_value(["load_components", "seismic_T_s"], "T (s)", 0.01, "%.3f")
-                with c3:
-                    editable_value(["load_components", "seismic_I"], "I", 0.05, "%.2f")
-                c4, c5 = st.columns(2)
-                with c4:
-                    editable_value(["load_components", "seismic_R"], "R", 0.1, "%.1f")
-                with c5:
                     st.metric("Zone", int(lc["seismic_bangkok_zone"]), help="DPT 1301/1302-61 Fig. 1.4-5")
+                with c3:
+                    st.metric("I/R", f"{float(lc['seismic_I']):.2f} / {float(lc['seismic_R']):.1f}", help="One-source controls above feed Cs in this branch.")
                 ld = load_derived()
                 st.latex(r"S_a(T)=\text{interpolated from DPT Table 1.4-5 (5\% damping) or Table 1.4-4 (2.5\% damping)}")
                 st.latex(r"C_s=S_a\left(\frac{I}{R}\right)\quad\text{with}\quad C_s\ge0.01")
@@ -886,6 +998,9 @@ def page_criteria_loads(sub: str) -> None:
                     ["SD1 = Sa(1.0s)", ld["eq_SD1"], source_text],
                     ["Sa(T)", ld["eq_Sa"], "table interpolation"],
                     ["Cs", ld["eq_Cs"], "DPT Ch.3 equivalent static coefficient"],
+                    ["AASHTO operational category", lc.get("seismic_operational_category", "-"), "AASHTO Art. 3.10.5 / owner-AHJ classification"],
+                    ["Substructure R basis", lc.get("seismic_substructure_label", "-"), lc.get("seismic_R_source", "AASHTO Table 3.10.7.1-1")],
+                    ["Importance I basis", lc.get("seismic_I", "-"), lc.get("seismic_I_source", "Project/DPT basis")],
                     ["Category SDS", ld["eq_category_sds"], "DPT Table 1.6-1"],
                     ["Category SD1", ld["eq_category_sd1"], "DPT Table 1.6-2"],
                     ["Governing category", ld["eq_category_governing"], ld.get("eq_category_basis", "DPT Section 1.6")],
@@ -897,17 +1012,13 @@ def page_criteria_loads(sub: str) -> None:
                 lc["seismic_Ss_g"] = float(region_lookup["Ss"])
                 lc["seismic_S1_g"] = float(region_lookup["S1"])
                 st.success(f"DPT lookup matched: อ.{region_lookup['district_th']} จ.{region_lookup['province_th']} — Ss={region_lookup['Ss']:.3f}, S1={region_lookup['S1']:.3f} ({region_lookup['source_table']}, standard p.{region_lookup['source_standard_page']})")
-                c1, c2, c3, c4, c5 = st.columns(5)
+                c1, c2, c3 = st.columns(3)
                 with c1:
                     st.metric("Ss (g)", f"{lc['seismic_Ss_g']:.3f}")
                 with c2:
                     st.metric("S1 (g)", f"{lc['seismic_S1_g']:.3f}")
                 with c3:
-                    editable_value(["load_components", "seismic_T_s"], "T (s)", 0.01, "%.3f")
-                with c4:
-                    editable_value(["load_components", "seismic_I"], "I", 0.05, "%.2f")
-                with c5:
-                    editable_value(["load_components", "seismic_R"], "R", 0.1, "%.1f")
+                    st.metric("I/R", f"{float(lc['seismic_I']):.2f} / {float(lc['seismic_R']):.1f}", help="One-source controls above feed Cs in this branch.")
                 ld = load_derived()
                 st.latex(r"S_{MS}=F_aS_S,\qquad S_{M1}=F_vS_1")
                 st.latex(r"S_{DS}=\frac{2}{3}S_{MS},\qquad S_{D1}=\frac{2}{3}S_{M1}")
@@ -926,6 +1037,9 @@ def page_criteria_loads(sub: str) -> None:
                     ["Spectrum branch", ld.get("eq_spectrum_branch", "equivalent static"), "Sa(T) route"],
                     ["T0", ld["eq_T0"], "s / N.A. when 0"], ["Ts", ld["eq_Ts"], "s"],
                     ["Sa(T)", ld["eq_Sa"], "g"], ["Cs", ld["eq_Cs"], "-"],
+                    ["AASHTO operational category", lc.get("seismic_operational_category", "-"), "AASHTO Art. 3.10.5 / owner-AHJ classification"],
+                    ["Substructure R basis", lc.get("seismic_substructure_label", "-"), lc.get("seismic_R_source", "AASHTO Table 3.10.7.1-1")],
+                    ["Importance I basis", lc.get("seismic_I", "-"), lc.get("seismic_I_source", "Project/DPT basis")],
                     ["Category SDS", ld["eq_category_sds"], "DPT Table 1.6-1"],
                     ["Category SD1", ld["eq_category_sd1"], "DPT Table 1.6-2"],
                     ["Governing category", ld["eq_category_governing"], ld.get("eq_category_basis", "more stringent")],
@@ -934,17 +1048,13 @@ def page_criteria_loads(sub: str) -> None:
             else:
                 lc["seismic_region"] = "Manual / Not found"
                 st.warning("Location not found in the curated M3B DPT database. Use manual Ss/S1 below only with documented project justification.")
-                c1, c2, c3, c4, c5 = st.columns(5)
+                c1, c2, c3 = st.columns(3)
                 with c1:
                     editable_value(["load_components", "seismic_Ss_g"], "Ss (g)", 0.001, "%.3f")
                 with c2:
                     editable_value(["load_components", "seismic_S1_g"], "S1 (g)", 0.001, "%.3f")
                 with c3:
-                    editable_value(["load_components", "seismic_T_s"], "T (s)", 0.01, "%.3f")
-                with c4:
-                    editable_value(["load_components", "seismic_I"], "I", 0.05, "%.2f")
-                with c5:
-                    editable_value(["load_components", "seismic_R"], "R", 0.1, "%.1f")
+                    st.metric("I/R", f"{float(lc['seismic_I']):.2f} / {float(lc['seismic_R']):.1f}", help="One-source controls above feed Cs in this branch.")
                 ld = load_derived()
                 st.latex(r"S_{MS}=F_aS_S,\qquad S_{M1}=F_vS_1")
                 st.latex(r"C_s=S_a\left(\frac{I}{R}\right)")
@@ -962,7 +1072,7 @@ def page_criteria_loads(sub: str) -> None:
                 ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", "Curved track only", "App calculated"],
                 ["WS", "WS", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure", "App calculated"],
                 ["WS+WL", "WS+WL", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_WL_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure + train", "App calculated"],
-                ["EQ", "Cs", "DPT 1301/1302-61", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", "Equivalent static coefficient", "DPT lookup + app calculated"],
+                ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO LRFD 2014 R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", "DPT lookup + AASHTO R + app calculated"],
                 ["CR&SH", "CR/SH", "AASHTO LRFD Art. 5.9.5", "parameters", "-", "Long-term", "Prestress loss module", "Declared in 1.3 / calculated in 4"],
             ]
             st.dataframe(pd.DataFrame(rows, columns=["Load Pattern", "Symbol", "Code Basis", "Value", "Unit", "Direction", "Application", "Source"]), use_container_width=True, hide_index=True)

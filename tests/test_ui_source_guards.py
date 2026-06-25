@@ -62,17 +62,18 @@ def test_m22_fea_status_does_not_overstate_import_engine():
     assert "full envelope checks" in src
 
 
-def test_m3b_qa_schema_version_is_updated():
+def test_m3c_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.3.5-commercial-m3b-qa"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.3.6-commercial-m3c"' in validation_src
 
 
-def test_readme_documents_m3b_qa_dpt_database_milestone():
+def test_readme_documents_m3c_dpt_and_aashto_ir_milestone():
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "Commercial M3B" in readme or "M3B-QA" in readme
+    assert "Commercial M3C" in readme or "COMMERCIAL.M3C" in readme
     assert "1.3 Design Loads" in readme
     assert "general_ss_s1_by_district.csv" in readme
     assert "Bangkok Basin Zone 1–10" in readme
+    assert "AASHTO LRFD 2014 Table 3.10.7.1-1" in readme
     assert "Full station-by-station FEA import remains pending" in readme
 
 
@@ -101,3 +102,19 @@ def test_m3a_no_duplicate_sdl_summary_input_pattern():
     src = _src()
     assert 'D["load_components"]["sdl_components"] = edited.to_dict("records")' in src
     assert "FEA summary reads from the same load schema" in src
+
+
+def test_m3c_aashto_ir_controls_are_present_once_in_eq_page():
+    src = _src()
+    assert "AASHTO bridge seismic parameters" in src
+    assert "eq_aashto_operational_category" in src
+    assert "eq_aashto_substructure_type" in src
+    assert "eq_importance_factor_preset" in src
+    assert "eq_manual_response_modification_factor" in src
+    assert "seismic_R_source" in src
+    assert "AASHTO LRFD 2014 Table 3.10.7.1-1" in src
+
+def test_m3c_aashto_reference_data_files_exist():
+    root = APP_SOURCE.resolve().parents[0]
+    assert (root / "data" / "aashto_lrfd_2014" / "response_modification_factors_substructures_3_10_7_1_1.csv").exists()
+    assert (root / "data" / "aashto_lrfd_2014" / "response_modification_factors_connections_3_10_7_1_2.csv").exists()

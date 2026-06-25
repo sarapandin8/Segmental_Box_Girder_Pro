@@ -6,9 +6,9 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.3.5-commercial-m3b-qa",
+        "schema_version": "0.3.6-commercial-m3c",
         "app_name": "Segmental Box Girder Pro",
-        "dataset_status": "BG40 R10 report-driven baseline loaded; full DPT seismic database foundation active",
+        "dataset_status": "BG40 R10 baseline loaded; DPT seismic database and AASHTO bridge R recommendation active",
         "schema_note": "Report-driven chapter/subsection schema for commercial-grade QA, traceability, and future report export.",
         "baseline_report": "BG40_Final_Complete_R10.docx",
     },
@@ -109,8 +109,15 @@ BG40_DEFAULT = {
         "seismic_Ss_g": 0.176,
         "seismic_S1_g": 0.045,
         "seismic_T_s": 0.835,
+        "seismic_operational_category": "Essential",
+        "seismic_substructure_key": "single_column_or_pier",
+        "seismic_substructure_label": "Single column / single pier",
+        "seismic_R_mode": "Auto from AASHTO LRFD 2014 Table 3.10.7.1-1",
+        "seismic_importance_preset_key": "bg40_default",
         "seismic_I": 1.25,
         "seismic_R": 2.0,
+        "seismic_R_source": "AASHTO LRFD 2014 Table 3.10.7.1-1 — Essential Bridge / Single column or pier",
+        "seismic_I_source": "BG40 project default / project importance basis",
     },
     "bridge_model": {
         "bridge_type": "Precast Segmental PT Box Girder - Simple Span",

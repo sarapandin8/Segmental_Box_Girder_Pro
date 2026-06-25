@@ -129,3 +129,23 @@ def test_dpt_m3b_qa_equivalent_static_fig_142_linear_branch():
     out_high = equivalent_static_sa_general(0.20, 0.40, 2.0)
     assert abs(out_high["Sa"] - 0.20) < 1e-12
     assert out_high["spectrum_branch"] == "Fig. 1.4-2: T > 1.0 s, Sa = SD1/T"
+
+
+def test_aashto_m3c_response_modification_table_values():
+    from core.aashto_seismic import recommended_substructure_r
+
+    assert recommended_substructure_r("single_column_or_pier", "Essential")["R"] == 2.0
+    assert recommended_substructure_r("multiple_column_bent", "Other")["R"] == 5.0
+    assert recommended_substructure_r("wall_type_pier_larger_dimension", "Other")["R"] == 2.0
+    assert recommended_substructure_r("steel_composite_pile_bent_vertical_piles", "Essential")["R"] == 3.5
+
+
+def test_aashto_m3c_importance_presets_are_traceable():
+    from core.aashto_seismic import importance_value_from_preset
+
+    bg40 = importance_value_from_preset("bg40_default")
+    assert bg40["I"] == 1.25
+    assert "BG40" in bg40["preset_label"]
+    manual = importance_value_from_preset("manual", 1.35)
+    assert manual["I"] == 1.35
+    assert manual["preset_key"] == "manual"
