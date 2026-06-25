@@ -98,3 +98,34 @@ def test_dpt_m3b_general_category_period_rule():
     out = dpt_general_spectrum(0.176, 0.045, "D", 0.835, 1.25, 2.0)
     assert out["category_governing"] in {"ก", "ข", "ค", "ง"}
     assert "category_basis" in out
+
+
+def test_dpt_m3b_qa_equivalent_static_fig_141_no_dynamic_ramp():
+    from core.dpt_seismic import dpt_general_spectrum, response_spectrum_points
+
+    # BG40-style case has SD1 <= SDS.  DPT Fig. 1.4-1 for equivalent
+    # static keeps Sa = SDS from T=0 to Ts; it must not start at 0.4SDS.
+    out = dpt_general_spectrum(0.176, 0.045, "D", 0.05, 1.25, 2.0)
+    assert out["spectrum_figure"].startswith("DPT Fig. 1.4-1")
+    assert out["spectrum_branch"] == "Fig. 1.4-1: T ≤ Ts, Sa = SDS"
+    assert abs(out["Sa"] - out["SDS"]) < 1e-12
+
+    pts = response_spectrum_points(out["SDS"], out["SD1"], t_max=2.0, n=5)
+    assert abs(float(pts.iloc[0]["Sa (g)"]) - out["SDS"]) < 1e-12
+
+
+def test_dpt_m3b_qa_equivalent_static_fig_142_linear_branch():
+    from core.dpt_seismic import equivalent_static_sa_general
+
+    out_low = equivalent_static_sa_general(0.20, 0.40, 0.1)
+    assert out_low["spectrum_figure"].startswith("DPT Fig. 1.4-2")
+    assert abs(out_low["Sa"] - 0.20) < 1e-12
+
+    out_mid = equivalent_static_sa_general(0.20, 0.40, 0.6)
+    # Linear from 0.20 at T=0.2 to 0.40 at T=1.0.
+    assert abs(out_mid["Sa"] - 0.30) < 1e-12
+    assert "linear" in out_mid["spectrum_branch"]
+
+    out_high = equivalent_static_sa_general(0.20, 0.40, 2.0)
+    assert abs(out_high["Sa"] - 0.20) < 1e-12
+    assert out_high["spectrum_branch"] == "Fig. 1.4-2: T > 1.0 s, Sa = SD1/T"

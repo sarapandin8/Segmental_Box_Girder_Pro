@@ -828,7 +828,7 @@ def page_criteria_loads(sub: str) -> None:
             code_basis_card(
                 "1.3.9 Earthquake (EQ)",
                 "DPT 1301/1302-61 Section 1.4, Section 1.6, and Chapter 3 equivalent static method",
-                "M3B adds a curated DPT database from the uploaded standard: national district Ss/S1 lookup, Bangkok Basin Zone 1–10 routing, equivalent-static zone spectra, and seismic design category tables.",
+                "M3B-QA uses the curated DPT database and corrected equivalent-static spectrum route: Fig. 1.4-1 when SD1 ≤ SDS and Fig. 1.4-2 when SD1 > SDS; dynamic Fig. 1.4-3 / 1.4-4 is not used for Cs.",
             )
             lc = D["load_components"]
             st.markdown('<div class="note-box"><b>Location-based workflow:</b> select province and district once. The app resolves General Thailand vs Bangkok Basin, looks up DPT values, and recalculates all seismic parameters from the same source.</div>', unsafe_allow_html=True)
@@ -916,13 +916,15 @@ def page_criteria_loads(sub: str) -> None:
                 st.latex(fr"S_{{D1}}=\frac{{2}}{{3}}({ld['eq_Fv']:.2f})({D['load_components']['seismic_S1_g']:.3f})={ld['eq_SD1']:.4f}\,g")
                 st.latex(fr"C_s={ld['eq_Sa']:.4f}\left(\frac{{{D['load_components']['seismic_I']:.2f}}}{{{D['load_components']['seismic_R']:.1f}}}\right)={ld['eq_Cs']:.4f}")
                 spec = response_spectrum_points(ld["eq_SDS"], ld["eq_SD1"], t_max=max(2.5, float(D["load_components"]["seismic_T_s"]) * 1.5))
-                show_plotly(response_spectrum_figure(spec, float(D["load_components"]["seismic_T_s"]), ld["eq_Sa"], "DPT design response spectrum — General Thailand workflow"))
+                show_plotly(response_spectrum_figure(spec, float(D["load_components"]["seismic_T_s"]), ld["eq_Sa"], "DPT equivalent-static design response spectrum — General Thailand workflow"))
                 rows = [
                     ["Region", "General Thailand", "Table 1.4-1"],
                     ["Ss", lc["seismic_Ss_g"], "g"], ["S1", lc["seismic_S1_g"], "g"],
                     ["Fa", ld["eq_Fa"], "Table 1.4-2"], ["Fv", ld["eq_Fv"], "Table 1.4-3"],
                     ["SDS", ld["eq_SDS"], "g"], ["SD1", ld["eq_SD1"], "g"],
-                    ["T0", ld["eq_T0"], "s"], ["Ts", ld["eq_Ts"], "s"],
+                    ["Spectrum figure", ld.get("eq_spectrum_figure", "DPT Fig. 1.4-1 / 1.4-2"), "DPT Sec. 1.4.5.1"],
+                    ["Spectrum branch", ld.get("eq_spectrum_branch", "equivalent static"), "Sa(T) route"],
+                    ["T0", ld["eq_T0"], "s / N.A. when 0"], ["Ts", ld["eq_Ts"], "s"],
                     ["Sa(T)", ld["eq_Sa"], "g"], ["Cs", ld["eq_Cs"], "-"],
                     ["Category SDS", ld["eq_category_sds"], "DPT Table 1.6-1"],
                     ["Category SD1", ld["eq_category_sd1"], "DPT Table 1.6-2"],

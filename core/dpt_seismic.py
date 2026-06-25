@@ -215,6 +215,50 @@ def governing_seismic_design_category(SDS: float, SD1: float, I: float, T: float
     return {"category_sds": cat_sds, "category_sd1": cat_sd1, "category_governing": governing, "category_basis": "General Thailand: more stringent of Tables 1.6-1 and 1.6-2"}
 
 
+def equivalent_static_sa_general(SDS: float, SD1: float, T_s: float) -> Dict[str, float | str]:
+    """Return Sa(T) for DPT general Thailand equivalent-static spectra.
+
+    DPT 1301/1302-61 Section 1.4.5.1 directs equivalent static design
+    to use Fig. 1.4-1 when ``SD1 <= SDS`` and Fig. 1.4-2 when
+    ``SD1 > SDS``.  These figures are intentionally different from the
+    dynamic spectra in Fig. 1.4-3 / Fig. 1.4-4, which start from
+    ``0.4SDS`` and ramp to ``SDS``.
+    """
+    SDS = float(SDS)
+    SD1 = float(SD1)
+    T = float(T_s)
+    if T < 0:
+        return {"Sa": 0.0, "T0": 0.0, "Ts": 0.0, "spectrum_branch": "invalid T", "spectrum_figure": "DPT Fig. 1.4-1 / 1.4-2"}
+
+    if SD1 <= SDS:
+        Ts = SD1 / SDS if SDS else inf
+        T0 = 0.0
+        if T <= Ts:
+            Sa = SDS
+            branch = "Fig. 1.4-1: T ≤ Ts, Sa = SDS"
+        else:
+            Sa = SD1 / T
+            branch = "Fig. 1.4-1: T > Ts, Sa = SD1/T"
+        figure = "DPT Fig. 1.4-1 (SD1 ≤ SDS)"
+    else:
+        # DPT Fig. 1.4-2: Sa = SDS for T <= 0.2 s; linear increase
+        # from SDS at 0.2 s to SD1 at 1.0 s; Sa = SD1/T for T > 1.0 s.
+        T0 = 0.2
+        Ts = 1.0
+        if T <= T0:
+            Sa = SDS
+            branch = "Fig. 1.4-2: T ≤ 0.2 s, Sa = SDS"
+        elif T <= Ts:
+            Sa = SDS + (SD1 - SDS) * (T - T0) / (Ts - T0)
+            branch = "Fig. 1.4-2: 0.2 s < T ≤ 1.0 s, linear SDS→SD1"
+        else:
+            Sa = SD1 / T
+            branch = "Fig. 1.4-2: T > 1.0 s, Sa = SD1/T"
+        figure = "DPT Fig. 1.4-2 (SD1 > SDS)"
+
+    return {"Sa": Sa, "T0": T0, "Ts": Ts, "spectrum_branch": branch, "spectrum_figure": figure}
+
+
 def dpt_general_spectrum(Ss: float, S1: float, soil_class: str, T_s: float, I: float, R: float) -> Dict[str, float | str]:
     Fa = site_coefficient_fa(soil_class, Ss)
     Fv = site_coefficient_fv(soil_class, S1)
@@ -222,25 +266,32 @@ def dpt_general_spectrum(Ss: float, S1: float, soil_class: str, T_s: float, I: f
     SM1 = Fv * S1
     SDS = 2.0 / 3.0 * SMS
     SD1 = 2.0 / 3.0 * SM1
-    Ts = SD1 / SDS if SDS else inf
-    T0 = 0.2 * Ts
     T = float(T_s)
-    if T <= 0:
-        Sa = 0.0
-        branch = "invalid T"
-    elif T < T0:
-        Sa = SDS * (0.4 + 0.6 * T / T0) if T0 else SDS
-        branch = "0 < T < T0"
-    elif T <= Ts:
-        Sa = SDS
-        branch = "T0 ≤ T ≤ Ts"
-    else:
-        Sa = SD1 / T
-        branch = "T > Ts"
+    sa_out = equivalent_static_sa_general(SDS, SD1, T)
+    Sa = float(sa_out["Sa"])
+    T0 = float(sa_out["T0"])
+    Ts = float(sa_out["Ts"])
     Cs_raw = Sa * I / R if R else inf
     Cs = max(Cs_raw, 0.01)
     cats = governing_seismic_design_category(SDS, SD1, I, T, Ts, "General Thailand")
-    return {"region": "General Thailand", "Fa": Fa, "Fv": Fv, "SMS": SMS, "SM1": SM1, "SDS": SDS, "SD1": SD1, "T0": T0, "Ts": Ts, "Sa": Sa, "spectrum_branch": branch, "Cs_raw": Cs_raw, "Cs": Cs, **cats}
+    return {
+        "region": "General Thailand",
+        "method": "Equivalent Static",
+        "Fa": Fa,
+        "Fv": Fv,
+        "SMS": SMS,
+        "SM1": SM1,
+        "SDS": SDS,
+        "SD1": SD1,
+        "T0": T0,
+        "Ts": Ts,
+        "Sa": Sa,
+        "spectrum_branch": sa_out["spectrum_branch"],
+        "spectrum_figure": sa_out["spectrum_figure"],
+        "Cs_raw": Cs_raw,
+        "Cs": Cs,
+        **cats,
+    }
 
 
 def _linear_interp(x: float, xs: list[float], ys: list[float]) -> float:
@@ -274,20 +325,13 @@ def dpt_bangkok_basin_spectrum(zone: int, T_s: float, I: float, R: float, dampin
 
 
 def response_spectrum_points(SDS: float, SD1: float, t_max: float = 3.0, n: int = 90) -> pd.DataFrame:
-    Ts = SD1 / SDS if SDS else 0.0
-    T0 = 0.2 * Ts
+    """Generate DPT general Thailand equivalent-static spectrum points.
+
+    This is the plotting companion to :func:`equivalent_static_sa_general` and
+    must not use the dynamic Fig. 1.4-3 / 1.4-4 ``0.4SDS`` branch.
+    """
     xs = [i * t_max / (n - 1) for i in range(n)]
-    ys = []
-    for T in xs:
-        if T <= 0:
-            Sa = 0.4 * SDS
-        elif T < T0:
-            Sa = SDS * (0.4 + 0.6 * T / T0) if T0 else SDS
-        elif T <= Ts:
-            Sa = SDS
-        else:
-            Sa = SD1 / T
-        ys.append(Sa)
+    ys = [float(equivalent_static_sa_general(SDS, SD1, T)["Sa"]) for T in xs]
     return pd.DataFrame({"T (s)": xs, "Sa (g)": ys})
 
 

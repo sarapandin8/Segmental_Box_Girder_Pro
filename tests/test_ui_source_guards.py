@@ -62,14 +62,14 @@ def test_m22_fea_status_does_not_overstate_import_engine():
     assert "full envelope checks" in src
 
 
-def test_m3b_schema_version_is_updated():
+def test_m3b_qa_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.3.4-commercial-m3b"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.3.5-commercial-m3b-qa"' in validation_src
 
 
-def test_readme_documents_m3b_dpt_database_milestone():
+def test_readme_documents_m3b_qa_dpt_database_milestone():
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "Commercial M3B" in readme
+    assert "Commercial M3B" in readme or "M3B-QA" in readme
     assert "1.3 Design Loads" in readme
     assert "general_ss_s1_by_district.csv" in readme
     assert "Bangkok Basin Zone 1–10" in readme
