@@ -34,6 +34,7 @@ from core.aashto_seismic import (
     substructure_label_from_key,
     substructure_options,
 )
+from core.formatting import format_engineering_table, format_engineering_value
 from core.load_models import (
     en_dynamic_factor_standard_maintenance,
     hunting_force_en1991,
@@ -169,6 +170,22 @@ CSS = """
 .sidebar-context-key {font-size:0.78rem; color:#667085; font-weight:800;}
 .sidebar-context-value {font-size:0.82rem; color:#092454; font-weight:850; text-align:right;}
 hr {margin: 1rem 0;}
+
+/* M3D CSP aligned section/card/table system */
+.section-title {font-size:1.32rem; font-weight:950; color:#092454; margin:1.20rem 0 0.55rem 0;}
+.subsection-title {font-size:1.05rem; font-weight:900; color:#0b3b91; margin:0.75rem 0 0.40rem 0;}
+.input-card, .calc-card, .result-card, .qa-card, .plot-card, .table-card {
+  border:1px solid #d5e6ff; border-radius:16px; background:#ffffff; padding:16px 18px; margin:12px 0 18px 0; box-shadow:0 6px 18px rgba(15,23,42,0.045);
+}
+.input-card {background:linear-gradient(135deg,#ffffff 0%,#f8fbff 100%);}
+.calc-card {background:linear-gradient(135deg,#ffffff 0%,#f7fbff 100%); border-left:5px solid #175cd3;}
+.result-card {background:linear-gradient(135deg,#f0fff4 0%,#ffffff 70%); border-color:#b8edd0;}
+.qa-card {background:#fffbeb; border-color:#fed7aa;}
+.table-card {padding:10px 12px 14px 12px;}
+.formula-caption {font-size:0.78rem; color:#667085; margin-top:-0.35rem; margin-bottom:0.55rem;}
+.table-caption {font-size:0.78rem; color:#667085; margin-top:0.35rem;}
+.dataframe th {font-weight:850 !important;}
+
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -189,6 +206,19 @@ D = st.session_state.project
 # -----------------------------------------------------------------------------
 def fnum(value: float, nd: int = 3) -> str:
     return f"{value:,.{nd}f}"
+
+
+def show_engineering_table(df: pd.DataFrame, *, hide_index: bool = True) -> None:
+    """Display read-only engineering tables using the global app format rules."""
+    st.dataframe(format_engineering_table(df), use_container_width=True, hide_index=hide_index)
+
+
+def section_title(text: str) -> None:
+    st.markdown(f'<div class="section-title">{text}</div>', unsafe_allow_html=True)
+
+
+def subsection_title(text: str) -> None:
+    st.markdown(f'<div class="subsection-title">{text}</div>', unsafe_allow_html=True)
 
 
 def status_badge(status: str) -> str:
@@ -775,7 +805,7 @@ def page_criteria_loads(sub: str) -> None:
                 ["Aps,total", md["Aps_total_calc_mm2"], D["prestress"]["Aps_total_mm2"], "mm²"],
             ], columns=["Calculated item", "App calculated", "Report / used", "Unit"]), use_container_width=True, hide_index=True)
     elif sub == "1.3 Loads":
-        st.markdown("### 1.3 Design Loads — FEA load input generator")
+        section_title("1.3 Design Loads — FEA load input generator")
         st.markdown('<div class="note-box"><b>One-source rule:</b> each load is entered once in the report-driven schema. Report Preview, FEA Load Summary, QA checks, and Save/Load JSON read from the same source.</div>', unsafe_allow_html=True)
         tabs = st.tabs(["SDL", "LL + IM", "LF / HF", "CF", "Wind", "CR&SH", "EQ", "FEA Summary"])
 
@@ -798,17 +828,17 @@ def page_criteria_loads(sub: str) -> None:
             ld = load_derived()
             c1, c2, c3, c4 = st.columns(4)
             with c1:
-                card("Total SDL — single", f"{ld['sdl_single_total']:.2f} kN/m", "sum of included rows")
+                card("Total SDL — single", f"{format_engineering_value(ld['sdl_single_total'], 'kN/m')} kN/m", "sum of included rows")
             with c2:
-                card("Total SDL — double", f"{ld['sdl_double_total']:.2f} kN/m", "sum of included rows", "pass")
+                card("Total SDL — double", f"{format_engineering_value(ld['sdl_double_total'], 'kN/m')} kN/m", "sum of included rows", "pass")
             with c3:
                 editable_value(["load_components", "design_sdl_single_kn_m"], "Adopted single-track SDL (kN/m)", 1.0)
             with c4:
                 editable_value(["load_components", "design_sdl_double_kn_m"], "Adopted double-track SDL (kN/m)", 1.0)
             st.markdown("#### FEA SDL input summary")
-            st.dataframe(pd.DataFrame([
+            show_engineering_table(pd.DataFrame([
                 ["SDL", "Superimposed dead load", D["load_components"]["design_sdl_double_kn_m"], "kN/m", "Gravity / along span", "Double-track adopted design value", "User editable + app total"],
-            ], columns=["Load Pattern", "Description", "Value", "Unit", "Direction", "Application", "Source"]), use_container_width=True, hide_index=True)
+            ], columns=["Load Pattern", "Description", "Value", "Unit", "Direction", "Application", "Source"]))
 
         with tabs[1]:
             code_basis_card("1.3.3 Live Load + Impact (LL+IM)", "EN 1991-2 Art. 6.4.3 and Art. 6.4.5", "Railway live load is U20 = 0.8 × LM71. Adopted impact/dynamic factor is a FEA load input value.")
@@ -826,16 +856,16 @@ def page_criteria_loads(sub: str) -> None:
             st.latex(r"L_\phi=\min(L_{left},L_{right})")
             st.latex(r"\phi=\frac{2.16}{\sqrt{L_\phi}-0.2}+0.73")
             st.latex(fr"L_\phi=\min({D['load_components']['dynamic_L_left_m']:.1f},{D['load_components']['dynamic_L_right_m']:.1f})={ld['Lphi']:.1f}\,\mathrm{{m}}")
-            st.latex(fr"\phi=\frac{{2.16}}{{\sqrt{{{ld['Lphi']:.1f}}}-0.2}}+0.73={ld['dynamic_phi_calc']:.4f}")
+            st.latex(fr"\phi=\frac{{2.16}}{{\sqrt{{{ld['Lphi']:.1f}}}-0.2}}+0.73={format_engineering_value(ld['dynamic_phi_calc'], 'factor')}")
             c1, c2 = st.columns(2)
             with c1:
-                card("Calculated dynamic factor", f"φcalc = {ld['dynamic_phi_calc']:.4f}", "EN 1991-2 Art. 6.4.5")
+                card("Calculated dynamic factor", f"φcalc = {format_engineering_value(ld['dynamic_phi_calc'], 'factor')}", "EN 1991-2 Art. 6.4.5")
             with c2:
-                card("Adopted FEA factor", f"IM = {D['load_components']['dynamic_factor_design']:.2f}", "conservative design value", "pass")
+                card("Adopted FEA factor", f"IM = {format_engineering_value(D['load_components']['dynamic_factor_design'], 'factor')}", "conservative design value", "pass")
             st.markdown("#### FEA LL+IM input summary")
-            st.dataframe(pd.DataFrame([
+            show_engineering_table(pd.DataFrame([
                 ["LL+IM", "U20 = 0.8 × LM71", D["load_components"]["dynamic_factor_design"], "factor", "Vertical railway load", "Railway load lane / track model", "App calculated + user-adopted"],
-            ], columns=["Load Pattern", "Load model", "Value", "Unit", "Direction", "Application", "Source"]), use_container_width=True, hide_index=True)
+            ], columns=["Load Pattern", "Load model", "Value", "Unit", "Direction", "Application", "Source"]))
 
         with tabs[2]:
             code_basis_card("1.3.4 Longitudinal Force (LF) and 1.3.5 Hunting Force (HF)", "EN 1991-2 Art. 6.5.3 and Art. 6.5.2", "LF is longitudinal braking/traction at rail level. HF is the EN nosing force Qsk, concentrated transverse at top of rail.")
@@ -864,9 +894,9 @@ def page_criteria_loads(sub: str) -> None:
             st.info(str(ld["hf_decision_basis"]))
             c1, c2, c3 = st.columns(3)
             with c1:
-                card("Design LF", f"{ld['LF_design_kn']:.0f} kN", f"{ld['LF_design_kn_m']:.1f} kN/m", "pass")
+                card("Design LF", f"{format_engineering_value(ld['LF_design_kn'], 'kN')} kN", f"{format_engineering_value(ld['LF_design_kn_m'], 'kN/m')} kN/m", "pass")
             with c2:
-                card("Adopted HF", f"{ld['hf_HF_adopted_kn']:.0f} kN", "concentrated transverse load", "pass")
+                card("Adopted HF", f"{format_engineering_value(ld['hf_HF_adopted_kn'], 'kN')} kN", "concentrated transverse load", "pass")
             with c3:
                 card("Dynamic factor on HF", "Not applied", "EN nosing force", "pass")
 
@@ -1005,7 +1035,7 @@ def page_criteria_loads(sub: str) -> None:
                     ["Category SD1", ld["eq_category_sd1"], "DPT Table 1.6-2"],
                     ["Governing category", ld["eq_category_governing"], ld.get("eq_category_basis", "DPT Section 1.6")],
                 ]
-                st.dataframe(pd.DataFrame(rows, columns=["Item", "Value", "Unit / source"]), use_container_width=True, hide_index=True)
+                show_engineering_table(pd.DataFrame(rows, columns=["Item", "Value", "Unit / source"]))
             elif region_lookup.get("found"):
                 lc["seismic_region"] = "General Thailand"
                 lc["seismic_bangkok_zone"] = 0
@@ -1044,7 +1074,7 @@ def page_criteria_loads(sub: str) -> None:
                     ["Category SD1", ld["eq_category_sd1"], "DPT Table 1.6-2"],
                     ["Governing category", ld["eq_category_governing"], ld.get("eq_category_basis", "more stringent")],
                 ]
-                st.dataframe(pd.DataFrame(rows, columns=["Item", "Value", "Unit / source"]), use_container_width=True, hide_index=True)
+                show_engineering_table(pd.DataFrame(rows, columns=["Item", "Value", "Unit / source"]))
             else:
                 lc["seismic_region"] = "Manual / Not found"
                 st.warning("Location not found in the curated M3B DPT database. Use manual Ss/S1 below only with documented project justification.")
@@ -1066,7 +1096,7 @@ def page_criteria_loads(sub: str) -> None:
             rows = [
                 ["DL", "DL", "Self-weight from γc", "Auto", "-", "Gravity", "FEA self-weight", "FEA auto / QA preview"],
                 ["SDL", "SDL", "BG40 R10 SDL schedule", D["load_components"]["design_sdl_double_kn_m"], "kN/m", "Gravity", "Along span", "Editable table"],
-                ["LL+IM", "LL+IM", "EN 1991-2 Art. 6.4.3/6.4.5", f"U20 × {D['load_components']['dynamic_factor_design']:.2f}", "factor", "Vertical", "Railway load model", "App calc + adopted"],
+                ["LL+IM", "LL+IM", "EN 1991-2 Art. 6.4.3/6.4.5", f"U20 × {format_engineering_value(D['load_components']['dynamic_factor_design'], 'factor')}", "factor", "Vertical", "Railway load model", "App calc + adopted"],
                 ["LF", "LF", "EN 1991-2 Art. 6.5.3", f"{ld['LF_design_kn']:.0f} / {ld['LF_design_kn_m']:.1f}", "kN / kN/m", "Longitudinal", "Rail level", "App calculated"],
                 ["HF", "Qsk", "EN 1991-2 Art. 6.5.2", f"{ld['hf_HF_adopted_kn']:.0f}", "kN", "Transverse", "Top of rail concentrated", "App decision"],
                 ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", "Curved track only", "App calculated"],
@@ -1075,7 +1105,7 @@ def page_criteria_loads(sub: str) -> None:
                 ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO LRFD 2014 R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", "DPT lookup + AASHTO R + app calculated"],
                 ["CR&SH", "CR/SH", "AASHTO LRFD Art. 5.9.5", "parameters", "-", "Long-term", "Prestress loss module", "Declared in 1.3 / calculated in 4"],
             ]
-            st.dataframe(pd.DataFrame(rows, columns=["Load Pattern", "Symbol", "Code Basis", "Value", "Unit", "Direction", "Application", "Source"]), use_container_width=True, hide_index=True)
+            show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Symbol", "Code Basis", "Value", "Unit", "Direction", "Application", "Source"]))
             st.markdown('<div class="note-box"><b>Report/export rule:</b> this FEA summary reads from the same load schema edited above. No duplicate input fields are used.</div>', unsafe_allow_html=True)
 
     elif sub == "1.4 Combinations":
@@ -1182,7 +1212,7 @@ def page_prestress_losses(sub: str) -> None:
     elif sub == "4.2 Friction":
         st.latex(r"\Delta f_{pF,eq}=f_{pi}\left[1-e^{-\mu\alpha}\right],\qquad \alpha_{total}=\sqrt{\alpha_{vert}^{2}+\alpha_{horiz}^{2}}")
         df, avg, pct = friction_loss_table(p["tendon_friction_groups"], m["fpi_mpa"], p["mu_external"])
-        st.dataframe(df.style.format({"α_vert (rad)": "{:.4f}", "α_horiz (rad)": "{:.4f}", "α_total (rad)": "{:.4f}", "ΔfpF,eq (MPa)": "{:.1f}", "Loss (%)": "{:.2f}"}), use_container_width=True)
+        st.dataframe(df.style.format({"α_vert (rad)": "{:.4f}", "α_horiz (rad)": "{:.4f}", "α_total (rad)": "{:.4f}", "ΔfpF,eq (MPa)": "{:.2f}", "Loss (%)": "{:.2f}"}), use_container_width=True)
         st.info(f"Weighted average friction loss = {avg:.1f} MPa = {pct:.2f}% of fpi.")
     elif sub == "4.3 Anchor Set":
         st.latex(r"\Delta f_{pA,eq}=\frac{\Delta_a E_p}{L_{eff}}")
@@ -1211,7 +1241,7 @@ def page_prestress_losses(sub: str) -> None:
             st.info(f"εsh = {summary['shrinkage_microstrain']:.1f} με; ΔfpSH = {summary['shrinkage_mpa']:.1f} MPa")
     elif sub == "4.6 Effective Prestress":
         loss_df = pd.DataFrame([["Friction", summary["friction_mpa"]], ["Anchor set", summary["anchor_set_mpa"]], ["Elastic shortening", summary["elastic_shortening_mpa"]], ["Creep", summary["creep_mpa"]], ["Shrinkage", summary["shrinkage_mpa"]], ["Relaxation", summary["relaxation_mpa"]], ["Total", summary["total_loss_mpa"]], ["fpe", summary["fpe_mpa"]]], columns=["Item", "Value (MPa)"])
-        st.dataframe(loss_df.style.format({"Value (MPa)": "{:.1f}"}), use_container_width=True)
+        st.dataframe(loss_df.style.format({"Value (MPa)": "{:.2f}"}), use_container_width=True)
         st.download_button("Download loss table CSV", loss_df.to_csv(index=False).encode("utf-8"), "prestress_losses.csv", "text/csv")
     else:
         report_trace_table("4 Prestress Losses", [("Friction", "App calculation", "Formula and table ready", "READY"), ("Anchor set", "User equivalent input", "Trace placeholder ready", "READY"), ("Elastic shortening", "App calculation", "Formula ready", "READY"), ("Creep/Shrinkage", "AASHTO factors", "Unit warning active", "READY"), ("Effective prestress", "App calculation", "Loss table ready", "READY")])

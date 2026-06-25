@@ -62,14 +62,15 @@ def test_m22_fea_status_does_not_overstate_import_engine():
     assert "full envelope checks" in src
 
 
-def test_m3c_schema_version_is_updated():
+def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.3.6-commercial-m3c"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.3.7-commercial-m3d"' in validation_src
 
 
-def test_readme_documents_m3c_dpt_and_aashto_ir_milestone():
+def test_readme_documents_m3d_csp_formatting_and_seismic_foundation():
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "Commercial M3C" in readme or "COMMERCIAL.M3C" in readme
+    assert "Commercial M3D" in readme or "COMMERCIAL.M3D" in readme
+    assert "global engineering display formatting" in readme
     assert "1.3 Design Loads" in readme
     assert "general_ss_s1_by_district.csv" in readme
     assert "Bangkok Basin Zone 1–10" in readme
@@ -118,3 +119,19 @@ def test_m3c_aashto_reference_data_files_exist():
     root = APP_SOURCE.resolve().parents[0]
     assert (root / "data" / "aashto_lrfd_2014" / "response_modification_factors_substructures_3_10_7_1_1.csv").exists()
     assert (root / "data" / "aashto_lrfd_2014" / "response_modification_factors_connections_3_10_7_1_2.csv").exists()
+
+
+def test_m3d_uses_csp_aligned_ui_system_classes_and_table_formatter():
+    src = _src()
+    assert "input-card" in src
+    assert "calc-card" in src
+    assert "result-card" in src
+    assert "show_engineering_table" in src
+    assert "format_engineering_value" in src
+
+
+def test_m3d_global_engineering_formatting_rules_are_documented_in_code():
+    formatting_src = (APP_SOURCE.resolve().parents[0] / "core" / "formatting.py").read_text(encoding="utf-8")
+    assert "Force/load and moment/torque: no decimals" in formatting_src
+    assert "Stress in MPa: 2 decimals" in formatting_src
+    assert "Length in mm: no decimals; length in m: 3 decimals" in formatting_src

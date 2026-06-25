@@ -1,32 +1,38 @@
-# Segmental Box Girder Pro — Commercial M3C
+# Segmental Box Girder Pro — Commercial M3D
 
 Commercial, report-driven Streamlit design-review app for BG40 PT segmental box girder.
 
-This milestone continues the detailed **1.3 Design Loads** implementation and adds AASHTO bridge seismic I/R guidance for the EQ workflow. It follows the Concrete Section Pro app discipline: engineering-first UI, one source of truth for inputs, visible formulas/code basis, editable report tables, Plotly engineering figures, QA guards, regression tests, and clean ZIP packaging.
+This milestone aligns the app UI system with the Concrete Section Pro style discipline and adds global engineering display-format rules. It preserves the M3C DPT/AASHTO EQ calculation route while standardizing cards, tables, formula blocks, Plotly chart styling, and numeric display behavior.
 
-## Current milestone: COMMERCIAL.M3C
+## Current milestone: COMMERCIAL.M3D
 
 ### Added / refined
 
-- Added **AASHTO Bridge Seismic Parameters** card in `1.3.9 Earthquake (EQ)`.
-- Added dropdowns for:
-  - AASHTO operational category: `Critical`, `Essential`, `Other`.
-  - Substructure / lateral system.
-  - R selection mode: automatic from AASHTO table or manual override.
-  - Importance factor `I` preset: ordinary, BG40/project default, critical, or manual override.
-- Added reference database files:
-  - `data/aashto_lrfd_2014/response_modification_factors_substructures_3_10_7_1_1.csv`
-  - `data/aashto_lrfd_2014/response_modification_factors_connections_3_10_7_1_2.csv`
-  - `data/aashto_lrfd_2014/bridge_importance_factor_presets.csv`
-- Added `core/aashto_seismic.py` for traceable AASHTO R recommendations and I preset handling.
-- Changed EQ page so `I` and `R` are controlled once from the AASHTO bridge seismic card, then reused by General Thailand, Bangkok Basin, manual lookup, and FEA summary outputs.
-- EQ output tables now report AASHTO operational category, substructure R basis, and importance-factor source.
-- Updated schema version to `0.3.6-commercial-m3c`.
-- Added regression tests for AASHTO R values, I presets, reference data files, and UI source guards.
+- Added `core/formatting.py` for global engineering display formatting.
+- Added app-wide display rules:
+  - Force/load values: no decimals.
+  - Moment/torque values: no decimals.
+  - Stress in MPa: 2 decimals.
+  - Length in mm: no decimals.
+  - Length in m: 3 decimals.
+  - Area in mm²: no decimals.
+  - Area/section properties in m²/m³/m⁴: 3 decimals.
+  - Coefficients, factors, ratios, g-values, DCR/utilization: 3 decimals.
+- Added `show_engineering_table()` wrapper so read-only summary / QA / FEA tables use consistent engineering formatting.
+- Added CSP-aligned CSS classes for:
+  - input cards
+  - calculation trace cards
+  - result cards
+  - QA cards
+  - plot cards
+  - table cards
+- Began applying the formatting system to the 1.3 Design Loads / EQ / FEA summary outputs.
+- Updated schema version to `0.3.7-commercial-m3d`.
+- Added regression tests for formatting behavior and UI source guards.
 
 ## DPT seismic database status
 
-The app includes a curated DPT seismic database extracted from the uploaded **DPT 1301/1302-61 Rev.1** standard. It includes national general-district rows, Bangkok Basin Zone 1–10 routing, equivalent-static zone spectrum tables, Fa/Fv tables, and seismic design category tables.
+The app includes a curated DPT seismic database extracted from the uploaded DPT 1301/1302-61 Rev.1 standard. It includes national general-district rows, Bangkok Basin Zone 1–10 routing, equivalent-static zone spectrum tables, Fa/Fv tables, and seismic design category tables.
 
 Key database files:
 
@@ -58,7 +64,7 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
-M3C targeted regression result: `37 passed`.
+M3D targeted regression result: `42 passed`.
 
 ## Engineering limitations
 
