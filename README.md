@@ -1,44 +1,76 @@
-# Segmental Box Girder Pro — Commercial M3E
+# Segmental Box Girder Pro — Commercial M3F
 
 Commercial, report-driven Streamlit design-review app for BG40 PT segmental box girder.
 
-This milestone refines **1.3.7 Wind Load (WS)** into a full report-driven calculation page. It preserves the M3D Concrete Section Pro style alignment, DPT/AASHTO EQ route, one-source state discipline, and global engineering formatting rules.
+This milestone reorganizes the app workflow so the major workspaces better match the engineering workflow discussed with the reviewer: **Loads** is promoted to its own dedicated workspace, and **Bridge Geometry / Section Properties** combines bridge description, analysis-model documentation, and section properties. It preserves the M3E Wind Load engine, M3C AASHTO bridge I/R controls, M3B DPT seismic database, Concrete Section Pro style alignment, one-source state discipline, and global engineering display-formatting rules.
 
-## Current milestone: COMMERCIAL.M3E
+## Current milestone: COMMERCIAL.M3F
 
-### Added / refined
+### Workspace reorganization
 
-- Rebuilt `1.3.7 Wind Load (WS)` as a structured report-driven page with:
-  - Overview
-  - Inputs
-  - EN Factors
-  - Calculations
-  - Figures
-  - FEA Summary
-- Added bundled wind reference figures cropped from the BG40 R10 PDF:
-  - `Figure 1.2 Reference wind speed map of Thailand (DPT 1311-50)`
-  - `Figure 1.3 Wind load directions on bridge (EN 1991-1-4 Fig. 8.2)`
-  - Wind factor Table 2.5 / deck-height reference
-  - WS/WL bridge cross-section loading schematic
-- Added editable wind parameter table using one source of truth.
-- Added DPT wind speed group selector:
-  - Group 1: V50 = 25 m/s, TF = 1.00
-  - Group 2: V50 = 27 m/s, TF = 1.00
-  - Group 3: V50 = 29 m/s, TF = 1.00
-  - Group 4A: V50 = 25 m/s, TF = 1.20
-  - Group 4B: V50 = 25 m/s, TF = 1.08
-- Added automatic wind calculation engine:
-  - `vb = cdir cseason vb,0`
-  - `q = 0.5 rho vb^2`
-  - `b/dtot`
-  - `CWS` and `CWS+WL` from EN 1991-1-4 Table 8.2 / BG40 R10 Table 2.5
-  - `Aref,x = dtot L`
-  - `FW,x = 0.5 rho vb^2 C Aref,x`
-  - equivalent FEA line loads `WS` and `WS+WL`
-- Added automatic linear interpolation for wind factor `C` when `0.5 < b/dtot < 4.0`, including `ze` interpolation where applicable.
-- Updated global formatting rule for distributed line loads (`kN/m`) to display 2 decimal places in report/FEA summaries, matching BG40 wind results such as `7.01 kN/m` and `15.10 kN/m`.
-- Updated schema version to `0.3.8-commercial-m3e`.
-- Added regression tests for wind-factor interpolation, automatic BG40 wind calculation, wind UI/source guards, and engineering formatting.
+New sidebar workflow:
+
+1. **Criteria**
+2. **Bridge Geometry / Section Properties**
+3. **Loads**
+4. **Prestress Losses**
+5. **FEA Results**
+6. **ULS Flexure**
+7. **ULS Shear / Torsion**
+8. **SLS Stress**
+9. **Deflection**
+10. **Report / QA**
+
+### Refined subpages
+
+**1 Criteria**
+- `1.1 Standards`
+- `1.2 Materials`
+- `1.3 Design Basis / Units`
+- `QA / Report Preview`
+
+**2 Bridge Geometry / Section Properties**
+- `2.1 Bridge Description`
+- `2.2 Geometry and Analysis Model`
+- `2.3 Section Properties`
+- `2.4 Tendon Layout Reference`
+- `2.5 Consistency Checks`
+- `QA / Report Preview`
+
+**3 Loads**
+- `3.1 Dead Load`
+- `3.2 SDL`
+- `3.3 LL + IM`
+- `3.4 LF / HF`
+- `3.6 CF`
+- `3.7 Wind`
+- `3.8 CR&SH`
+- `3.9 EQ`
+- `3.10 FEA Summary`
+- `QA / Report Preview`
+
+### Analysis model scope note
+
+The app now explicitly states that the FEA model is created in an external FEA program, such as CSiBridge, MIDAS Civil, SAP2000, RM Bridge, or another analysis program. The app records geometry, analysis-model assumptions, support conditions, tendon representation, and report figures for design review and report generation only. It is not an FEA solver.
+
+### Preserved M3E Wind Load work
+
+The former report subsection `1.3.7 Wind Load` is now presented in the dedicated Loads workspace as `3.7 Wind`, while preserving report traceability.
+
+The dedicated Loads workspace still includes the report-driven EN 1991-1-4 / DPT 1311-50 wind module:
+
+- bundled BG40 R10 wind figures,
+- editable one-source wind parameter table,
+- DPT wind group dropdown,
+- automatic `C`-factor interpolation from EN 1991-1-4 Table 8.2 / BG40 R10 Table 2.5,
+- wind force and line-load calculations,
+- FEA load summary integration,
+- engineering display formatting and regression tests.
+
+### Schema
+
+- Updated schema version to `0.3.9-commercial-m3f`.
+- Existing project JSON files are promoted through `ensure_project_schema()` while preserving engineering values.
 
 ## Display formatting rules
 
@@ -77,7 +109,7 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
-M3E targeted regression result: `47 passed`.
+M3F targeted regression result: `50 passed`.
 
 ## Engineering limitations
 

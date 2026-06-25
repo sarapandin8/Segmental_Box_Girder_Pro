@@ -64,12 +64,12 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.3.8-commercial-m3e"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.3.9-commercial-m3f"' in validation_src
 
 
 def test_readme_documents_m3e_wind_csp_formatting_and_seismic_foundation():
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "Commercial M3E" in readme or "COMMERCIAL.M3E" in readme
+    assert "Commercial M3F" in readme or "COMMERCIAL.M3F" in readme
     assert "Display formatting rules" in readme
     assert "1.3.7 Wind Load" in readme
     assert "DPT seismic database" in readme
@@ -149,3 +149,33 @@ def test_m3e_wind_report_figures_and_auto_factor_ui_are_present():
     assert "wind_reference_group_select" in src
     assert "wind_load_en1991_dpt_auto" in src
     assert "C factors are not duplicate manual inputs" in src
+
+
+def test_m3f_workspace_reorganization_is_present():
+    schema_src = (APP_SOURCE.resolve().parents[0] / "core" / "report_schema.py").read_text(encoding="utf-8")
+    assert '"label": "1 Criteria"' in schema_src
+    assert '"label": "2 Bridge Geometry / Section Properties"' in schema_src
+    assert '"label": "3 Loads"' in schema_src
+    assert '"2.2 Geometry and Analysis Model"' in schema_src
+    assert '"3.10 FEA Summary"' in schema_src
+    assert '"1 Criteria / Loads"' not in schema_src
+    assert '"2 Bridge Model"' not in schema_src
+    assert '"3 Section Properties"' not in schema_src
+
+
+def test_m3f_analysis_model_scope_note_is_present():
+    src = _src()
+    assert "the finite element analysis model is created externally" in src
+    assert "This app records geometry, modelling assumptions" in src
+    assert "It is not an FEA solver" in src or "The app does not replace or regenerate the external FEA model" in src
+    assert "fea_program_select" in src
+    assert "fea_model_figure_status" in src
+
+
+def test_m3f_router_uses_new_workspace_ids():
+    src = _src()
+    assert 'elif workspace["id"] == "criteria"' in src
+    assert 'elif workspace["id"] == "bridge_geometry"' in src
+    assert 'elif workspace["id"] == "loads"' in src
+    assert 'page_bridge_geometry(subpage)' in src
+    assert 'page_loads(subpage)' in src

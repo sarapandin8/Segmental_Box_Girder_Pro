@@ -1,7 +1,8 @@
 """Report-driven workspace definitions for Segmental Box Girder Pro.
 
 UI labels intentionally omit the word "Chapter" while keeping report numbering
-for traceability to BG40 R10.
+for traceability. Commercial M3F separates Loads into a dedicated workspace and
+combines bridge geometry, analysis-model documentation, and section properties.
 """
 
 from __future__ import annotations
@@ -14,22 +15,40 @@ WORKSPACES = [
         "subpages": ["Overview", "Workflow Status", "Governing Results", "Report Readiness"],
     },
     {
-        "id": "criteria_loads",
-        "label": "1 Criteria / Loads",
-        "title": "1 Design Criteria, Design Loads and Load Combinations",
-        "subpages": ["1.1 Standards", "1.2 Materials", "1.3 Loads", "1.4 Combinations", "QA / Report Preview"],
+        "id": "criteria",
+        "label": "1 Criteria",
+        "title": "1 Design Criteria",
+        "subpages": ["1.1 Standards", "1.2 Materials", "1.3 Design Basis / Units", "QA / Report Preview"],
     },
     {
-        "id": "bridge_model",
-        "label": "2 Bridge Model",
-        "title": "2 Structural System and Analysis Model",
-        "subpages": ["2.1 Bridge Description", "2.2 FEA Model", "2.3 Supports", "2.4 Tendon Layout", "QA / Report Preview"],
+        "id": "bridge_geometry",
+        "label": "2 Bridge Geometry / Section Properties",
+        "title": "2 Bridge Geometry / Section Properties",
+        "subpages": [
+            "2.1 Bridge Description",
+            "2.2 Geometry and Analysis Model",
+            "2.3 Section Properties",
+            "2.4 Tendon Layout Reference",
+            "2.5 Consistency Checks",
+            "QA / Report Preview",
+        ],
     },
     {
-        "id": "section_properties",
-        "label": "3 Section Properties",
-        "title": "3 Section Properties",
-        "subpages": ["3.1 Cross-Section", "3.2 FEA Properties", "3.3 Consistency Checks", "QA / Report Preview"],
+        "id": "loads",
+        "label": "3 Loads",
+        "title": "3 Loads",
+        "subpages": [
+            "3.1 Dead Load",
+            "3.2 SDL",
+            "3.3 LL + IM",
+            "3.4 LF / HF",
+            "3.6 CF",
+            "3.7 Wind",
+            "3.8 CR&SH",
+            "3.9 EQ",
+            "3.10 FEA Summary",
+            "QA / Report Preview",
+        ],
     },
     {
         "id": "prestress_losses",

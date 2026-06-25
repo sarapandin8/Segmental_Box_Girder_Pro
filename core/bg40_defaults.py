@@ -6,10 +6,10 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.3.6-commercial-m3c",
+        "schema_version": "0.3.9-commercial-m3f",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 R10 baseline loaded; DPT seismic database and AASHTO bridge R recommendation active",
-        "schema_note": "Report-driven chapter/subsection schema for commercial-grade QA, traceability, and future report export.",
+        "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
         "baseline_report": "BG40_Final_Complete_R10.docx",
     },
     "project": {
