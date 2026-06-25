@@ -2,7 +2,7 @@
 
 UI labels intentionally omit the word "Chapter" while keeping report numbering
 for traceability. Commercial M3F separates Loads into a dedicated workspace and
-combines bridge geometry, analysis-model documentation, and section properties.
+combines bridge geometry, analysis-model documentation, coordinate-driven section preview, and section properties.
 """
 
 from __future__ import annotations

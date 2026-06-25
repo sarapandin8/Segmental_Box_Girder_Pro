@@ -1,10 +1,10 @@
-# Segmental Box Girder Pro — Commercial M3F
+# Segmental Box Girder Pro — Commercial M3G
 
 Commercial, report-driven Streamlit design-review app for BG40 PT segmental box girder.
 
-This milestone reorganizes the app workflow so the major workspaces better match the engineering workflow discussed with the reviewer: **Loads** is promoted to its own dedicated workspace, and **Bridge Geometry / Section Properties** combines bridge description, analysis-model documentation, and section properties. It preserves the M3E Wind Load engine, M3C AASHTO bridge I/R controls, M3B DPT seismic database, Concrete Section Pro style alignment, one-source state discipline, and global engineering display-formatting rules.
+This milestone adds the coordinate-driven section properties foundation requested for the Bridge Geometry / Section Properties workspace. It preserves the M3F workspace reorganization, M3E Wind Load engine, M3C AASHTO bridge I/R controls, M3B DPT seismic database, Concrete Section Pro style alignment, one-source state discipline, and global engineering display-formatting rules.
 
-## Current milestone: COMMERCIAL.M3F
+## Current milestone: COMMERCIAL.M3G
 
 ### Workspace reorganization
 
@@ -49,6 +49,18 @@ New sidebar workflow:
 - `3.10 FEA Summary`
 - `QA / Report Preview`
 
+### Coordinate-driven section properties
+
+`2.3 Section Properties` now supports CSiBridge-style polygon coordinate input:
+
+- `Structural Polygon 1` is treated as the outer concrete boundary.
+- `Opening Polygon 1` is treated as the internal void / hole.
+- Point order may be clockwise or counter-clockwise; loop type controls add/subtract behavior.
+- The section preview draws the outer boundary, opening, centroid, point numbers, dimensions, and centroidal fiber guides.
+- The engine calculates `A`, centroid, `I33/I22`, `S33(+)`, `S33(-)`, overall width/depth, `y_cg`, and `y_t` from coordinates.
+- A button allows the engineer to apply computed A/I/S/centroid values to active section properties.
+- `J` remains FEA/manual by default, with an explicit engineering warning that torsional constant for a hollow box is not obtained from polygon inertia alone.
+
 ### Analysis model scope note
 
 The app now explicitly states that the FEA model is created in an external FEA program, such as CSiBridge, MIDAS Civil, SAP2000, RM Bridge, or another analysis program. The app records geometry, analysis-model assumptions, support conditions, tendon representation, and report figures for design review and report generation only. It is not an FEA solver.
@@ -69,7 +81,7 @@ The dedicated Loads workspace still includes the report-driven EN 1991-1-4 / DPT
 
 ### Schema
 
-- Updated schema version to `0.3.9-commercial-m3f`.
+- Updated schema version to `0.4.0-commercial-m3g`.
 - Existing project JSON files are promoted through `ensure_project_schema()` while preserving engineering values.
 
 ## Display formatting rules
@@ -109,7 +121,7 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
-M3F targeted regression result: `50 passed`.
+M3G targeted regression result: `55 passed`.
 
 ## Engineering limitations
 
@@ -118,4 +130,5 @@ M3F targeted regression result: `50 passed`.
 - AASHTO operational category shall be confirmed by the owner / authority having jurisdiction.
 - AASHTO R recommendation assumes the bridge substructure and detailing satisfy the applicable AASHTO seismic provisions; manual override requires engineering justification.
 - Full station-by-station FEA import remains pending.
+- Coordinate-derived section properties are reliable for area, centroid, inertia, and section modulus. Torsional constant `J` remains FEA/manual unless a separately verified torsion method is enabled.
 - Report export is still a structured preview, not a final Word/PDF generator.

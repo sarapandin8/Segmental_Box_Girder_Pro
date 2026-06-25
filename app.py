@@ -36,6 +36,7 @@ from core.aashto_seismic import (
     substructure_options,
 )
 from core.formatting import format_engineering_table, format_engineering_value
+from core.section_geometry import calculate_section_properties, default_coordinate_template, normalize_coordinate_rows
 from core.load_models import (
     en_dynamic_factor_standard_maintenance,
     hunting_force_en1991,
@@ -45,6 +46,7 @@ from core.load_models import (
     wind_reference_group_options,
     wind_vb0_recommended_from_group,
 )
+from visualization.section_figures import PLOTLY_SECTION_CONFIG, section_polygon_figure
 from visualization.load_figures import (
     PLOTLY_CONFIG,
     rail_horizontal_forces_diagram,
@@ -195,6 +197,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 
 APP_DIR = Path(__file__).resolve().parent
 WIND_ASSET_DIR = APP_DIR / "assets" / "wind"
+SECTION_TEMPLATE_CSV = "loop_name,point_no,x_mm,y_mm\nStructural Polygon 1,1,0,0\nStructural Polygon 1,2,4000,0\nStructural Polygon 1,3,4000,2000\nStructural Polygon 1,4,0,2000\nOpening Polygon 1,1,1000,500\nOpening Polygon 1,2,3000,500\nOpening Polygon 1,3,3000,1500\nOpening Polygon 1,4,1000,1500\n"
 
 # -----------------------------------------------------------------------------
 # Session state
@@ -1352,44 +1355,287 @@ def page_section_properties(sub: str) -> None:
 
 
 
-def page_bridge_geometry(sub: str) -> None:
-    st.subheader(get_workspace("2 Bridge Geometry / Section Properties")["title"])
-    if sub == "2.1 Bridge Description":
-        page_bridge_model("2.1 Bridge Description")
-    elif sub == "2.2 Geometry and Analysis Model":
-        section_title("2.2 Geometry and Analysis Model")
-        st.markdown('<div class="note-box"><b>FEA scope:</b> the finite element analysis model is created externally in CSiBridge, MIDAS, SAP2000, RM Bridge, or another analysis program. This app records geometry, modelling assumptions, support conditions, tendon representation, and report figures for design review and report generation only.</div>', unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
+
+def _section_coordinate_df_from_state() -> pd.DataFrame:
+    rows = D["section"].get("coordinate_rows") or []
+    if rows:
+        try:
+            return normalize_coordinate_rows(pd.DataFrame(rows))
+        except Exception:
+            return pd.DataFrame(rows)
+    return pd.DataFrame(columns=["loop_name", "loop_type", "point_no", "x_mm", "y_mm"])
+
+
+def _store_section_coordinate_df(df: pd.DataFrame) -> None:
+    if df is None or df.empty:
+        D["section"]["coordinate_rows"] = []
+        return
+    try:
+        norm = normalize_coordinate_rows(df)
+        D["section"]["coordinate_rows"] = norm[["loop_name", "point_no", "x_mm", "y_mm"]].to_dict("records")
+        D["section"]["coordinate_source"] = "Imported / edited CSiBridge polygon coordinates"
+    except Exception:
+        # Preserve edited rows so the user can fix column names/values.
+        D["section"]["coordinate_rows"] = df.to_dict("records")
+
+
+def _section_computation_from_state() -> dict[str, Any]:
+    coords = _section_coordinate_df_from_state()
+    if coords.empty:
+        return {"valid": False, "errors": ["No coordinate rows imported yet"], "warnings": []}
+    try:
+        return calculate_section_properties(coords)
+    except Exception as exc:  # noqa: BLE001
+        return {"valid": False, "errors": [str(exc)], "warnings": []}
+
+
+def _apply_computed_section_properties(props: dict[str, Any]) -> None:
+    if not props.get("valid"):
+        return
+    s = D["section"]
+    s["Ac_m2"] = float(props["A_m2"])
+    s["I33_m4"] = float(props["I33_m4"])
+    s["I22_m4"] = float(props["I22_m4"])
+    s["S_top_m3"] = float(props["S_top_m3"])
+    s["S_bottom_m3"] = float(props["S_bottom_m3"])
+    s["ycg_from_bottom_m"] = float(props["ycg_from_bottom_m"])
+    s["yt_from_top_m"] = float(props["yt_from_top_m"])
+    s["B_m"] = float(props["width_m"])
+    s["D_m"] = float(props["depth_m"])
+    s["computed_from_coordinates"] = {
+        "A_m2": float(props["A_m2"]),
+        "I33_m4": float(props["I33_m4"]),
+        "I22_m4": float(props["I22_m4"]),
+        "S_top_m3": float(props["S_top_m3"]),
+        "S_bottom_m3": float(props["S_bottom_m3"]),
+        "ycg_from_bottom_m": float(props["ycg_from_bottom_m"]),
+        "yt_from_top_m": float(props["yt_from_top_m"]),
+        "width_m": float(props["width_m"]),
+        "depth_m": float(props["depth_m"]),
+    }
+    s["coordinate_source"] = "Active section properties updated from imported CSiBridge polygon coordinates"
+
+
+def render_bridge_description() -> None:
+    section_title("2.1 Bridge Description")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        D["project"]["name"] = st.text_input("Bridge name", D["project"]["name"], key="bridge_desc_name")
+        D["project"]["bridge_object"] = st.text_input("Bridge object / span", D["project"]["bridge_object"], key="bridge_desc_object")
+    with c2:
+        editable_value(["project", "span_m"], "Span length (m)", 1.0)
+        editable_value(["project", "width_m"], "Total width (m)", 0.1)
+    with c3:
+        editable_value(["project", "depth_m"], "Section depth (m)", 0.1)
+        D["project"]["tendon_system"] = st.selectbox("Tendon system", ["External / Unbonded PT", "Fully bonded internal PT"], index=0 if "External" in D["project"]["tendon_system"] else 1, key="bridge_desc_tendon_system")
+    rows = [
+        ["Bridge name", D["project"]["name"], "-"],
+        ["Type", D["bridge_model"]["bridge_type"], "-"],
+        ["Span length", D["project"]["span_m"], "m"],
+        ["Number of tracks", D["bridge_model"]["number_of_tracks"], "-"],
+        ["Total width", D["project"]["width_m"], "m"],
+        ["Section depth", D["project"]["depth_m"], "m"],
+        ["Post-tensioning system", D["project"]["tendon_system"], "-"],
+        ["Quantity tendons", D["prestress"]["num_tendons"], "-"],
+    ]
+    show_engineering_table(pd.DataFrame(rows, columns=["Parameter", "Value", "Unit"]))
+
+
+def render_geometry_analysis_model() -> None:
+    section_title("2.2 Geometry and Analysis Model")
+    st.markdown('<div class="note-box"><b>FEA scope:</b> the finite element analysis model is created externally in CSiBridge, MIDAS, SAP2000, RM Bridge, or another analysis program. This app records geometry, modelling assumptions, support conditions, tendon representation, and report figures for design review and report generation only.</div>', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        editable_value(["project", "span_m"], "Span length L (m)", 1.0)
+        editable_value(["project", "width_m"], "Total width B (m)", 0.1)
+    with c2:
+        editable_value(["project", "depth_m"], "Section depth D (m)", 0.1)
+        programs = ["CSiBridge", "MIDAS Civil", "SAP2000", "RM Bridge", "Other"]
+        current = D["bridge_model"].get("analysis_program", "CSiBridge")
+        D["bridge_model"]["analysis_program"] = st.selectbox("FEA program", programs, index=programs.index(current) if current in programs else 0, key="fea_program_select")
+    with c3:
+        model_types = ["3D shell model", "Grillage model", "Frame-shell model", "Frame model", "Other"]
+        current_model = D["bridge_model"].get("model_type", "3D shell model")
+        D["bridge_model"]["model_type"] = st.selectbox("Model type", model_types, index=model_types.index(current_model) if current_model in model_types else 0, key="fea_model_type_select")
+        D["bridge_model"]["model_figure_status"] = st.selectbox("FEA model figure status", ["Report figure attached", "To be uploaded", "Not available"], index=0, key="fea_model_figure_status")
+    assumptions = pd.DataFrame([
+        ["Bridge geometry", f"L = {D['project']['span_m']:.3f} m, B = {D['project']['width_m']:.3f} m, D = {D['project']['depth_m']:.3f} m", "User input / BG40 R10"],
+        ["FEA program", D["bridge_model"].get("analysis_program", "CSiBridge"), "User selected"],
+        ["Model type", D["bridge_model"].get("model_type", "3D shell model"), "User selected"],
+        ["Superstructure element", D["bridge_model"].get("superstructure_element", "Shell Elements (4-node)"), "Report basis"],
+        ["Tendon representation", D["bridge_model"].get("tendon_element", "Internal Tendon Objects"), "Report basis"],
+        ["Foundation model", D["bridge_model"].get("foundation_model", "Winkler foundation"), "Report basis"],
+    ], columns=["Item", "Value", "Source"])
+    show_engineering_table(assumptions)
+    st.markdown('<div class="warn-box"><b>Report figure requirement:</b> Figure 2.1 FEA model is managed here for report output. The app does not replace or regenerate the external FEA model.</div>', unsafe_allow_html=True)
+
+
+def render_section_properties() -> None:
+    section_title("2.3 Section Properties")
+    st.markdown('<div class="note-box"><b>Coordinate-driven section engine:</b> import CSiBridge Structural Polygon and Opening Polygon coordinates in mm. The app draws the box-girder section and calculates A, centroid, I33/I22, and S values from the imported loops. Torsional constant J remains FEA/manual unless a later advanced torsion solver is enabled.</div>', unsafe_allow_html=True)
+    s = D["section"]
+    tabs = st.tabs(["Coordinate Input", "Section Preview", "Computed Properties", "Torsion / Advanced", "QA / Consistency"])
+
+    with tabs[0]:
+        c1, c2 = st.columns([1.6, 1.0])
         with c1:
-            editable_value(["project", "span_m"], "Span length L (m)", 1.0)
-            editable_value(["project", "width_m"], "Total width B (m)", 0.1)
+            uploaded = st.file_uploader("Import CSiBridge section coordinates CSV", type=["csv"], key="section_coordinate_csv_upload")
+            if uploaded is not None:
+                try:
+                    imported = pd.read_csv(uploaded)
+                    _store_section_coordinate_df(imported)
+                    st.success("Coordinate CSV imported. Review/edit the table below before applying properties.")
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Could not import coordinates: {exc}")
         with c2:
-            editable_value(["project", "depth_m"], "Section depth D (m)", 0.1)
-            D["bridge_model"]["analysis_program"] = st.selectbox("FEA program", ["CSiBridge", "MIDAS Civil", "SAP2000", "RM Bridge", "Other"], index=["CSiBridge", "MIDAS Civil", "SAP2000", "RM Bridge", "Other"].index(D["bridge_model"].get("analysis_program", "CSiBridge")) if D["bridge_model"].get("analysis_program", "CSiBridge") in ["CSiBridge", "MIDAS Civil", "SAP2000", "RM Bridge", "Other"] else 0, key="fea_program_select")
-        with c3:
-            D["bridge_model"]["model_type"] = st.selectbox("Model type", ["3D shell model", "Grillage model", "Frame-shell model", "Frame model", "Other"], index=0, key="fea_model_type_select")
-            D["bridge_model"]["model_figure_status"] = st.selectbox("FEA model figure status", ["Report figure attached", "To be uploaded", "Not available"], index=0, key="fea_model_figure_status")
-        assumptions = pd.DataFrame([
-            ["Bridge geometry", f"L = {D['project']['span_m']:.3f} m, B = {D['project']['width_m']:.3f} m, D = {D['project']['depth_m']:.3f} m", "User input / BG40 R10"],
-            ["FEA program", D["bridge_model"].get("analysis_program", "CSiBridge"), "User selected"],
-            ["Model type", D["bridge_model"].get("model_type", "3D shell model"), "User selected"],
-            ["Superstructure element", D["bridge_model"].get("superstructure_element", "Shell Elements (4-node)"), "Report basis"],
-            ["Tendon representation", D["bridge_model"].get("tendon_element", "Internal Tendon Objects"), "Report basis"],
-            ["Foundation model", D["bridge_model"].get("foundation_model", "Winkler foundation"), "Report basis"],
-        ], columns=["Item", "Value", "Source"])
-        show_engineering_table(assumptions)
-        st.markdown('<div class="warn-box"><b>Report figure requirement:</b> Figure 2.1 FEA model is managed here for report output. The app does not replace or regenerate the external FEA model.</div>', unsafe_allow_html=True)
+            st.download_button("Download coordinate CSV template", SECTION_TEMPLATE_CSV.encode("utf-8"), "csibridge_section_coordinate_template.csv", "text/csv", use_container_width=True)
+            if st.button("Load simple hollow-section example", use_container_width=True):
+                _store_section_coordinate_df(default_coordinate_template())
+                st.rerun()
+        coord_df = _section_coordinate_df_from_state()
+        if coord_df.empty:
+            st.info("No coordinate rows loaded yet. Upload a CSiBridge CSV or paste rows into the editable table.")
+            coord_df = default_coordinate_template().iloc[0:0].copy()
+        editor_df = coord_df[[c for c in ["loop_name", "point_no", "x_mm", "y_mm"] if c in coord_df.columns]].copy()
+        edited = st.data_editor(
+            editor_df,
+            num_rows="dynamic",
+            use_container_width=True,
+            key="section_coordinate_editor",
+            column_config={
+                "loop_name": st.column_config.SelectboxColumn("Loop", options=["Structural Polygon 1", "Opening Polygon 1"], required=True),
+                "point_no": st.column_config.NumberColumn("Point", min_value=1, step=1, required=True),
+                "x_mm": st.column_config.NumberColumn("X (mm)", step=1.0, format="%.3f", required=True),
+                "y_mm": st.column_config.NumberColumn("Y (mm)", step=1.0, format="%.3f", required=True),
+            },
+        )
+        _store_section_coordinate_df(edited)
+        st.caption("CSiBridge point order may be clockwise. The app uses loop type to add Structural Polygon area and subtract Opening Polygon area, so clockwise/counter-clockwise orientation is normalized internally.")
+
+    props = _section_computation_from_state()
+    coords = props.get("coordinates", _section_coordinate_df_from_state())
+
+    with tabs[1]:
+        show_points = st.checkbox("Show point numbers", value=True, key="section_show_point_numbers")
+        show_dims = st.checkbox("Show dimension guides / centroid fibers", value=True, key="section_show_dimensions")
+        if props.get("valid"):
+            fig = section_polygon_figure(coords, props, show_points=show_points, show_dimensions=show_dims)
+            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_SECTION_CONFIG)
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: card("Area", format_engineering_value(props["A_m2"], "m²"), "Calculated from loops", "pass")
+            with c2: card("Centroid y", format_engineering_value(props["ycg_from_bottom_m"], "m"), "from bottom fiber", "pass")
+            with c3: card("I33", format_engineering_value(props["I33_m4"], "m⁴"), "about horizontal centroidal axis", "pass")
+            with c4: card("I22", format_engineering_value(props["I22_m4"], "m⁴"), "about vertical centroidal axis", "pass")
+        else:
+            st.warning("Section preview requires valid coordinate loops.")
+            for err in props.get("errors", []):
+                st.error(err)
+
+    with tabs[2]:
+        if props.get("valid"):
+            computed_rows = [
+                ["Cross-sectional area", "A", props["A_m2"], "m²", "App calculated from coordinates"],
+                ["Moment of inertia major", "I33", props["I33_m4"], "m⁴", "Mapped from Ixx"],
+                ["Moment of inertia minor", "I22", props["I22_m4"], "m⁴", "Mapped from Iyy"],
+                ["Section modulus top", "S33(+)", props["S_top_m3"], "m³", "I33 / y_t"],
+                ["Section modulus bottom", "S33(-)", props["S_bottom_m3"], "m³", "I33 / y_cg"],
+                ["Centroid from bottom", "y_cg", props["ycg_from_bottom_m"], "m", "from coordinate bounds"],
+                ["Centroid from top", "y_t", props["yt_from_top_m"], "m", "from coordinate bounds"],
+                ["Overall width", "B", props["width_m"], "m", "xmax - xmin"],
+                ["Overall depth", "D", props["depth_m"], "m", "ymax - ymin"],
+            ]
+            show_engineering_table(pd.DataFrame(computed_rows, columns=["Property", "Symbol", "Value", "Unit", "Source"]))
+            st.markdown('<div class="calc-card"><b>Mapping note</b><br><span class="small-muted">For BG40 review, app I33 is calculated from Ixx about the horizontal centroidal axis; app I22 is calculated from Iyy about the vertical centroidal axis. Confirm the local axis mapping if a different FEA convention is used.</span></div>', unsafe_allow_html=True)
+            if st.button("Apply computed A/I/S/centroid to active section properties", type="primary", use_container_width=True):
+                _apply_computed_section_properties(props)
+                st.success("Active section properties updated from coordinate calculation.")
+                st.rerun()
+        else:
+            st.warning("No valid computed properties available. Import or correct coordinate loops first.")
+        st.markdown("#### Active section property table")
+        active_rows = [
+            ["Cross-sectional area", "A", s["Ac_m2"], "m²", s.get("coordinate_source", "FEA keyed value")],
+            ["Moment of inertia major", "I33", s["I33_m4"], "m⁴", "Active value"],
+            ["Moment of inertia minor", "I22", s["I22_m4"], "m⁴", "Active value"],
+            ["Torsional constant", "J", s["J_m4"], "m⁴", s.get("J_method", "FEA / manual override")],
+            ["Section modulus top", "S33(+)", s["S_top_m3"], "m³", "Active value"],
+            ["Section modulus bottom", "S33(-)", s["S_bottom_m3"], "m³", "Active value"],
+            ["Centroid from bottom", "y_cg", s["ycg_from_bottom_m"], "m", "Active value"],
+            ["Centroid from top", "y_t", s["yt_from_top_m"], "m", "Active value"],
+        ]
+        show_engineering_table(pd.DataFrame(active_rows, columns=["Property", "Symbol", "Value", "Unit", "Source"]))
+
+    with tabs[3]:
+        subsection_title("Torsion / Advanced")
+        D["section"]["J_method"] = st.selectbox("J source / method", ["FEA / manual override", "Future thin-walled single-cell estimate"], index=0, key="section_j_method")
+        editable_value(["section", "J_m4"], "Torsional constant J (m⁴)", 0.001, "%.3f")
+        st.markdown('<div class="warn-box"><b>Engineering caution:</b> A, centroid, I and S are robustly calculated from polygon coordinates. Torsional constant J for a hollow box is not generally obtained by the same polygon area/inertia formulas. Use the FEA value or a separately verified thin-walled / numerical torsion method.</div>', unsafe_allow_html=True)
+
+    with tabs[4]:
+        subsection_title("Coordinate QA / Consistency")
+        if props.get("valid"):
+            loop_summary = []
+            for lp in props.get("loops", []):
+                loop_summary.append([lp.name, lp.loop_type, lp.n_points, lp.area_mm2, "mm²"])
+            show_engineering_table(pd.DataFrame(loop_summary, columns=["Loop", "Type", "Points", "Value", "Unit"]))
+            if props.get("warnings"):
+                for warning in props["warnings"]:
+                    st.warning(warning)
+            else:
+                st.success("Coordinate loops are valid for section-property calculation.")
+            S_top_calc = s["I33_m4"] / s["yt_from_top_m"] if s["yt_from_top_m"] else 0.0
+            S_bot_calc = s["I33_m4"] / s["ycg_from_bottom_m"] if s["ycg_from_bottom_m"] else 0.0
+            consistency = pd.DataFrame([
+                ["Active S33(+) = I33 / y_t", S_top_calc, s["S_top_m3"], "m³"],
+                ["Active S33(-) = I33 / y_cg", S_bot_calc, s["S_bottom_m3"], "m³"],
+                ["Active D = y_cg + y_t", s["ycg_from_bottom_m"] + s["yt_from_top_m"], s["D_m"], "m"],
+            ], columns=["Check", "Calculated", "Active / report", "Unit"])
+            st.dataframe(consistency, use_container_width=True, hide_index=True)
+        else:
+            for err in props.get("errors", []):
+                st.error(err)
+            st.info("Expected CSiBridge loop names: Structural Polygon 1 for the outer concrete boundary and Opening Polygon 1 for the internal void.")
+
+
+def render_tendon_layout_reference() -> None:
+    section_title("2.4 Tendon Layout Reference")
+    tendon_df = pd.DataFrame(D["prestress"]["tendon_friction_groups"])[["group", "n", "end_dp_m", "midspan_dp_m", "alpha_vert_rad", "alpha_horiz_rad"]]
+    show_engineering_table(tendon_df.rename(columns={"group": "Group", "n": "Count", "end_dp_m": "End dp (m)", "midspan_dp_m": "Midspan dp (m)", "alpha_vert_rad": "αvert (rad)", "alpha_horiz_rad": "αhoriz (rad)"}))
+    st.markdown(f'<div class="note-box">Weighted average dp at end = {D["prestress"]["dp_avg_end_m"]:.3f} m; at midspan = {D["prestress"]["dp_avg_midspan_m"]:.3f} m; e_midspan = {D["prestress"]["eccentricity_midspan_m"]:.3f} m.</div>', unsafe_allow_html=True)
+
+
+def render_bridge_consistency() -> None:
+    section_title("2.5 Consistency Checks")
+    s = D["section"]
+    S_top_calc = s["I33_m4"] / s["yt_from_top_m"] if s["yt_from_top_m"] else 0.0
+    S_bot_calc = s["I33_m4"] / s["ycg_from_bottom_m"] if s["ycg_from_bottom_m"] else 0.0
+    D_calc = s["ycg_from_bottom_m"] + s["yt_from_top_m"]
+    rows = [
+        ["S33(+) = I33 / y_t", S_top_calc, s["S_top_m3"], "m³"],
+        ["S33(-) = I33 / y_cg", S_bot_calc, s["S_bottom_m3"], "m³"],
+        ["D = y_cg + y_t", D_calc, s["D_m"], "m"],
+        ["Coordinate source", s.get("coordinate_source", "FEA keyed"), "—", "-"],
+    ]
+    st.dataframe(pd.DataFrame(rows, columns=["Check", "Calculated", "Active / Report", "Unit"]), use_container_width=True, hide_index=True)
+
+
+def page_bridge_geometry(sub: str) -> None:
+    if sub == "2.1 Bridge Description":
+        render_bridge_description()
+    elif sub == "2.2 Geometry and Analysis Model":
+        render_geometry_analysis_model()
     elif sub == "2.3 Section Properties":
-        page_section_properties("3.2 FEA Properties")
+        render_section_properties()
     elif sub == "2.4 Tendon Layout Reference":
-        page_bridge_model("2.4 Tendon Layout")
+        render_tendon_layout_reference()
     elif sub == "2.5 Consistency Checks":
-        page_section_properties("3.3 Consistency Checks")
+        render_bridge_consistency()
     else:
+        section_title("2 QA / Report Preview")
         report_trace_table("2 Bridge Geometry / Section Properties", [
             ("Bridge description", "User input + BG40 R10", "Report table ready", "READY"),
             ("Geometry and analysis model", "External FEA program + app documentation", "Model assumptions and report figure status recorded", "READY"),
-            ("Section properties", "FEA keyed values", "Consistency checks active", "READY"),
+            ("Coordinate-driven section properties", "CSiBridge polygon import / FEA keyed fallback", "Section drawing and A/I/S calculation engine active", "READY"),
             ("Tendon layout reference", "BG40 R10", "Tendon table ready", "READY"),
         ])
 

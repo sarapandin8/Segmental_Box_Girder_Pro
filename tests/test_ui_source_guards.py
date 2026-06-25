@@ -64,12 +64,12 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.3.9-commercial-m3f"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.0-commercial-m3g"' in validation_src
 
 
-def test_readme_documents_m3e_wind_csp_formatting_and_seismic_foundation():
+def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "Commercial M3F" in readme or "COMMERCIAL.M3F" in readme
+    assert "Commercial M3G" in readme or "COMMERCIAL.M3G" in readme
     assert "Display formatting rules" in readme
     assert "1.3.7 Wind Load" in readme
     assert "DPT seismic database" in readme
@@ -78,6 +78,9 @@ def test_readme_documents_m3e_wind_csp_formatting_and_seismic_foundation():
     assert "EN 1991-1-4" in readme
     assert "Table 2.5" in readme
     assert "Full station-by-station FEA import remains pending" in readme
+    assert "Coordinate-driven section properties" in readme
+    assert "Structural Polygon 1" in readme
+    assert "Opening Polygon 1" in readme
 
 
 def test_m3b_load_pages_use_editable_tables_and_code_basis():
@@ -179,3 +182,21 @@ def test_m3f_router_uses_new_workspace_ids():
     assert 'elif workspace["id"] == "loads"' in src
     assert 'page_bridge_geometry(subpage)' in src
     assert 'page_loads(subpage)' in src
+
+
+def test_m3g_coordinate_section_engine_ui_is_present():
+    src = _src()
+    assert "Coordinate-driven section engine" in src
+    assert "section_coordinate_editor" in src
+    assert "section_polygon_figure" in src
+    assert "calculate_section_properties" in src
+    assert "Apply computed A/I/S/centroid" in src
+    assert "Torsional constant J remains FEA/manual" in src
+
+
+def test_m3g_bridge_geometry_page_no_workspace_title_duplication_in_active_router():
+    src = _src()
+    bridge_def = src.split("def page_bridge_geometry(sub: str) -> None:", 1)[1].split("def page_prestress_losses", 1)[0]
+    assert 'st.subheader(get_workspace("2 Bridge Geometry / Section Properties")' not in bridge_def
+    assert "render_section_properties()" in bridge_def
+    assert 'section_title("2.3 Section Properties")' in src
