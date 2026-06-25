@@ -9,7 +9,18 @@ import streamlit as st
 import plotly.graph_objects as go
 
 from core.bg40_defaults import BG40_DEFAULT
-from core.dpt_seismic import dpt_general_spectrum, lookup_general_ss_s1, response_spectrum_points
+from core.dpt_seismic import (
+    bangkok_response_spectrum_points,
+    dpt_bangkok_basin_spectrum,
+    dpt_general_spectrum,
+    list_dpt_districts,
+    list_dpt_provinces,
+    list_general_districts,
+    list_general_provinces,
+    lookup_general_ss_s1,
+    resolve_location_region,
+    response_spectrum_points,
+)
 from core.load_models import (
     en_dynamic_factor_standard_maintenance,
     hunting_force_en1991,
@@ -300,16 +311,26 @@ def load_derived() -> dict[str, Any]:
     )
     cf = en_centrifugal_percentage(float(rail["speed_kmh"]), float(rail["radius_m"]), float(rail["Lf_m"]))
     try:
-        eq = dpt_general_spectrum(
-            float(lc["seismic_Ss_g"]),
-            float(lc["seismic_S1_g"]),
-            str(lc.get("seismic_soil_class", "D")),
-            float(lc["seismic_T_s"]),
-            float(lc["seismic_I"]),
-            float(lc["seismic_R"]),
-        )
+        if lc.get("seismic_region") == "Bangkok Basin" and int(lc.get("seismic_bangkok_zone", 0) or 0) > 0:
+            eq = dpt_bangkok_basin_spectrum(
+                int(lc.get("seismic_bangkok_zone", 0)),
+                float(lc["seismic_T_s"]),
+                float(lc["seismic_I"]),
+                float(lc["seismic_R"]),
+                float(lc.get("seismic_damping_percent", 5.0)),
+            )
+            eq.update({"Fa": 0.0, "Fv": 0.0, "SMS": 0.0, "SM1": 0.0})
+        else:
+            eq = dpt_general_spectrum(
+                float(lc["seismic_Ss_g"]),
+                float(lc["seismic_S1_g"]),
+                str(lc.get("seismic_soil_class", "D")),
+                float(lc["seismic_T_s"]),
+                float(lc["seismic_I"]),
+                float(lc["seismic_R"]),
+            )
     except Exception:
-        eq = {"Fa": 0.0, "Fv": 0.0, "SMS": 0.0, "SM1": 0.0, "SDS": 0.0, "SD1": 0.0, "T0": 0.0, "Ts": 0.0, "Sa": 0.0, "Cs": 0.0, "category_sds": "-", "category_sd1": "-", "category_governing": "-", "spectrum_branch": "blocked"}
+        eq = {"region": lc.get("seismic_region", "General Thailand"), "Fa": 0.0, "Fv": 0.0, "SMS": 0.0, "SM1": 0.0, "SDS": 0.0, "SD1": 0.0, "T0": 0.0, "Ts": 0.0, "Sa": 0.0, "Cs_raw": 0.0, "Cs": 0.0, "category_sds": "-", "category_sd1": "-", "category_governing": "-", "category_basis": "blocked", "spectrum_branch": "blocked"}
 
     return {
         "sdl_single_total": sdl["single_total"],
@@ -804,53 +825,128 @@ def page_criteria_loads(sub: str) -> None:
             st.markdown('<div class="warn-box"><b>Unit warning:</b> AASHTO empirical creep/shrinkage factors use V/S in inches and concrete strength in ksi for intermediate factors.</div>', unsafe_allow_html=True)
 
         with tabs[6]:
-            code_basis_card("1.3.9 Earthquake (EQ)", "DPT 1301/1302-61 Section 1.4, Section 1.6, and Chapter 3 equivalent static method", "M3A includes the DPT lookup/calculation engine and a seed location database. Full national database extraction is a later QA task.")
+            code_basis_card(
+                "1.3.9 Earthquake (EQ)",
+                "DPT 1301/1302-61 Section 1.4, Section 1.6, and Chapter 3 equivalent static method",
+                "M3B adds a curated DPT database from the uploaded standard: national district Ss/S1 lookup, Bangkok Basin Zone 1–10 routing, equivalent-static zone spectra, and seismic design category tables.",
+            )
             lc = D["load_components"]
+            st.markdown('<div class="note-box"><b>Location-based workflow:</b> select province and district once. The app resolves General Thailand vs Bangkok Basin, looks up DPT values, and recalculates all seismic parameters from the same source.</div>', unsafe_allow_html=True)
+
+            provinces = list_dpt_provinces()
+            default_province = lc.get("seismic_province_th", "อุดรธานี")
+            if default_province not in provinces:
+                default_province = "อุดรธานี" if "อุดรธานี" in provinces else provinces[0]
             c1, c2, c3 = st.columns(3)
             with c1:
-                lc["seismic_province_th"] = st.text_input("Province / จังหวัด", lc.get("seismic_province_th", "BG40 Baseline"))
+                province = st.selectbox("Province / จังหวัด", provinces, index=provinces.index(default_province), key="eq_province_select")
+                lc["seismic_province_th"] = province
+            districts = list_dpt_districts(province)
+            if not districts:
+                districts = [lc.get("seismic_district_th", "") or ""]
+            default_district = lc.get("seismic_district_th", districts[0])
+            if default_district not in districts:
+                default_district = districts[0]
             with c2:
-                lc["seismic_district_th"] = st.text_input("District / อำเภอ", lc.get("seismic_district_th", "BG40 Report Values"))
+                district = st.selectbox("District / อำเภอ", districts, index=districts.index(default_district), key="eq_district_select")
+                lc["seismic_district_th"] = "เมือง" if district == "ทั้งจังหวัด" and province == "กรุงเทพมหานคร" else district
             with c3:
                 lc["seismic_soil_class"] = st.selectbox("Soil Class", ["A", "B", "C", "D", "E", "F"], index=["A", "B", "C", "D", "E", "F"].index(lc.get("seismic_soil_class", "D")))
-            lookup = lookup_general_ss_s1(lc["seismic_province_th"], lc["seismic_district_th"])
-            if lookup.get("found"):
-                lc["seismic_Ss_g"] = float(lookup["Ss"])
-                lc["seismic_S1_g"] = float(lookup["S1"])
-                st.success(f"DPT lookup matched: อ.{lookup['district_th']} จ.{lookup['province_th']} — Ss={lookup['Ss']:.3f}, S1={lookup['S1']:.3f} ({lookup['source_table']})")
+
+            region_lookup = resolve_location_region(province, lc["seismic_district_th"])
+            if region_lookup.get("found") and region_lookup.get("region") == "Bangkok Basin":
+                lc["seismic_region"] = "Bangkok Basin"
+                lc["seismic_bangkok_zone"] = int(region_lookup["zone"])
+                st.success(f"Bangkok Basin detected: Zone {int(region_lookup['zone'])} from {region_lookup['source_table']} — จ.{province} อ.{lc['seismic_district_th']}")
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    lc["seismic_damping_percent"] = st.selectbox("Damping ratio for Bangkok Basin table", [5.0, 2.5], index=0 if float(lc.get("seismic_damping_percent", 5.0)) == 5.0 else 1)
+                with c2:
+                    editable_value(["load_components", "seismic_T_s"], "T (s)", 0.01, "%.3f")
+                with c3:
+                    editable_value(["load_components", "seismic_I"], "I", 0.05, "%.2f")
+                c4, c5 = st.columns(2)
+                with c4:
+                    editable_value(["load_components", "seismic_R"], "R", 0.1, "%.1f")
+                with c5:
+                    st.metric("Zone", int(lc["seismic_bangkok_zone"]), help="DPT 1301/1302-61 Fig. 1.4-5")
+                ld = load_derived()
+                st.latex(r"S_a(T)=\text{interpolated from DPT Table 1.4-5 (5\% damping) or Table 1.4-4 (2.5\% damping)}")
+                st.latex(r"C_s=S_a\left(\frac{I}{R}\right)\quad\text{with}\quad C_s\ge0.01")
+                st.latex(fr"S_a({D['load_components']['seismic_T_s']:.3f})={ld['eq_Sa']:.4f}\,g")
+                st.latex(fr"C_s={ld['eq_Sa']:.4f}\left(\frac{{{D['load_components']['seismic_I']:.2f}}}{{{D['load_components']['seismic_R']:.1f}}}\right)={ld['eq_Cs']:.4f}")
+                spec = bangkok_response_spectrum_points(int(lc["seismic_bangkok_zone"]), float(lc.get("seismic_damping_percent", 5.0)))
+                show_plotly(response_spectrum_figure(spec, float(D["load_components"]["seismic_T_s"]), ld["eq_Sa"], f"DPT Bangkok Basin Zone {int(lc['seismic_bangkok_zone'])} — Equivalent static spectrum"))
+                source_text = "Table 1.4-5" if float(lc.get("seismic_damping_percent", 5.0)) == 5.0 else "Table 1.4-4"
+                rows = [
+                    ["Region", "Bangkok Basin", "Fig. 1.4-5"],
+                    ["Zone", lc["seismic_bangkok_zone"], "Fig. 1.4-5"],
+                    ["Damping", lc.get("seismic_damping_percent", 5.0), "%"],
+                    ["SDS = Sa(0.2s)", ld["eq_SDS"], source_text],
+                    ["SD1 = Sa(1.0s)", ld["eq_SD1"], source_text],
+                    ["Sa(T)", ld["eq_Sa"], "table interpolation"],
+                    ["Cs", ld["eq_Cs"], "DPT Ch.3 equivalent static coefficient"],
+                    ["Category SDS", ld["eq_category_sds"], "DPT Table 1.6-1"],
+                    ["Category SD1", ld["eq_category_sd1"], "DPT Table 1.6-2"],
+                    ["Governing category", ld["eq_category_governing"], ld.get("eq_category_basis", "DPT Section 1.6")],
+                ]
+                st.dataframe(pd.DataFrame(rows, columns=["Item", "Value", "Unit / source"]), use_container_width=True, hide_index=True)
+            elif region_lookup.get("found"):
+                lc["seismic_region"] = "General Thailand"
+                lc["seismic_bangkok_zone"] = 0
+                lc["seismic_Ss_g"] = float(region_lookup["Ss"])
+                lc["seismic_S1_g"] = float(region_lookup["S1"])
+                st.success(f"DPT lookup matched: อ.{region_lookup['district_th']} จ.{region_lookup['province_th']} — Ss={region_lookup['Ss']:.3f}, S1={region_lookup['S1']:.3f} ({region_lookup['source_table']}, standard p.{region_lookup['source_standard_page']})")
+                c1, c2, c3, c4, c5 = st.columns(5)
+                with c1:
+                    st.metric("Ss (g)", f"{lc['seismic_Ss_g']:.3f}")
+                with c2:
+                    st.metric("S1 (g)", f"{lc['seismic_S1_g']:.3f}")
+                with c3:
+                    editable_value(["load_components", "seismic_T_s"], "T (s)", 0.01, "%.3f")
+                with c4:
+                    editable_value(["load_components", "seismic_I"], "I", 0.05, "%.2f")
+                with c5:
+                    editable_value(["load_components", "seismic_R"], "R", 0.1, "%.1f")
+                ld = load_derived()
+                st.latex(r"S_{MS}=F_aS_S,\qquad S_{M1}=F_vS_1")
+                st.latex(r"S_{DS}=\frac{2}{3}S_{MS},\qquad S_{D1}=\frac{2}{3}S_{M1}")
+                st.latex(r"C_s=S_a\left(\frac{I}{R}\right)\quad\text{with}\quad C_s\ge0.01")
+                st.latex(fr"S_{{DS}}=\frac{{2}}{{3}}({ld['eq_Fa']:.2f})({D['load_components']['seismic_Ss_g']:.3f})={ld['eq_SDS']:.4f}\,g")
+                st.latex(fr"S_{{D1}}=\frac{{2}}{{3}}({ld['eq_Fv']:.2f})({D['load_components']['seismic_S1_g']:.3f})={ld['eq_SD1']:.4f}\,g")
+                st.latex(fr"C_s={ld['eq_Sa']:.4f}\left(\frac{{{D['load_components']['seismic_I']:.2f}}}{{{D['load_components']['seismic_R']:.1f}}}\right)={ld['eq_Cs']:.4f}")
+                spec = response_spectrum_points(ld["eq_SDS"], ld["eq_SD1"], t_max=max(2.5, float(D["load_components"]["seismic_T_s"]) * 1.5))
+                show_plotly(response_spectrum_figure(spec, float(D["load_components"]["seismic_T_s"]), ld["eq_Sa"], "DPT design response spectrum — General Thailand workflow"))
+                rows = [
+                    ["Region", "General Thailand", "Table 1.4-1"],
+                    ["Ss", lc["seismic_Ss_g"], "g"], ["S1", lc["seismic_S1_g"], "g"],
+                    ["Fa", ld["eq_Fa"], "Table 1.4-2"], ["Fv", ld["eq_Fv"], "Table 1.4-3"],
+                    ["SDS", ld["eq_SDS"], "g"], ["SD1", ld["eq_SD1"], "g"],
+                    ["T0", ld["eq_T0"], "s"], ["Ts", ld["eq_Ts"], "s"],
+                    ["Sa(T)", ld["eq_Sa"], "g"], ["Cs", ld["eq_Cs"], "-"],
+                    ["Category SDS", ld["eq_category_sds"], "DPT Table 1.6-1"],
+                    ["Category SD1", ld["eq_category_sd1"], "DPT Table 1.6-2"],
+                    ["Governing category", ld["eq_category_governing"], ld.get("eq_category_basis", "more stringent")],
+                ]
+                st.dataframe(pd.DataFrame(rows, columns=["Item", "Value", "Unit / source"]), use_container_width=True, hide_index=True)
             else:
-                st.warning("Location not found in the current M3A seed database. Use manual Ss/S1 below or add the official DPT row in a later database milestone.")
-            c1, c2, c3, c4, c5 = st.columns(5)
-            with c1:
-                editable_value(["load_components", "seismic_Ss_g"], "Ss (g)", 0.001, "%.3f")
-            with c2:
-                editable_value(["load_components", "seismic_S1_g"], "S1 (g)", 0.001, "%.3f")
-            with c3:
-                editable_value(["load_components", "seismic_T_s"], "T (s)", 0.01, "%.3f")
-            with c4:
-                editable_value(["load_components", "seismic_I"], "I", 0.05, "%.2f")
-            with c5:
-                editable_value(["load_components", "seismic_R"], "R", 0.1, "%.1f")
-            ld = load_derived()
-            st.latex(r"S_{MS}=F_aS_S,\qquad S_{M1}=F_vS_1")
-            st.latex(r"S_{DS}=\frac{2}{3}S_{MS},\qquad S_{D1}=\frac{2}{3}S_{M1}")
-            st.latex(r"C_s=S_a\left(\frac{I}{R}\right)\quad\text{with}\quad C_s\ge0.01")
-            st.latex(fr"S_{{DS}}=\frac{{2}}{{3}}({ld['eq_Fa']:.2f})({D['load_components']['seismic_Ss_g']:.3f})={ld['eq_SDS']:.4f}\,g")
-            st.latex(fr"S_{{D1}}=\frac{{2}}{{3}}({ld['eq_Fv']:.2f})({D['load_components']['seismic_S1_g']:.3f})={ld['eq_SD1']:.4f}\,g")
-            st.latex(fr"C_s={ld['eq_Sa']:.4f}\left(\frac{{{D['load_components']['seismic_I']:.2f}}}{{{D['load_components']['seismic_R']:.1f}}}\right)={ld['eq_Cs']:.4f}")
-            spec = response_spectrum_points(ld["eq_SDS"], ld["eq_SD1"], t_max=max(2.5, float(D["load_components"]["seismic_T_s"]) * 1.5))
-            show_plotly(response_spectrum_figure(spec, float(D["load_components"]["seismic_T_s"]), ld["eq_Sa"], "DPT design response spectrum — General Thailand workflow"))
-            st.dataframe(pd.DataFrame([
-                ["Region", lc.get("seismic_region", "General Thailand"), "-"],
-                ["Ss", lc["seismic_Ss_g"], "g"], ["S1", lc["seismic_S1_g"], "g"],
-                ["Fa", ld["eq_Fa"], "-"], ["Fv", ld["eq_Fv"], "-"],
-                ["SDS", ld["eq_SDS"], "g"], ["SD1", ld["eq_SD1"], "g"],
-                ["T0", ld["eq_T0"], "s"], ["Ts", ld["eq_Ts"], "s"],
-                ["Sa(T)", ld["eq_Sa"], "g"], ["Cs", ld["eq_Cs"], "-"],
-                ["Seismic design category SDS", ld["eq_category_sds"], "DPT Table 1.6-1"],
-                ["Seismic design category SD1", ld["eq_category_sd1"], "DPT Table 1.6-2"],
-                ["Governing category", ld["eq_category_governing"], "more stringent"],
-            ], columns=["Item", "Value", "Unit / source"]), use_container_width=True, hide_index=True)
+                lc["seismic_region"] = "Manual / Not found"
+                st.warning("Location not found in the curated M3B DPT database. Use manual Ss/S1 below only with documented project justification.")
+                c1, c2, c3, c4, c5 = st.columns(5)
+                with c1:
+                    editable_value(["load_components", "seismic_Ss_g"], "Ss (g)", 0.001, "%.3f")
+                with c2:
+                    editable_value(["load_components", "seismic_S1_g"], "S1 (g)", 0.001, "%.3f")
+                with c3:
+                    editable_value(["load_components", "seismic_T_s"], "T (s)", 0.01, "%.3f")
+                with c4:
+                    editable_value(["load_components", "seismic_I"], "I", 0.05, "%.2f")
+                with c5:
+                    editable_value(["load_components", "seismic_R"], "R", 0.1, "%.1f")
+                ld = load_derived()
+                st.latex(r"S_{MS}=F_aS_S,\qquad S_{M1}=F_vS_1")
+                st.latex(r"C_s=S_a\left(\frac{I}{R}\right)")
+                st.markdown('<div class="warn-box"><b>Manual source warning:</b> results are calculated from user-entered Ss/S1 and are not verified against the DPT location database.</div>', unsafe_allow_html=True)
             st.markdown('<div class="warn-box"><b>Scope note:</b> DPT 1301/1302-61 is a building seismic design standard. In this bridge app it is used as Thai project seismic parameter basis, consistent with the BG40 report criteria.</div>', unsafe_allow_html=True)
 
         with tabs[7]:

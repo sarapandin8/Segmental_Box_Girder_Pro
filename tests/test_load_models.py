@@ -57,3 +57,44 @@ def test_dpt_design_category_tables_reproduce_boundaries():
     assert seismic_design_category_from_sds(0.40, 1.5) == "ง"
     assert seismic_design_category_from_sd1(0.08, 1.0) == "ข"
     assert seismic_design_category_from_sd1(0.16, 1.25) == "ค"
+
+
+def test_dpt_m3b_full_database_contains_many_general_rows():
+    from core.dpt_seismic import load_general_location_database
+    db = load_general_location_database()
+    assert len(db) >= 800
+    assert "source_table" in db.columns
+    assert "source_standard_page" in db.columns
+
+
+def test_dpt_m3b_lookup_sadao_from_full_database():
+    from core.dpt_seismic import lookup_general_ss_s1
+    out = lookup_general_ss_s1("สงขลา", "สะเดา")
+    assert out["found"] is True
+    assert abs(out["Ss"] - 0.079) < 1e-9
+    assert abs(out["S1"] - 0.084) < 1e-9
+    assert out["source_table"] == "Table 1.4-1"
+
+
+def test_dpt_m3b_bangkok_basin_zone_detection():
+    from core.dpt_seismic import lookup_bangkok_basin_zone
+    out = lookup_bangkok_basin_zone("กรุงเทพมหานคร", "บางรัก")
+    assert out["found"] is True
+    assert out["region"] == "Bangkok Basin"
+    assert int(out["zone"]) == 5
+
+
+def test_dpt_m3b_bangkok_equiv_static_zone5_5_percent():
+    from core.dpt_seismic import dpt_bangkok_basin_spectrum
+    out = dpt_bangkok_basin_spectrum(zone=5, T_s=1.0, I=1.25, R=2.0, damping_percent=5.0)
+    assert abs(out["SDS"] - 0.191) < 1e-9
+    assert abs(out["SD1"] - 0.199) < 1e-9
+    assert abs(out["Sa"] - 0.199) < 1e-9
+    assert out["region"] == "Bangkok Basin"
+
+
+def test_dpt_m3b_general_category_period_rule():
+    from core.dpt_seismic import dpt_general_spectrum
+    out = dpt_general_spectrum(0.176, 0.045, "D", 0.835, 1.25, 2.0)
+    assert out["category_governing"] in {"ก", "ข", "ค", "ง"}
+    assert "category_basis" in out

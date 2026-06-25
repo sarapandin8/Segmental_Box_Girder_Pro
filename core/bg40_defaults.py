@@ -1,14 +1,14 @@
 """BG40 default data for Segmental Box Girder Pro.
 
-Commercial M3A uses a report-driven data model while preserving the stable
+Commercial M3B uses a report-driven data model while preserving the stable
 calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 """
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.3.3-commercial-m3a",
+        "schema_version": "0.3.4-commercial-m3b",
         "app_name": "Segmental Box Girder Pro",
-        "dataset_status": "BG40 R10 report-driven baseline loaded; 1.3 Loads detail framework active",
+        "dataset_status": "BG40 R10 report-driven baseline loaded; full DPT seismic database foundation active",
         "schema_note": "Report-driven chapter/subsection schema for commercial-grade QA, traceability, and future report export.",
         "baseline_report": "BG40_Final_Complete_R10.docx",
     },
@@ -98,12 +98,14 @@ BG40_DEFAULT = {
         "wind_dtot_ws_m": 3.9,
         "wind_dtot_ws_wl_m": 6.8,
         "seismic_region": "General Thailand",
-        "seismic_province_th": "BG40 Baseline",
-        "seismic_district_th": "BG40 Report Values",
+        "seismic_province_th": "อุดรธานี",
+        "seismic_district_th": "เมืองอุดรธานี",
         "seismic_soil_class": "D",
-        "seismic_lookup_mode": "DPT database when available; BG40 R10 baseline values preserved for the report example",
+        "seismic_lookup_mode": "DPT database first; manual override only when location is not available or project-specific study governs",
         "seismic_Fa": 1.60,
         "seismic_Fv": 2.40,
+        "seismic_damping_percent": 5.0,
+        "seismic_bangkok_zone": 0,
         "seismic_Ss_g": 0.176,
         "seismic_S1_g": 0.045,
         "seismic_T_s": 0.835,
