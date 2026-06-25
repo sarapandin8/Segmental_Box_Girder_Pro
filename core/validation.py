@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.2.0-commercial-m1"
+PROJECT_SCHEMA_VERSION = "0.3.0-commercial-m2"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 
@@ -18,18 +18,31 @@ class ValidationIssue:
     recommendation: str = ""
 
 
+
+def _deep_fill_missing(target: Dict, defaults: Dict) -> Dict:
+    for key, default_value in defaults.items():
+        if key not in target:
+            target[key] = deepcopy(default_value)
+        elif isinstance(target[key], dict) and isinstance(default_value, dict):
+            _deep_fill_missing(target[key], default_value)
+    return target
+
 def ensure_project_schema(project: Dict) -> Dict:
     """Return a project dict with required commercial metadata keys.
 
     This function is deliberately non-destructive: it fills missing keys only and
     keeps legacy MVP project files loadable.
     """
+    from core.bg40_defaults import BG40_DEFAULT
+
     data = deepcopy(project)
+    data = _deep_fill_missing(data, BG40_DEFAULT)
     meta = data.setdefault("meta", {})
-    meta.setdefault("schema_version", PROJECT_SCHEMA_VERSION)
+    # Always promote the schema marker to the active app schema while preserving user-entered engineering data.
+    meta["schema_version"] = PROJECT_SCHEMA_VERSION
     meta.setdefault("app_name", "Segmental Box Girder Pro")
-    meta.setdefault("dataset_status", "BG40 baseline dataset loaded")
-    meta.setdefault("schema_note", "Versioned project schema for commercial-grade QA and reproducibility.")
+    meta.setdefault("dataset_status", "BG40 R10 report-driven baseline loaded")
+    meta.setdefault("schema_note", "Report-driven chapter/subsection schema for commercial-grade QA, traceability, and future report export.")
     return data
 
 

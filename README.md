@@ -1,23 +1,29 @@
-# Segmental Box Girder Pro
+# Segmental Box Girder Pro — Commercial M2
 
-Commercial-grade MVP foundation for independent PT segmental box-girder design review.
+Commercial M2 converts the BG40 prototype into a report-driven engineering workspace. The UI follows the BG40 R10 report structure while intentionally omitting the word **Chapter** from the app sidebar for a more professional software feel.
 
-This app is built as a design-check and report-assist tool for bridge engineers. It does **not** replace the primary FEA model. FEA output from CSI/MIDAS or equivalent software must be imported or keyed in as design demand.
+## Milestone M2 Scope
 
-## Current milestone
-
-**Commercial Architecture Foundation M1**
-
-- Streamlit workspace with professional sidebar workflow
-- Single-click workspace navigation using direct `st.session_state.current_page` binding
-- Versioned project schema: `0.2.0-commercial-m1`
-- Engineering validation layer with error/warning/info issue levels
-- Workflow completeness summary
-- AASHTO LRFD 2014 Article 5.8.6 shear/torsion checks
-- EN 1991-2 centrifugal-force check
-- AASHTO-style prestress loss calculations with unit notes
-- JSON save/load with legacy schema upgrade
-- Unit tests for core engineering calculations and schema validation
+- Reworked sidebar workspace into report-driven sections:
+  - Project Dashboard
+  - 1 Criteria / Loads
+  - 2 Bridge Model
+  - 3 Section Properties
+  - 4 Prestress Losses
+  - 5 FEA Results
+  - 6 ULS Flexure
+  - 7 ULS Shear / Torsion
+  - 8 SLS Stress
+  - 9 Deflection
+  - Report / QA
+- Added subsection navigation for each workspace, matching the report subsections such as 1.1 Standards, 1.2 Materials, 1.3 Loads, and 1.4 Combinations.
+- Preserved M1 engineering kernels for prestress loss and AASHTO LRFD 2014 Art. 5.8.6 shear/torsion checks.
+- Added a report schema definition in `core/report_schema.py`.
+- Expanded BG40 R10 defaults to include materials, load components, bridge model assumptions, section properties, FEA baseline values, ULS flexure, SLS stress, and deflection defaults.
+- Added project dashboard cards for governing ULS, SLS, deflection, QA status, and report readiness.
+- Added report preview/trace sections to support future Word/PDF export.
+- Preserved single-click workspace/subpage navigation using `st.session_state` keys.
+- Clean no-cache package.
 
 ## Run
 
@@ -29,10 +35,19 @@ streamlit run app.py
 ## Test
 
 ```bash
+python -m compileall -q .
 python -m pytest -q
 ```
 
-## Engineering priority
+Expected result:
+
+```text
+6 passed
+```
+
+## Engineering Policy
+
+Priority order:
 
 1. Engineering correctness
 2. Numerical consistency
@@ -42,11 +57,6 @@ python -m pytest -q
 
 Never sacrifice engineering correctness for UI polish.
 
-## Internal units
+## Notes
 
-- Forces: kN
-- Geometry: m for general bridge dimensions; mm for section/torsion reinforcement checks
-- Stress: MPa = N/mm²
-- Moments/torsion: kN·m in UI, converted to N·mm internally
-
-Important: AASHTO empirical creep/shrinkage factors use code-specified intermediate units. The app evaluates `V/S` in inches and concrete strength in ksi for those correction factors, then reports final losses in MPa.
+This application performs independent design checks and report-assist workflows based on user-defined inputs and imported/keyed FEA demand envelopes. It does not replace the primary structural analysis model.
