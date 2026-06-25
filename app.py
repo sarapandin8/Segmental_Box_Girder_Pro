@@ -67,8 +67,10 @@ CSS = """
   --warn-bg: #fff7ed;
   --fail-bg: #fff1f2;
 }
-.block-container {padding-top: 2.25rem; padding-bottom: 2rem; max-width: 1550px;}
+.block-container {padding-top: 2.10rem; padding-bottom: 2rem; padding-left: 2.0rem; padding-right: 2.0rem; max-width: 1680px; margin-left: 0; margin-right: auto;}
 [data-testid="stSidebar"] {background: linear-gradient(180deg, #eef6ff 0%, #f8fbff 100%);}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {font-size: 0.84rem; line-height: 1.35;}
+[data-testid="stSidebar"] label {font-size: 0.84rem;}
 [data-testid="stSidebar"] [role="radiogroup"] label {border: 1px solid #bcd3f5; border-radius: 9px; padding: 3px 8px; margin: 3px 0; background: #fff;}
 .app-header-card {
   border: 1px solid var(--line);
@@ -115,10 +117,17 @@ CSS = """
 .workflow-name {font-weight:850; color:#092454;}
 .workflow-sub {font-size:0.80rem; color:#667085;}
 .workflow-status {font-weight:900; color:#14532d;}
+.workflow-status.baseline {color:#0b3b91;}
+.workflow-status.app {color:#14532d;}
 .governing-strip {border:1px solid #d5e6ff; border-radius:16px; background:#fff; padding:14px 16px; margin:16px 0 8px 0;}
 .sidebar-card {border:1px solid #bcd3f5; border-radius:12px; padding:12px; background:#fff; margin-bottom:12px;}
-.sidebar-title {font-weight:850; color:#0b376d; font-size:0.9rem;}
-.sidebar-mini {font-size:0.76rem; color:#334155; margin-top:4px;}
+.sidebar-title {font-weight:850; color:#0b376d; font-size:0.96rem;}
+.sidebar-mini {font-size:0.82rem; color:#334155; margin-top:4px; line-height:1.35;}
+.sidebar-context {border:1px solid #bcd3f5; border-radius:12px; padding:10px 12px; background:#fff; margin-top:8px;}
+.sidebar-context-row {display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid #eef4ff; padding:5px 0;}
+.sidebar-context-row:last-child {border-bottom:0;}
+.sidebar-context-key {font-size:0.78rem; color:#667085; font-weight:800;}
+.sidebar-context-value {font-size:0.82rem; color:#092454; font-weight:850; text-align:right;}
 hr {margin: 1rem 0;}
 </style>
 """
@@ -145,6 +154,16 @@ def fnum(value: float, nd: int = 3) -> str:
 def status_badge(status: str) -> str:
     cls = "pass" if status == "PASS" else ("fail" if status == "FAIL" else "neutral")
     return f'<span class="badge {cls}">{status}</span>'
+
+
+def baseline_status(status: str) -> str:
+    """Label R10 baseline-derived statuses honestly in the UI."""
+    return f"Baseline {status.title()}" if status.upper() in {"READY", "PASS"} else status
+
+
+def app_status(status: str) -> str:
+    """Label checks calculated by the active app engine from current inputs."""
+    return f"App {status}" if status.upper() in {"PASS", "FAIL"} else status
 
 
 def card(title: str, value: str, note: str = "", mode: str = "") -> None:
@@ -366,11 +385,18 @@ def render_sidebar() -> None:
         st.info(f"Schema {PROJECT_SCHEMA_VERSION}")
         st.markdown("---")
         st.markdown("**ACTIVE CONTEXT**")
-        st.caption(f"Project: **{D['project']['name']}**")
-        st.caption(f"Span: **{D['project']['bridge_object']}**")
-        st.caption(f"Code: **{D['project']['design_code']}**")
-        st.caption(f"PT: **{D['project']['tendon_system']}**")
-        st.caption(f"Units: **{D['project']['units']}**")
+        st.markdown(
+            f"""
+            <div class="sidebar-context">
+              <div class="sidebar-context-row"><span class="sidebar-context-key">Project</span><span class="sidebar-context-value">{D['project']['name']}</span></div>
+              <div class="sidebar-context-row"><span class="sidebar-context-key">Span</span><span class="sidebar-context-value">{D['project']['bridge_object']}</span></div>
+              <div class="sidebar-context-row"><span class="sidebar-context-key">Code</span><span class="sidebar-context-value">AASHTO + EN</span></div>
+              <div class="sidebar-context-row"><span class="sidebar-context-key">PT</span><span class="sidebar-context-value">External / Unbonded</span></div>
+              <div class="sidebar-context-row"><span class="sidebar-context-key">Units</span><span class="sidebar-context-value">{D['project']['units']}</span></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.markdown("---")
         st.download_button(
             "Save Project JSON",
@@ -437,51 +463,52 @@ def page_dashboard(sub: str) -> None:
     if sub == "Overview":
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            card("Reference Baseline", "BG40 R10 active", D["meta"]["dataset_status"], "pass")
+            card("Reference Baseline", "BG40 R10 baseline active", "Reference baseline loaded from R10; live recalculation status is shown separately.", "pass")
         with c2:
             qa = "Blocked" if counts["ERROR"] else ("Review" if counts["WARNING"] else "Ready")
             mode = "fail" if counts["ERROR"] else ("warn" if counts["WARNING"] else "pass")
-            card("QA Gate", qa, f"{counts['ERROR']} error(s), {counts['WARNING']} warning(s)", mode)
+            card("QA Gate", "QA Ready" if qa == "Ready" else qa, f"{counts['ERROR']} error(s), {counts['WARNING']} warning(s)", mode)
         with c3:
-            card("FEA Data", "Reference baseline loaded", D["fea_results"]["source_status"])
+            card("FEA Data", "Baseline summary active", "Detailed station-by-station FEA import pending for full envelope checks.")
         with c4:
-            card("Recommended Action", "Review current workspace", "M2.1: header, dashboard, and workflow polish")
+            card("Recommended Action", "Review current workspace", "M2.2: layout balance, status honesty, and FEA wording polish")
 
         st.markdown("### Governing engineering results")
         g1, g2, g3, g4 = st.columns(4)
         with g1:
-            card("ULS Flexure", f"DCR {flex['max_dcr']:.3f}", f"Governing x ≈ {flex['governing_x_m']} m", "pass")
+            card("ULS Flexure", f"Baseline DCR {flex['max_dcr']:.3f}", f"R10 baseline governing x ≈ {flex['governing_x_m']} m", "pass")
         with g2:
             check = snap["transverse_check"]
             mode = "pass" if check["Status_governing"] == "PASS" else "fail"
-            card("ULS Shear / Torsion", f"D/C {check['DCR_governing']:.3f}", check["Status_governing"], mode)
+            card("ULS Shear / Torsion", f"App D/C {check['DCR_governing']:.3f}", f"{check['Status_governing']} from active inputs + R10 demand", mode)
         with g3:
-            card("SLS Stress", sls["status"], f"Governing margin {sls['governing_margin_percent']:.1f}%", "pass")
+            card("SLS Stress", baseline_status(sls["status"]), f"R10 baseline governing margin {sls['governing_margin_percent']:.1f}%", "pass")
         with g4:
-            card("Deflection", df["status"], f"LL utilization {df['ll_utilization_percent']:.1f}% of L/800", "pass")
+            card("Deflection", app_status(df["status"]), f"LL utilization {df['ll_utilization_percent']:.1f}% of L/800", "pass")
 
         st.markdown("### Report-driven workspace status")
         workflow_lookup = {row["Workflow item"]: row for row in workflow}
         status_map = {
-            "1 Criteria / Loads": workflow_lookup.get("Materials", {"Status": "READY"})["Status"],
-            "2 Bridge Model": workflow_lookup.get("Geometry", {"Status": "READY"})["Status"],
-            "3 Section Properties": workflow_lookup.get("Geometry", {"Status": "READY"})["Status"],
-            "4 Prestress Losses": workflow_lookup.get("Prestress Losses", {"Status": "READY"})["Status"],
-            "5 FEA Results": workflow_lookup.get("FEA Demand", {"Status": "READY"})["Status"],
-            "6 ULS Flexure": "PASS",
-            "7 ULS Shear / Torsion": snap["transverse_check"]["Status_governing"],
-            "8 SLS Stress": sls["status"],
-            "9 Deflection": df["status"],
+            "1 Criteria / Loads": (baseline_status(workflow_lookup.get("Materials", {"Status": "READY"})["Status"]), "baseline"),
+            "2 Bridge Model": (baseline_status(workflow_lookup.get("Geometry", {"Status": "READY"})["Status"]), "baseline"),
+            "3 Section Properties": (baseline_status(workflow_lookup.get("Geometry", {"Status": "READY"})["Status"]), "baseline"),
+            "4 Prestress Losses": (baseline_status(workflow_lookup.get("Prestress Losses", {"Status": "READY"})["Status"]), "baseline"),
+            "5 FEA Results": ("Baseline Summary", "baseline"),
+            "6 ULS Flexure": ("Baseline PASS", "baseline"),
+            "7 ULS Shear / Torsion": (app_status(snap["transverse_check"]["Status_governing"]), "app"),
+            "8 SLS Stress": (baseline_status(sls["status"]), "baseline"),
+            "9 Deflection": (app_status(df["status"]), "app"),
         }
         rows_html = []
         for label in WORKSPACE_LABELS[1:-1]:
             ws = get_workspace(label)
-            status = status_map.get(label, "READY")
+            status, status_class = status_map.get(label, ("Baseline Ready", "baseline"))
             subsections = " · ".join(ws["subpages"][:-1])
             rows_html.append(
-                f'<div class="workflow-row"><div><div class="workflow-name">{label}</div><div class="workflow-sub">{ws["title"]}</div></div><div class="workflow-status">{status}</div><div class="workflow-sub">{subsections}</div></div>'
+                f'<div class="workflow-row"><div><div class="workflow-name">{label}</div><div class="workflow-sub">{ws["title"]}</div></div><div class="workflow-status {status_class}">{status}</div><div class="workflow-sub">{subsections}</div></div>'
             )
         st.markdown('<div class="workflow-table">' + ''.join(rows_html) + '</div>', unsafe_allow_html=True)
+        st.caption("Status wording separates R10 baseline readiness from checks calculated by the active app engine.")
     elif sub == "Workflow Status":
         st.dataframe(workflow_dataframe(workflow), use_container_width=True, hide_index=True)
         with st.expander("Validation details", expanded=bool(counts["ERROR"] or counts["WARNING"])):
@@ -489,22 +516,22 @@ def page_dashboard(sub: str) -> None:
     elif sub == "Governing Results":
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            card("ULS Flexure", f"DCR {flex['max_dcr']:.3f}", f"Governing x ≈ {flex['governing_x_m']} m", "pass")
+            card("ULS Flexure", f"Baseline DCR {flex['max_dcr']:.3f}", f"R10 baseline governing x ≈ {flex['governing_x_m']} m", "pass")
         with c2:
             check = snap["transverse_check"]
             mode = "pass" if check["Status_governing"] == "PASS" else "fail"
-            card("ULS Shear/Torsion", f"D/C {check['DCR_governing']:.3f}", check["Status_governing"], mode)
+            card("ULS Shear/Torsion", f"App D/C {check['DCR_governing']:.3f}", f"{check['Status_governing']} from active inputs + R10 demand", mode)
         with c3:
-            card("SLS Stress", sls["status"], f"Governing margin {sls['governing_margin_percent']:.1f}%", "pass")
+            card("SLS Stress", baseline_status(sls["status"]), f"R10 baseline governing margin {sls['governing_margin_percent']:.1f}%", "pass")
         with c4:
-            card("Deflection", df["status"], f"LL utilization {df['ll_utilization_percent']:.1f}%", "pass")
+            card("Deflection", app_status(df["status"]), f"LL utilization {df['ll_utilization_percent']:.1f}%", "pass")
         st.dataframe(
             pd.DataFrame(
                 [
-                    ["6 ULS Flexure", "max DCR", flex["max_dcr"], "PASS"],
-                    ["7 ULS Shear/Torsion", "transverse D/C", snap["transverse_check"]["DCR_governing"], snap["transverse_check"]["Status_governing"]],
-                    ["8 SLS Stress", "governing margin (%)", sls["governing_margin_percent"], sls["status"]],
-                    ["9 Deflection", "LL utilization (%)", df["ll_utilization_percent"], df["status"]],
+                    ["6 ULS Flexure", "max DCR", flex["max_dcr"], "Baseline PASS"],
+                    ["7 ULS Shear/Torsion", "transverse D/C", snap["transverse_check"]["DCR_governing"], app_status(snap["transverse_check"]["Status_governing"])],
+                    ["8 SLS Stress", "governing margin (%)", sls["governing_margin_percent"], baseline_status(sls["status"])],
+                    ["9 Deflection", "LL utilization (%)", df["ll_utilization_percent"], app_status(df["status"])],
                 ],
                 columns=["Workspace", "Governing item", "Value", "Status"],
             ),
@@ -794,7 +821,7 @@ def page_fea_results(sub: str) -> None:
     fea = D["fea_results"]
     l = D["loads"]
     if sub == "5.1 Data Hub":
-        st.markdown('<div class="note-box"><b>M2 data hub:</b> baseline FEA values are keyed from BG40 R10. M3 should add CSV/Excel station-by-station import and envelope generation.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="note-box"><b>FEA data status:</b> R10 baseline summary values are active. Detailed station-by-station FEA import is pending and should be added before full commercial envelope review.</div>', unsafe_allow_html=True)
         st.dataframe(pd.DataFrame([["Permanent load moment at midspan", fea["permanent_moment_midspan_knm"], "kN·m"], ["Prestress moment at midspan", fea["prestress_moment_midspan_knm"], "kN·m"], ["Prestress axial force at midspan", fea["prestress_axial_midspan_kn"], "kN"], ["LL+IM moment min", fea["ll_im_moment_min_knm"], "kN·m"], ["LL+IM moment max", fea["ll_im_moment_max_knm"], "kN·m"]], columns=["FEA item", "Value", "Unit"]), use_container_width=True, hide_index=True)
     elif sub == "5.2 ULS Envelope":
         c1, c2, c3, c4 = st.columns(4)
@@ -807,7 +834,7 @@ def page_fea_results(sub: str) -> None:
         st.info("SLS envelope import will be expanded in M3. Current SLS checks use keyed governing stresses from BG40 R10 baseline.")
         st.dataframe(pd.DataFrame(D["sls_stress"].items(), columns=["SLS baseline item", "Value"]), use_container_width=True, hide_index=True)
     else:
-        report_trace_table("5 FEA Results", [("Midspan dashboard", "BG40 R10 keyed", "Data hub ready", "READY"), ("ULS envelope", "User keyed values", "Demand object ready", "READY"), ("SLS envelope", "R10 baseline", "M3 import pending", "IN PROGRESS")])
+        report_trace_table("5 FEA Results", [("Midspan dashboard", "BG40 R10 baseline summary", "Data hub active", "Baseline Ready"), ("ULS envelope", "User keyed / R10 demand values", "Demand object active", "Baseline Ready"), ("SLS envelope", "R10 baseline", "Station-by-station import pending", "Pending Import")])
 
 
 def page_uls_flexure(sub: str) -> None:
@@ -830,7 +857,7 @@ def page_uls_flexure(sub: str) -> None:
         with c2: editable_value(["uls_flexure", "governing_x_m"], "Governing x (m)", 0.5)
         st.dataframe(pd.DataFrame([["Midspan", flex["mu_midspan_knm"], flex["phi_mn_midspan_knm"], flex["mu_midspan_knm"] / flex["phi_mn_midspan_knm"], "PASS"], [f"Governing x={flex['governing_x_m']} m", "—", "—", flex["max_dcr"], flex["status"]]], columns=["Station", "Mu", "φMn", "DCR", "Status"]), use_container_width=True, hide_index=True)
     else:
-        report_trace_table("6 ULS Flexure", [("fps", "BG40 R10 baseline", "Shown in calculation card", "READY"), ("Midspan φMn/Mu", "BG40 R10 baseline", "DCR calculated", "READY"), ("Span DCR", "BG40 R10 baseline", "M3/M4 station import pending", "IN PROGRESS")])
+        report_trace_table("6 ULS Flexure", [("fps", "BG40 R10 baseline", "Shown in calculation card", "Baseline Ready"), ("Midspan φMn/Mu", "BG40 R10 baseline", "DCR calculated", "Baseline Ready"), ("Span DCR", "BG40 R10 baseline", "Station import pending", "Pending Import")])
 
 
 def page_uls_shear_torsion(sub: str) -> None:
@@ -866,7 +893,7 @@ def page_uls_shear_torsion(sub: str) -> None:
         with c2: editable_value(["loads", "stirrup_spacing_mm"], "Spacing s (mm)", 25.0)
         with c3: D["loads"]["stirrup_legs_per_web"] = int(st.number_input("Legs per web", value=int(D["loads"]["stirrup_legs_per_web"]), step=1))
         mode = "pass" if check["Status_governing"] == "PASS" else "fail"
-        card("Combined transverse check", check["Status_governing"], f"Governing D/C = {check['DCR_governing']:.3f}", mode)
+        card("Combined transverse check", app_status(check["Status_governing"]), f"Governing D/C = {check['DCR_governing']:.3f}", mode)
         st.dataframe(pd.DataFrame([["Shear Av/s required", shear["Av_over_s_mm2_per_mm"], "mm²/mm"], ["Shear Av/s provided", prov["Av_over_s_mm2_per_mm"], "mm²/mm"], ["Torsion At/s required", tors["At_over_s_mm2_per_mm"], "mm²/mm"], ["Torsion At/s provided per leg", prov["At_over_s_per_leg_mm2_per_mm"], "mm²/mm"], ["DCR shear", check["DCR_shear"], "-"], ["DCR torsion", check["DCR_torsion"], "-"]], columns=["Item", "Value", "Unit"]), use_container_width=True, hide_index=True)
     else:
         report_trace_table("7 ULS Shear / Torsion", [("Design basis", "AASHTO 5.8.3/5.8.6", "Formula route separated", "READY"), ("Critical section", "FEA keyed demand", "Demand table ready", "READY"), ("Shear check", "App calculation", "Trace ready", "READY"), ("Torsion check", "AASHTO 5.8.6", "At/s and Al calculated", "READY"), ("Reinforcement", "User input + app calc", "DCR active", check["Status_governing"])] )
@@ -935,7 +962,7 @@ def page_report_qa(sub: str) -> None:
         st.dataframe(pd.DataFrame(rows, columns=["App workspace", "Report title", "Report subsections"]), use_container_width=True, hide_index=True)
     else:
         report_md = f"""
-# Segmental Box Girder Pro — Commercial M2.1 Summary
+# Segmental Box Girder Pro — Commercial M2.2 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -957,7 +984,8 @@ def page_report_qa(sub: str) -> None:
 
 ## M2 Notes
 - UI uses report-driven workspaces 1–9 without displaying the word Chapter in the sidebar.
-- Each workspace uses report subsection subpages for future Word/PDF report generation.
+- Status wording distinguishes R10 baseline values from checks calculated by the active app engine.
+- FEA data is clearly labeled as a baseline summary until full station-by-station import is implemented.
 - Existing M1 engineering kernels are preserved for prestress losses and AASHTO 5.8.6 shear/torsion checks.
 """
         st.markdown(report_md)

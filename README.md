@@ -1,6 +1,6 @@
-# Segmental Box Girder Pro — Commercial M2.1
+# Segmental Box Girder Pro — Commercial M2.2
 
-Commercial M2.1 converts the BG40 prototype into a report-driven engineering workspace. The UI follows the BG40 R10 report structure while intentionally omitting the word **Chapter** from the app sidebar for a more professional software feel.
+Commercial M2.2 converts the BG40 prototype into a report-driven engineering workspace. The UI follows the BG40 R10 report structure while intentionally omitting the word **Chapter** from the app sidebar for a more professional software feel.
 
 ## Milestone M2 Scope
 
@@ -42,7 +42,7 @@ python -m pytest -q
 Expected result:
 
 ```text
-6 passed
+15 passed
 ```
 
 ## Engineering Policy
@@ -62,7 +62,16 @@ Never sacrifice engineering correctness for UI polish.
 This application performs independent design checks and report-assist workflows based on user-defined inputs and imported/keyed FEA demand envelopes. It does not replace the primary structural analysis model.
 
 
-## Commercial M2.1 UI Polish
+## Commercial M2.2 UI Polish
 
 - Applies Concrete Section Pro style skill: safer top header card, blue/green commercial cards, report-driven status table, professional wording, and dashboard governing-result visibility.
 - Keeps one-source-of-truth Streamlit workspace/subpage state and preserves M1 engineering kernels.
+
+
+## Commercial M2.2 Layout Balance and Status Honesty
+
+- Aligns the main content container closer to the sidebar with a wider commercial layout while preserving safe margins.
+- Increases sidebar/context readability for engineering review and projector/laptop use.
+- Separates baseline-derived status wording from live app-calculated checks using labels such as `Baseline Ready`, `Baseline PASS`, and `App PASS`.
+- Clarifies FEA data status as an R10 baseline summary while station-by-station FEA import remains pending for a future milestone.
+- Adds source-guard regression tests for layout CSS, status honesty wording, and FEA import wording.

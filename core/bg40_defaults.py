@@ -1,14 +1,14 @@
 """BG40 default data for Segmental Box Girder Pro.
 
-Commercial M2.1 uses a report-driven data model while preserving the stable
+Commercial M2.2 uses a report-driven data model while preserving the stable
 calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 """
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.3.1-commercial-m2.1",
+        "schema_version": "0.3.2-commercial-m2.2",
         "app_name": "Segmental Box Girder Pro",
-        "dataset_status": "BG40 R10 report-driven baseline loaded",
+        "dataset_status": "BG40 R10 report-driven baseline loaded; live app-calculated checks are labeled separately",
         "schema_note": "Report-driven chapter/subsection schema for commercial-grade QA, traceability, and future report export.",
         "baseline_report": "BG40_Final_Complete_R10.docx",
     },
