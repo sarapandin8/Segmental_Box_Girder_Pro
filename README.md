@@ -1,47 +1,60 @@
-# Segmental Box Girder Pro — Commercial M3D
+# Segmental Box Girder Pro — Commercial M3E
 
 Commercial, report-driven Streamlit design-review app for BG40 PT segmental box girder.
 
-This milestone aligns the app UI system with the Concrete Section Pro style discipline and adds global engineering display-format rules. It preserves the M3C DPT/AASHTO EQ calculation route while standardizing cards, tables, formula blocks, Plotly chart styling, and numeric display behavior.
+This milestone refines **1.3.7 Wind Load (WS)** into a full report-driven calculation page. It preserves the M3D Concrete Section Pro style alignment, DPT/AASHTO EQ route, one-source state discipline, and global engineering formatting rules.
 
-## Current milestone: COMMERCIAL.M3D
+## Current milestone: COMMERCIAL.M3E
 
 ### Added / refined
 
-- Added `core/formatting.py` for global engineering display formatting.
-- Added app-wide display rules:
-  - Force/load values: no decimals.
-  - Moment/torque values: no decimals.
-  - Stress in MPa: 2 decimals.
-  - Length in mm: no decimals.
-  - Length in m: 3 decimals.
-  - Area in mm²: no decimals.
-  - Area/section properties in m²/m³/m⁴: 3 decimals.
-  - Coefficients, factors, ratios, g-values, DCR/utilization: 3 decimals.
-- Added `show_engineering_table()` wrapper so read-only summary / QA / FEA tables use consistent engineering formatting.
-- Added CSP-aligned CSS classes for:
-  - input cards
-  - calculation trace cards
-  - result cards
-  - QA cards
-  - plot cards
-  - table cards
-- Began applying the formatting system to the 1.3 Design Loads / EQ / FEA summary outputs.
-- Updated schema version to `0.3.7-commercial-m3d`.
-- Added regression tests for formatting behavior and UI source guards.
+- Rebuilt `1.3.7 Wind Load (WS)` as a structured report-driven page with:
+  - Overview
+  - Inputs
+  - EN Factors
+  - Calculations
+  - Figures
+  - FEA Summary
+- Added bundled wind reference figures cropped from the BG40 R10 PDF:
+  - `Figure 1.2 Reference wind speed map of Thailand (DPT 1311-50)`
+  - `Figure 1.3 Wind load directions on bridge (EN 1991-1-4 Fig. 8.2)`
+  - Wind factor Table 2.5 / deck-height reference
+  - WS/WL bridge cross-section loading schematic
+- Added editable wind parameter table using one source of truth.
+- Added DPT wind speed group selector:
+  - Group 1: V50 = 25 m/s, TF = 1.00
+  - Group 2: V50 = 27 m/s, TF = 1.00
+  - Group 3: V50 = 29 m/s, TF = 1.00
+  - Group 4A: V50 = 25 m/s, TF = 1.20
+  - Group 4B: V50 = 25 m/s, TF = 1.08
+- Added automatic wind calculation engine:
+  - `vb = cdir cseason vb,0`
+  - `q = 0.5 rho vb^2`
+  - `b/dtot`
+  - `CWS` and `CWS+WL` from EN 1991-1-4 Table 8.2 / BG40 R10 Table 2.5
+  - `Aref,x = dtot L`
+  - `FW,x = 0.5 rho vb^2 C Aref,x`
+  - equivalent FEA line loads `WS` and `WS+WL`
+- Added automatic linear interpolation for wind factor `C` when `0.5 < b/dtot < 4.0`, including `ze` interpolation where applicable.
+- Updated global formatting rule for distributed line loads (`kN/m`) to display 2 decimal places in report/FEA summaries, matching BG40 wind results such as `7.01 kN/m` and `15.10 kN/m`.
+- Updated schema version to `0.3.8-commercial-m3e`.
+- Added regression tests for wind-factor interpolation, automatic BG40 wind calculation, wind UI/source guards, and engineering formatting.
+
+## Display formatting rules
+
+- Force/load resultants: no decimals.
+- Moment/torque values: no decimals.
+- Equivalent line/distributed loads in `kN/m`: 2 decimals.
+- Stress in MPa: 2 decimals.
+- Length in mm: no decimals.
+- Length in m: 3 decimals.
+- Area in mm²: no decimals.
+- Area/section properties in m²/m³/m⁴: 3 decimals.
+- Coefficients, factors, ratios, g-values, DCR/utilization: 3 decimals.
 
 ## DPT seismic database status
 
 The app includes a curated DPT seismic database extracted from the uploaded DPT 1301/1302-61 Rev.1 standard. It includes national general-district rows, Bangkok Basin Zone 1–10 routing, equivalent-static zone spectrum tables, Fa/Fv tables, and seismic design category tables.
-
-Key database files:
-
-- `general_ss_s1_by_district.csv` — 816 general Thailand province/district rows from DPT Table 1.4-1.
-- `bangkok_basin_zone_map.csv` — Bangkok Basin Zone 1–10 routing from DPT Fig. 1.4-5.
-- `bangkok_equiv_static_5p0_table_1_4_5.csv` — equivalent-static Bangkok Basin spectrum at 5% damping.
-- `bangkok_equiv_static_2p5_table_1_4_4.csv` — equivalent-static Bangkok Basin spectrum at 2.5% damping.
-- `fa_table_1_4_2.csv`, `fv_table_1_4_3.csv` — site coefficient tables.
-- `seismic_design_category_tables_1_6.csv` — category ก/ข/ค/ง table data.
 
 ## Bridge seismic I/R basis
 
@@ -64,13 +77,13 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
-M3D targeted regression result: `42 passed`.
+M3E targeted regression result: `47 passed`.
 
 ## Engineering limitations
 
 - DPT 1301/1302-61 is a building seismic standard. In this bridge app it is used as Thai project seismic-parameter basis consistent with BG40 report criteria, not as a bridge-specific seismic design code.
+- EN 1991-1-4 wind factor automation follows the simplified bridge wind calculation used by BG40 R10; project-specific National Annex or owner requirements can override parameters with trace.
 - AASHTO operational category shall be confirmed by the owner / authority having jurisdiction.
 - AASHTO R recommendation assumes the bridge substructure and detailing satisfy the applicable AASHTO seismic provisions; manual override requires engineering justification.
 - Full station-by-station FEA import remains pending.
-- DPT seismic database was extracted from the uploaded PDF; future production use should still include independent engineering spot-checks of critical project locations against official standard pages.
 - Report export is still a structured preview, not a final Word/PDF generator.

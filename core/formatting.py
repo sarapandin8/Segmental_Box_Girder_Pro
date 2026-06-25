@@ -34,6 +34,7 @@ def format_engineering_value(value: Any, unit: str | None = None, *, quantity: s
 
     Global display rules requested by the project owner:
     - Force/load and moment/torque: no decimals.
+    - Equivalent line/distributed load in kN/m: 2 decimals for report/FEA summaries.
     - Stress in MPa: 2 decimals.
     - Length in mm: no decimals; length in m: 3 decimals.
     - Areas in mm²: no decimals; m²/m³/m⁴: 3 decimals.
@@ -62,9 +63,9 @@ def format_engineering_value(value: Any, unit: str | None = None, *, quantity: s
     if unit_norm in {"kN·m", "kN-m", "kNm", "N·mm", "N-mm", "Nmm"} or q in {"moment", "torque"}:
         return f"{v:,.0f}"
 
-    # Distributed loads are load values; keep no decimals by default unless explicitly coefficient-like.
-    if unit_norm in {"kN/m", "N/mm", "kN/m²", "kPa"}:
-        return f"{v:,.0f}"
+    # Distributed/line loads are usually reported with two decimals in BG40 report tables.
+    if unit_norm in {"kN/m", "N/mm", "kN/m²", "kPa"} or q in {"line_load", "distributed_load"}:
+        return f"{v:,.2f}"
 
     # Stress.
     if unit_norm in {"MPa", "N/mm²", "N/mm2"} or q == "stress":

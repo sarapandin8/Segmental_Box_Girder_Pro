@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from math import sqrt
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -40,7 +41,9 @@ from core.load_models import (
     hunting_force_en1991,
     longitudinal_force_en1991,
     sdl_totals,
-    wind_load_en1991_dpt,
+    wind_load_en1991_dpt_auto,
+    wind_reference_group_options,
+    wind_vb0_recommended_from_group,
 )
 from visualization.load_figures import (
     PLOTLY_CONFIG,
@@ -190,6 +193,9 @@ hr {margin: 1rem 0;}
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
+APP_DIR = Path(__file__).resolve().parent
+WIND_ASSET_DIR = APP_DIR / "assets" / "wind"
+
 # -----------------------------------------------------------------------------
 # Session state
 # -----------------------------------------------------------------------------
@@ -211,6 +217,15 @@ def fnum(value: float, nd: int = 3) -> str:
 def show_engineering_table(df: pd.DataFrame, *, hide_index: bool = True) -> None:
     """Display read-only engineering tables using the global app format rules."""
     st.dataframe(format_engineering_table(df), use_container_width=True, hide_index=hide_index)
+
+
+def show_report_image(filename: str, caption: str, *, use_column_width: bool = True) -> None:
+    """Display bundled report/reference figures with a consistent caption."""
+    path = WIND_ASSET_DIR / filename
+    if path.exists():
+        st.image(str(path), caption=caption, use_container_width=use_column_width)
+    else:
+        st.warning(f"Missing bundled figure asset: {filename}")
 
 
 def section_title(text: str) -> None:
@@ -343,15 +358,22 @@ def load_derived() -> dict[str, Any]:
         float(lc.get("hf_alpha", 0.8)),
         bool(lc.get("hf_reduce_alpha_below_one", False)),
     )
-    ws = wind_load_en1991_dpt(
+    # Wind loads are calculated from one parameter source. C factors are
+    # derived automatically from EN 1991-1-4 Table 8.2 / BG40 R10 Table 2.5.
+    ws = wind_load_en1991_dpt_auto(
         float(lc["wind_air_density_kg_m3"]),
-        float(lc["wind_vb_m_s"]),
-        float(lc["wind_c_ws"]),
-        float(lc["wind_c_ws_wl"]),
+        float(lc["wind_vb0_m_s"]),
+        float(lc["wind_cdir"]),
+        float(lc["wind_cseason"]),
+        float(lc.get("wind_b_m", D["project"]["width_m"])),
         float(lc["wind_dtot_ws_m"]),
         float(lc["wind_dtot_ws_wl_m"]),
+        float(lc.get("wind_ze_m", 10.0)),
         span,
     )
+    lc["wind_vb_m_s"] = float(ws["vb_m_s"])
+    lc["wind_c_ws"] = float(ws["C_ws"])
+    lc["wind_c_ws_wl"] = float(ws["C_ws_wl"])
     cf = en_centrifugal_percentage(float(rail["speed_kmh"]), float(rail["radius_m"]), float(rail["Lf_m"]))
     try:
         if lc.get("seismic_region") == "Bangkok Basin" and int(lc.get("seismic_bangkok_zone", 0) or 0) > 0:
@@ -920,34 +942,156 @@ def page_criteria_loads(sub: str) -> None:
                 card("Assessment", "Not governing" if ld['cf_C_percent'] < 5 else "Review", "large radius / straight-span assumption", "pass" if ld['cf_C_percent'] < 5 else "warn")
 
         with tabs[4]:
-            code_basis_card("1.3.7 Wind Load (WS)", "EN 1991-1-4 and DPT 1311-50", "App calculates WS and WS+WL using the same parameter set used in the report. Figures are shown as clean app schematics.")
-            show_plotly(wind_bridge_direction_diagram())
-            c1, c2, c3, c4 = st.columns(4)
-            with c1:
-                editable_value(["load_components", "wind_air_density_kg_m3"], "ρair (kg/m³)", 0.01, "%.2f")
-                editable_value(["load_components", "wind_vb0_m_s"], "vb,0 (m/s)", 1.0)
-            with c2:
-                editable_value(["load_components", "wind_cdir"], "cdir", 0.05, "%.2f")
-                editable_value(["load_components", "wind_cseason"], "cseason", 0.05, "%.2f")
-            with c3:
-                D["load_components"]["wind_vb_m_s"] = D["load_components"]["wind_vb0_m_s"] * D["load_components"]["wind_cdir"] * D["load_components"]["wind_cseason"]
-                editable_value(["load_components", "wind_dtot_ws_m"], "dtot,WS (m)", 0.1)
-                editable_value(["load_components", "wind_dtot_ws_wl_m"], "dtot,WS+WL (m)", 0.1)
-            with c4:
-                editable_value(["load_components", "wind_c_ws"], "CWS", 0.1)
-                editable_value(["load_components", "wind_c_ws_wl"], "CWS+WL", 0.1)
-            ld = load_derived()
-            st.latex(r"v_b=c_{dir}c_{season}v_{b,0}")
-            st.latex(r"F_{W,x}=\frac{1}{2}\rho_{air}v_b^2 C A_{ref,x}")
-            st.dataframe(pd.DataFrame([
-                ["vb", D["load_components"]["wind_vb_m_s"], "m/s"],
-                ["q = 0.5ρvb²", ld["q_pa"], "Pa"],
-                ["Aref,x,WS", ld["Aref_ws_m2"], "m²"],
-                ["Aref,x,WS+WL", ld["Aref_ws_wl_m2"], "m²"],
-                ["WSsuper", ld["WSsuper_kn"], f"kN = {ld['WSsuper_kn_m']:.2f} kN/m"],
-                ["WSsuper+WL", ld["WSsuper_WL_kn"], f"kN = {ld['WSsuper_WL_kn_m']:.2f} kN/m"],
-            ], columns=["Item", "Value", "Unit / interpretation"]), use_container_width=True, hide_index=True)
+            code_basis_card(
+                "1.3.7 Wind Load (WS)",
+                "EN 1991-1-4 and DPT 1311-50",
+                "Report-driven WS module: user edits only the governing input parameters; vb, b/dtot, C, Aref, FW and FEA line loads are calculated automatically from one source.",
+            )
+            st.markdown('<div class="note-box"><b>Wind one-source rule:</b> the editable parameter table below feeds the calculation trace, figures, result tables, FEA summary, Save/Load JSON, and future report export. C factors are not duplicate manual inputs.</div>', unsafe_allow_html=True)
 
+            wind_tabs = st.tabs(["Overview", "Inputs", "EN Factors", "Calculations", "Figures", "FEA Summary"])
+            lc = D["load_components"]
+            wind_group_options = wind_reference_group_options()
+            if lc.get("wind_reference_group") not in wind_group_options:
+                lc["wind_reference_group"] = "Group 1"
+
+            with wind_tabs[0]:
+                ld = load_derived()
+                c1, c2, c3, c4 = st.columns(4)
+                with c1:
+                    card("Code basis", "EN 1991-1-4", "Bridge wind force in x-direction")
+                with c2:
+                    card("DPT wind group", str(lc.get("wind_reference_group", "Group 1")), f"vb,0 = {format_engineering_value(lc['wind_vb0_m_s'], 'm/s')} m/s", "pass")
+                with c3:
+                    card("WS line load", f"{format_engineering_value(ld['WSsuper_kn_m'], 'kN/m')} kN/m", "Wind on superstructure")
+                with c4:
+                    card("WS+WL line load", f"{format_engineering_value(ld['WSsuper_WL_kn_m'], 'kN/m')} kN/m", "Wind on superstructure + train", "pass")
+                st.latex(r"F_{W,x}=\frac{1}{2}\rho v_b^2 C A_{ref,x}")
+                st.latex(r"v_b=c_{dir}c_{season}v_{b,0},\qquad A_{ref,x}=d_{tot}L")
+                show_engineering_table(pd.DataFrame([
+                    ["ρ", lc["wind_air_density_kg_m3"], "kg/m³", "Air density used in BG40 R10"],
+                    ["vb,0", lc["wind_vb0_m_s"], "m/s", "DPT 1311-50 reference speed / user-adopted"],
+                    ["vb", ld["vb_m_s"], "m/s", "Calculated basic wind velocity"],
+                    ["CWS", ld["C_ws"], "factor", "Auto from EN Table 8.2 / BG40 Table 2.5"],
+                    ["CWS+WL", ld["C_ws_wl"], "factor", "Auto from EN Table 8.2 / BG40 Table 2.5"],
+                    ["WSsuper", ld["WSsuper_kn"], "kN", "Resultant wind force"],
+                    ["WSsuper+WL", ld["WSsuper_WL_kn"], "kN", "Resultant wind force including train envelope"],
+                ], columns=["Item", "Value", "Unit", "Interpretation"]))
+
+            with wind_tabs[1]:
+                st.markdown("#### Editable wind parameter table")
+                selected_group = st.selectbox(
+                    "DPT 1311-50 reference wind speed group",
+                    wind_group_options,
+                    index=wind_group_options.index(lc.get("wind_reference_group", "Group 1")),
+                    key="wind_reference_group_select",
+                    help="Selecting a group updates the recommended vb,0. Manual edits remain possible in the table.",
+                )
+                if selected_group != lc.get("wind_reference_group"):
+                    rec = wind_vb0_recommended_from_group(selected_group)
+                    lc["wind_reference_group"] = str(rec["group"])
+                    lc["wind_v50_m_s"] = float(rec["V50_m_s"])
+                    lc["wind_terrain_factor"] = float(rec["TF"])
+                    lc["wind_vb0_m_s"] = float(rec["vb0_m_s"])
+
+                specs = [
+                    ("Air density ρ", "wind_air_density_kg_m3", "kg/m³", 1.25, "BG40 R10 / EN calculation parameter"),
+                    ("Reference wind speed V50", "wind_v50_m_s", "m/s", wind_vb0_recommended_from_group(lc.get("wind_reference_group", "Group 1"))["V50_m_s"], "DPT 1311-50 group value"),
+                    ("Terrain factor TF", "wind_terrain_factor", "-", wind_vb0_recommended_from_group(lc.get("wind_reference_group", "Group 1"))["TF"], "DPT group factor shown in BG40 R10"),
+                    ("Fundamental basic wind velocity vb,0", "wind_vb0_m_s", "m/s", wind_vb0_recommended_from_group(lc.get("wind_reference_group", "Group 1"))["vb0_m_s"], "User-adopted basic wind velocity"),
+                    ("Directional factor cdir", "wind_cdir", "-", 1.0, "EN 1991-1-4 Section 4.2 Note 2 recommended value"),
+                    ("Season factor cseason", "wind_cseason", "-", 1.0, "EN 1991-1-4 Section 4.2 Note 3 recommended value"),
+                    ("Bridge/deck width b", "wind_b_m", "m", D["project"]["width_m"], "Width in x-direction D from report"),
+                    ("Depth dtot,WS", "wind_dtot_ws_m", "m", 3.9, "Superstructure with parapets"),
+                    ("Depth dtot,WS+WL", "wind_dtot_ws_wl_m", "m", 6.8, "Superstructure plus train"),
+                    ("Deck height ze", "wind_ze_m", "m", 10.0, "Height of bridge deck"),
+                    ("Wind loaded length L", "wind_span_m", "m", D["project"]["span_m"], "Length of superstructure subjected to wind"),
+                ]
+                # Mirror span to a load component key for table editing while keeping project span as source of truth by default.
+                lc.setdefault("wind_span_m", float(D["project"]["span_m"]))
+                param_df = pd.DataFrame([
+                    {"Parameter": label, "Value": float(lc.get(key, default)), "Unit": unit, "Recommended / source": src, "Schema key": key}
+                    for label, key, unit, default, src in specs
+                ])
+                edited = st.data_editor(
+                    param_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    disabled=["Parameter", "Unit", "Recommended / source", "Schema key"],
+                    column_config={"Value": st.column_config.NumberColumn(format="%.3f")},
+                    key="wind_parameter_editor",
+                )
+                for _, row in edited.iterrows():
+                    key = str(row["Schema key"])
+                    lc[key] = float(row["Value"])
+                D["project"]["span_m"] = float(lc.get("wind_span_m", D["project"]["span_m"]))
+                lc["wind_vb_m_s"] = float(lc["wind_vb0_m_s"]) * float(lc["wind_cdir"]) * float(lc["wind_cseason"])
+                st.markdown('<div class="warn-box"><b>Override rule:</b> if a recommended value is changed, the app keeps the edited value as User Input and recalculates downstream WS, WS+WL, and FEA summary values.</div>', unsafe_allow_html=True)
+
+            with wind_tabs[2]:
+                st.markdown("#### EN 1991-1-4 wind factor reference")
+                c1, c2 = st.columns([1.1, 1.0])
+                with c1:
+                    st.latex(r"C=C(b/d_{tot},z_e)")
+                    st.markdown("The app uses the report Table 2.5 / EN 1991-1-4 Table 8.2 bridge wind factor data and applies linear interpolation for `0.5 < b/dtot < 4.0`.")
+                    factor_df = pd.DataFrame([
+                        ["b/dtot ≤ 0.5", 6.7, 8.3],
+                        ["b/dtot ≥ 4.0", 3.6, 4.5],
+                    ], columns=["b/dtot range", "C at ze ≤ 20 m", "C at ze = 50 m"])
+                    show_engineering_table(factor_df)
+                    ld = load_derived()
+                    show_engineering_table(pd.DataFrame([
+                        ["WS", ld["b_over_d_ws"], "-", ld["C_ws"], ld["C_ws_note"]],
+                        ["WS+WL", ld["b_over_d_ws_wl"], "-", ld["C_ws_wl"], ld["C_ws_wl_note"]],
+                    ], columns=["Case", "b/dtot", "Unit", "C", "Interpolation trace"]))
+                with c2:
+                    show_report_image("fig_ws_factor_table_and_ze.png", "Table 2.5 Wind load factor C for bridges and deck-height reference (from BG40 R10 / EN 1991-1-4)")
+
+            with wind_tabs[3]:
+                ld = load_derived()
+                st.markdown("#### Basic wind velocity")
+                st.latex(r"v_b=c_{dir}c_{season}v_{b,0}")
+                st.latex(fr"v_b={lc['wind_cdir']:.2f}({lc['wind_cseason']:.2f})({lc['wind_vb0_m_s']:.1f})={ld['vb_m_s']:.1f}\,\mathrm{{m/s}}")
+                st.markdown("#### Wind load factor and reference area")
+                st.latex(r"A_{ref,x}=d_{tot}L")
+                st.latex(fr"A_{{ref,x,WS}}={lc['wind_dtot_ws_m']:.3f}({lc.get('wind_span_m', D['project']['span_m']):.3f})={ld['Aref_ws_m2']:.1f}\,\mathrm{{m^2}}")
+                st.latex(fr"A_{{ref,x,WS+WL}}={lc['wind_dtot_ws_wl_m']:.3f}({lc.get('wind_span_m', D['project']['span_m']):.3f})={ld['Aref_ws_wl_m2']:.1f}\,\mathrm{{m^2}}")
+                st.markdown("#### Wind force and equivalent line load")
+                st.latex(r"F_{W,x}=\frac{1}{2}\rho v_b^2 C A_{ref,x}")
+                st.latex(fr"F_{{W,x,WS}}=\frac{{1}}{{2}}({lc['wind_air_density_kg_m3']:.2f})({ld['vb_m_s']:.1f})^2({ld['C_ws']:.3f})({ld['Aref_ws_m2']:.1f})={ld['WSsuper_kn']:.0f}\,\mathrm{{kN}}")
+                st.latex(fr"F_{{W,x,WS+WL}}=\frac{{1}}{{2}}({lc['wind_air_density_kg_m3']:.2f})({ld['vb_m_s']:.1f})^2({ld['C_ws_wl']:.3f})({ld['Aref_ws_wl_m2']:.1f})={ld['WSsuper_WL_kn']:.0f}\,\mathrm{{kN}}")
+                st.latex(fr"w_{{WS}}=F_{{W,x,WS}}/L={ld['WSsuper_kn_m']:.2f}\,\mathrm{{kN/m}},\qquad w_{{WS+WL}}={ld['WSsuper_WL_kn_m']:.2f}\,\mathrm{{kN/m}}")
+                show_engineering_table(pd.DataFrame([
+                    ["q = 0.5ρvb²", ld["q_pa"], "Pa", "velocity pressure"],
+                    ["CWS", ld["C_ws"], "factor", "automatic interpolation"],
+                    ["CWS+WL", ld["C_ws_wl"], "factor", "automatic interpolation"],
+                    ["Aref,x,WS", ld["Aref_ws_m2"], "m²", "dtot,WS × L"],
+                    ["Aref,x,WS+WL", ld["Aref_ws_wl_m2"], "m²", "dtot,WS+WL × L"],
+                    ["WSsuper", ld["WSsuper_kn"], "kN", f"{ld['WSsuper_kn_m']:.2f} kN/m"],
+                    ["WSsuper+WL", ld["WSsuper_WL_kn"], "kN", f"{ld['WSsuper_WL_kn_m']:.2f} kN/m"],
+                ], columns=["Item", "Value", "Unit", "Interpretation"]))
+
+            with wind_tabs[4]:
+                st.markdown("#### Report reference figures")
+                c1, c2 = st.columns(2)
+                with c1:
+                    show_report_image("fig_1_2_dpt_wind_speed_map.png", "Figure 1.2 Reference wind speed map of Thailand (DPT 1311-50)")
+                with c2:
+                    show_report_image("fig_1_3_en_wind_direction_bridge.png", "Figure 1.3 Wind load directions on bridge (EN 1991-1-4 Fig. 8.2)")
+                c3, c4 = st.columns(2)
+                with c3:
+                    show_report_image("fig_ws_factor_table_and_ze.png", "Wind factor C table and ze definition (report Table 2.5)")
+                with c4:
+                    show_report_image("fig_ws_bridge_cross_section_load.png", "Wind application on superstructure and train load envelope (WS / WL)")
+
+            with wind_tabs[5]:
+                ld = load_derived()
+                rows = [
+                    ["WS", "Wind on superstructure", ld["WSsuper_kn"], "kN", ld["WSsuper_kn_m"], "kN/m", "Transverse x-direction", "Superstructure"],
+                    ["WS+WL", "Wind on superstructure + train", ld["WSsuper_WL_kn"], "kN", ld["WSsuper_WL_kn_m"], "kN/m", "Transverse x-direction", "Superstructure + train"],
+                ]
+                show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Description", "Resultant Force", "Unit", "Line Load", "Line Unit", "Direction", "Application"]))
+                st.markdown('<div class="note-box"><b>FEA export rule:</b> WS and WS+WL are exported as equivalent transverse line loads along the wind-loaded span. The resultant forces shown above are calculated only once from the editable parameter table.</div>', unsafe_allow_html=True)
         with tabs[5]:
             code_basis_card("1.3.8 Creep and Shrinkage Parameters", "AASHTO LRFD 2014 Art. 5.9.5", "Parameters declared here are consumed by Chapter 4 Prestress Losses; final loss calculation remains in the prestress module.")
             p = D["prestress"]

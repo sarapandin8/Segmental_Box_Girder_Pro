@@ -31,3 +31,8 @@ def test_engineering_table_formats_by_unit_column():
     ], columns=["Item", "Value", "Unit"])
     out = format_engineering_table(df)
     assert list(out["Value"]) == ["12,153", "121,146", "-13.96", "40.000", "75", "0.054"]
+
+
+def test_line_load_display_uses_two_decimals():
+    assert format_engineering_value(7.012345, "kN/m") == "7.01"
+    assert format_engineering_value(15.10, "kN/m") == "15.10"

@@ -1,6 +1,6 @@
 from core.bg40_defaults import BG40_DEFAULT
 from core.dpt_seismic import dpt_general_spectrum, lookup_general_ss_s1, seismic_design_category_from_sd1, seismic_design_category_from_sds
-from core.load_models import en_dynamic_factor_standard_maintenance, hunting_force_en1991, longitudinal_force_en1991, sdl_totals, wind_load_en1991_dpt
+from core.load_models import en_dynamic_factor_standard_maintenance, hunting_force_en1991, longitudinal_force_en1991, sdl_totals, wind_load_en1991_dpt, wind_load_en1991_dpt_auto, wind_load_factor_c_bridge
 
 
 def test_sdl_totals_read_from_single_component_table():
@@ -149,3 +149,20 @@ def test_aashto_m3c_importance_presets_are_traceable():
     manual = importance_value_from_preset("manual", 1.35)
     assert manual["I"] == 1.35
     assert manual["preset_key"] == "manual"
+
+
+def test_wind_load_factor_interpolation_bg40():
+    c_ws = wind_load_factor_c_bridge(11.2 / 3.9, 10.0)
+    c_wl = wind_load_factor_c_bridge(11.2 / 6.8, 10.0)
+    assert abs(c_ws["C"] - 4.6) < 0.02
+    assert abs(c_wl["C"] - 5.7) < 0.05
+    assert "linear interpolation" in c_ws["ratio_note"]
+
+
+def test_wind_auto_calculation_bg40_values():
+    out = wind_load_en1991_dpt_auto(1.25, 25.0, 1.0, 1.0, 11.2, 3.9, 6.8, 10.0, 40.0)
+    assert abs(out["vb_m_s"] - 25.0) < 1e-9
+    assert abs(out["C_ws"] - 4.6) < 0.02
+    assert abs(out["C_ws_wl"] - 5.7) < 0.05
+    assert abs(out["WSsuper_kn_m"] - 7.01) < 0.05
+    assert abs(out["WSsuper_WL_kn_m"] - 15.14) < 0.10

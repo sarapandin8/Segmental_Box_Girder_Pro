@@ -64,17 +64,19 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.3.7-commercial-m3d"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.3.8-commercial-m3e"' in validation_src
 
 
-def test_readme_documents_m3d_csp_formatting_and_seismic_foundation():
+def test_readme_documents_m3e_wind_csp_formatting_and_seismic_foundation():
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "Commercial M3D" in readme or "COMMERCIAL.M3D" in readme
-    assert "global engineering display formatting" in readme
-    assert "1.3 Design Loads" in readme
-    assert "general_ss_s1_by_district.csv" in readme
+    assert "Commercial M3E" in readme or "COMMERCIAL.M3E" in readme
+    assert "Display formatting rules" in readme
+    assert "1.3.7 Wind Load" in readme
+    assert "DPT seismic database" in readme
     assert "Bangkok Basin Zone 1–10" in readme
     assert "AASHTO LRFD 2014 Table 3.10.7.1-1" in readme
+    assert "EN 1991-1-4" in readme
+    assert "Table 2.5" in readme
     assert "Full station-by-station FEA import remains pending" in readme
 
 
@@ -135,3 +137,15 @@ def test_m3d_global_engineering_formatting_rules_are_documented_in_code():
     assert "Force/load and moment/torque: no decimals" in formatting_src
     assert "Stress in MPa: 2 decimals" in formatting_src
     assert "Length in mm: no decimals; length in m: 3 decimals" in formatting_src
+
+
+def test_m3e_wind_report_figures_and_auto_factor_ui_are_present():
+    src = _src()
+    assert "fig_1_2_dpt_wind_speed_map.png" in src
+    assert "fig_1_3_en_wind_direction_bridge.png" in src
+    assert "fig_ws_factor_table_and_ze.png" in src
+    assert "fig_ws_bridge_cross_section_load.png" in src
+    assert "wind_parameter_editor" in src
+    assert "wind_reference_group_select" in src
+    assert "wind_load_en1991_dpt_auto" in src
+    assert "C factors are not duplicate manual inputs" in src
