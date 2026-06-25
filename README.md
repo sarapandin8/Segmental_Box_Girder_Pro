@@ -1,6 +1,6 @@
-# Segmental Box Girder Pro — Commercial M2
+# Segmental Box Girder Pro — Commercial M2.1
 
-Commercial M2 converts the BG40 prototype into a report-driven engineering workspace. The UI follows the BG40 R10 report structure while intentionally omitting the word **Chapter** from the app sidebar for a more professional software feel.
+Commercial M2.1 converts the BG40 prototype into a report-driven engineering workspace. The UI follows the BG40 R10 report structure while intentionally omitting the word **Chapter** from the app sidebar for a more professional software feel.
 
 ## Milestone M2 Scope
 
@@ -60,3 +60,9 @@ Never sacrifice engineering correctness for UI polish.
 ## Notes
 
 This application performs independent design checks and report-assist workflows based on user-defined inputs and imported/keyed FEA demand envelopes. It does not replace the primary structural analysis model.
+
+
+## Commercial M2.1 UI Polish
+
+- Applies Concrete Section Pro style skill: safer top header card, blue/green commercial cards, report-driven status table, professional wording, and dashboard governing-result visibility.
+- Keeps one-source-of-truth Streamlit workspace/subpage state and preserves M1 engineering kernels.

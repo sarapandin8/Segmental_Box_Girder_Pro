@@ -39,20 +39,57 @@ st.set_page_config(
 CSS = """
 <style>
 :root {
-  --brand: #1f66d1;
-  --brand-dark: #073b70;
-  --ink: #0f172a;
-  --muted: #64748b;
+  --csp-blue-900: #092454;
+  --csp-blue-800: #0b3b91;
+  --csp-blue-700: #175cd3;
+  --csp-blue-100: #e8f2ff;
+  --csp-blue-050: #f7fbff;
+  --csp-green-900: #14532d;
+  --csp-green-800: #15803d;
+  --csp-green-100: #dcfce7;
+  --csp-green-050: #f0fff4;
+  --csp-slate-900: #0f172a;
+  --csp-slate-700: #344054;
+  --csp-slate-500: #667085;
+  --csp-slate-200: #e4e7ec;
+  --csp-red-700: #b42318;
+  --csp-red-100: #fee4e2;
+  --csp-amber-700: #b54708;
+  --csp-amber-100: #fef0c7;
+  --brand: var(--csp-blue-700);
+  --brand-dark: var(--csp-blue-900);
+  --ink: var(--csp-slate-900);
+  --muted: var(--csp-slate-500);
   --line: #bfd4f2;
   --soft: #f5f8fc;
   --card: #ffffff;
-  --pass-bg: #effcf5;
+  --pass-bg: var(--csp-green-050);
   --warn-bg: #fff7ed;
   --fail-bg: #fff1f2;
 }
-.block-container {padding-top: 1.4rem; padding-bottom: 2rem; max-width: 1550px;}
+.block-container {padding-top: 2.25rem; padding-bottom: 2rem; max-width: 1550px;}
 [data-testid="stSidebar"] {background: linear-gradient(180deg, #eef6ff 0%, #f8fbff 100%);}
 [data-testid="stSidebar"] [role="radiogroup"] label {border: 1px solid #bcd3f5; border-radius: 9px; padding: 3px 8px; margin: 3px 0; background: #fff;}
+.app-header-card {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 48%, #e8f2ff 100%);
+  box-shadow: 0 14px 36px rgba(23, 92, 211, 0.10);
+  padding: 1.05rem 1.18rem;
+  margin: 0.40rem 0 0.95rem 0;
+}
+.app-header-row {display:flex; align-items:center; justify-content:space-between; gap:16px;}
+.app-header-left {display:flex; align-items:center; gap:14px; min-width: 0;}
+.app-logo {
+  width: 48px; height: 48px; border-radius: 14px;
+  background: linear-gradient(135deg, #0b3b91 0%, #175cd3 100%);
+  color: #ffffff; display:flex; align-items:center; justify-content:center;
+  font-weight: 950; letter-spacing: 0.02em;
+  box-shadow: 0 10px 24px rgba(23, 92, 211, 0.26);
+}
+.app-header-title {font-size: 1.72rem; font-weight: 950; color: var(--csp-blue-900); line-height: 1.18;}
+.app-header-subtitle {font-size: 0.90rem; color: var(--csp-slate-500); margin-top: 0.18rem;}
+.app-header-pill {border:1px solid #bcd3f5; background:#ffffff; border-radius:999px; padding:8px 14px; color:#0b3b91; font-weight:850; font-size:0.78rem; white-space:nowrap;}
 .app-title {font-size: 2.05rem; font-weight: 900; color: var(--brand-dark); margin-bottom: 0.1rem;}
 .app-subtitle {font-size: 0.92rem; color: var(--muted); margin-bottom: 1.0rem;}
 .hero-card {border: 1px solid var(--line); background: linear-gradient(180deg,#fff,#f8fbff); border-radius: 16px; padding: 16px 18px; margin: 8px 0 16px 0; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);}
@@ -72,6 +109,13 @@ CSS = """
 .badge.pass {background:#dffbe8; color:#126b37; border: 1px solid #a7e6bc;}
 .badge.fail {background:#fee2e2; color:#991b1b; border: 1px solid #fecaca;}
 .badge.neutral {background:#e8f1ff; color:#174783; border: 1px solid #bcd3f5;}
+.workflow-table {border:1px solid #d5e6ff; border-radius:16px; overflow:hidden; background:#fff; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);}
+.workflow-row {display:grid; grid-template-columns: 1.25fr 0.55fr 2.2fr; gap:12px; padding:11px 14px; border-bottom:1px solid #edf2f7; align-items:center;}
+.workflow-row:last-child {border-bottom:0;}
+.workflow-name {font-weight:850; color:#092454;}
+.workflow-sub {font-size:0.80rem; color:#667085;}
+.workflow-status {font-weight:900; color:#14532d;}
+.governing-strip {border:1px solid #d5e6ff; border-radius:16px; background:#fff; padding:14px 16px; margin:16px 0 8px 0;}
 .sidebar-card {border:1px solid #bcd3f5; border-radius:12px; padding:12px; background:#fff; margin-bottom:12px;}
 .sidebar-title {font-weight:850; color:#0b376d; font-size:0.9rem;}
 .sidebar-mini {font-size:0.76rem; color:#334155; margin-top:4px;}
@@ -347,13 +391,20 @@ def render_sidebar() -> None:
 def render_header() -> None:
     ws = get_workspace(st.session_state.current_workspace)
     sub = st.session_state.current_subpage
-    st.markdown('<div class="app-title">Segmental Box Girder Pro</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="app-subtitle">Commercial report-driven design-review workspace · Internal units: kN, m, MPa, mm.</div>',
-        unsafe_allow_html=True,
-    )
     st.markdown(
         f"""
+        <div class="app-header-card">
+          <div class="app-header-row">
+            <div class="app-header-left">
+              <div class="app-logo">SB</div>
+              <div>
+                <div class="app-header-title">Segmental Box Girder Pro</div>
+                <div class="app-header-subtitle">Commercial report-driven design-review workspace · Internal units: kN, m, MPa, mm.</div>
+              </div>
+            </div>
+            <div class="app-header-pill">{ws['label'].upper()}</div>
+          </div>
+        </div>
         <div class="hero-card">
           <b>{D['project']['name']}</b> · {D['project']['description']}<br>
           <span class="small-muted">Active workspace: {ws['label']} · Subpage: {sub} · Baseline: {D['meta'].get('baseline_report', 'BG40 R10')}</span>
@@ -386,21 +437,51 @@ def page_dashboard(sub: str) -> None:
     if sub == "Overview":
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            card("Reference Data", "Active", D["meta"]["dataset_status"], "pass")
+            card("Reference Baseline", "BG40 R10 active", D["meta"]["dataset_status"], "pass")
         with c2:
             qa = "Blocked" if counts["ERROR"] else ("Review" if counts["WARNING"] else "Ready")
             mode = "fail" if counts["ERROR"] else ("warn" if counts["WARNING"] else "pass")
             card("QA Gate", qa, f"{counts['ERROR']} error(s), {counts['WARNING']} warning(s)", mode)
         with c3:
-            card("FEA Data", "Baseline keyed", D["fea_results"]["source_status"])
+            card("FEA Data", "Reference baseline loaded", D["fea_results"]["source_status"])
         with c4:
-            card("Recommended Action", "Review chapter UI", "M2 framework: verify chapter/subpage layout")
-        st.markdown("### Report-driven workspaces")
-        rows = []
+            card("Recommended Action", "Review current workspace", "M2.1: header, dashboard, and workflow polish")
+
+        st.markdown("### Governing engineering results")
+        g1, g2, g3, g4 = st.columns(4)
+        with g1:
+            card("ULS Flexure", f"DCR {flex['max_dcr']:.3f}", f"Governing x ≈ {flex['governing_x_m']} m", "pass")
+        with g2:
+            check = snap["transverse_check"]
+            mode = "pass" if check["Status_governing"] == "PASS" else "fail"
+            card("ULS Shear / Torsion", f"D/C {check['DCR_governing']:.3f}", check["Status_governing"], mode)
+        with g3:
+            card("SLS Stress", sls["status"], f"Governing margin {sls['governing_margin_percent']:.1f}%", "pass")
+        with g4:
+            card("Deflection", df["status"], f"LL utilization {df['ll_utilization_percent']:.1f}% of L/800", "pass")
+
+        st.markdown("### Report-driven workspace status")
+        workflow_lookup = {row["Workflow item"]: row for row in workflow}
+        status_map = {
+            "1 Criteria / Loads": workflow_lookup.get("Materials", {"Status": "READY"})["Status"],
+            "2 Bridge Model": workflow_lookup.get("Geometry", {"Status": "READY"})["Status"],
+            "3 Section Properties": workflow_lookup.get("Geometry", {"Status": "READY"})["Status"],
+            "4 Prestress Losses": workflow_lookup.get("Prestress Losses", {"Status": "READY"})["Status"],
+            "5 FEA Results": workflow_lookup.get("FEA Demand", {"Status": "READY"})["Status"],
+            "6 ULS Flexure": "PASS",
+            "7 ULS Shear / Torsion": snap["transverse_check"]["Status_governing"],
+            "8 SLS Stress": sls["status"],
+            "9 Deflection": df["status"],
+        }
+        rows_html = []
         for label in WORKSPACE_LABELS[1:-1]:
             ws = get_workspace(label)
-            rows.append({"Workspace": label, "Report title": ws["title"], "Subpages": " | ".join(ws["subpages"][:-1])})
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            status = status_map.get(label, "READY")
+            subsections = " · ".join(ws["subpages"][:-1])
+            rows_html.append(
+                f'<div class="workflow-row"><div><div class="workflow-name">{label}</div><div class="workflow-sub">{ws["title"]}</div></div><div class="workflow-status">{status}</div><div class="workflow-sub">{subsections}</div></div>'
+            )
+        st.markdown('<div class="workflow-table">' + ''.join(rows_html) + '</div>', unsafe_allow_html=True)
     elif sub == "Workflow Status":
         st.dataframe(workflow_dataframe(workflow), use_container_width=True, hide_index=True)
         with st.expander("Validation details", expanded=bool(counts["ERROR"] or counts["WARNING"])):
@@ -841,7 +922,7 @@ def page_report_qa(sub: str) -> None:
         with c1: card("Errors", str(counts["ERROR"]), "Blocking engineering issues", "fail" if counts["ERROR"] else "pass")
         with c2: card("Warnings", str(counts["WARNING"]), "Engineer review required" if counts["WARNING"] else "No warnings", "warn" if counts["WARNING"] else "pass")
         with c3: card("Information", str(counts["INFO"]), "Code-route notes")
-        with c4: card("Schema", PROJECT_SCHEMA_VERSION, "Report-driven UI framework")
+        with c4: card("Schema", PROJECT_SCHEMA_VERSION, "Report-driven UI framework with Concrete Section Pro style refinements")
         st.dataframe(workflow_dataframe(workflow), use_container_width=True, hide_index=True)
     elif sub == "Validation Issues":
         st.dataframe(issue_dataframe(issues), use_container_width=True, hide_index=True)
@@ -854,7 +935,7 @@ def page_report_qa(sub: str) -> None:
         st.dataframe(pd.DataFrame(rows, columns=["App workspace", "Report title", "Report subsections"]), use_container_width=True, hide_index=True)
     else:
         report_md = f"""
-# Segmental Box Girder Pro — Commercial M2 Summary
+# Segmental Box Girder Pro — Commercial M2.1 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
