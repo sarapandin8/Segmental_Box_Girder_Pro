@@ -207,6 +207,28 @@ def _profile_list(df: pd.DataFrame, tendon: str, value_col: str) -> list[dict[st
     return rows
 
 
+
+
+def _seg_type_at_station(df: pd.DataFrame, tendon: str, x_m: float) -> str:
+    """Return the profile segment type at an exact exported station when available."""
+    if df is None or df.empty or "x_m" not in df.columns:
+        return ""
+    td = df[df["Tendon"] == tendon].copy()
+    if td.empty:
+        return ""
+    exact = td[(td["x_m"].astype(float) - float(x_m)).abs() < 1e-9]
+    if not exact.empty:
+        return str(exact.iloc[0].get("SegType", ""))
+    return "Interpolated"
+
+
+def _profile_stations(df: pd.DataFrame, tendon: str) -> list[float]:
+    if df is None or df.empty or "x_m" not in df.columns:
+        return []
+    vals = df[df["Tendon"] == tendon]["x_m"].dropna().astype(float).tolist()
+    return sorted(set(round(float(v), 9) for v in vals))
+
+
 def _bridge_objects(*dfs: pd.DataFrame) -> list[str]:
     out: list[str] = []
     for df in dfs:
@@ -305,6 +327,56 @@ def build_tendon_layout_model(
             }
         )
 
+    # Merge vertical and horizontal control-point rows into a complete tendon profile table.
+    # This is the user-facing adopted profile table; raw vertical/horizontal imports remain QA-only.
+    profile_rows: list[dict[str, Any]] = []
+    station_match_rows: list[dict[str, Any]] = []
+    for t in tendons:
+        name = str(t.get("tendon", ""))
+        v_stations = _profile_stations(vertical, name)
+        h_stations = _profile_stations(horizontal, name)
+        station_union = sorted(set(v_stations + h_stations))
+        station_status = "MATCH" if v_stations == h_stations and v_stations else "REVIEW"
+        if not v_stations:
+            station_status = "MISSING VERTICAL"
+        if not h_stations:
+            station_status = "MISSING HORIZONTAL"
+        station_match_rows.append(
+            {
+                "Tendon": name,
+                "Vertical points": len(v_stations),
+                "Horizontal points": len(h_stations),
+                "Merged profile points": len(station_union),
+                "Station match status": station_status,
+            }
+        )
+        for idx, x in enumerate(station_union, start=1):
+            dp = _interp_profile(vertical, name, "dp_top_m", x)
+            off = _interp_profile(horizontal, name, "horiz_off_m", x)
+            v_seg = _seg_type_at_station(vertical, name, x)
+            h_seg = _seg_type_at_station(horizontal, name, x)
+            seg_type = v_seg if v_seg and v_seg == h_seg else (v_seg or h_seg or "Interpolated")
+            if v_seg and h_seg and v_seg != h_seg:
+                seg_type = f"V:{v_seg} / H:{h_seg}"
+            profile_rows.append(
+                {
+                    "Tendon": name,
+                    "Family": t.get("family", ""),
+                    "Side": t.get("side", ""),
+                    "BridgeObj": t.get("bridge_obj", active_obj),
+                    "Point No.": idx,
+                    "SegType": seg_type,
+                    "x_m": float(x),
+                    "dp_top_m": dp,
+                    "horiz_off_m": off,
+                    "Status": "OK" if dp is not None and off is not None else "REVIEW",
+                }
+            )
+        t["vertical_point_count"] = len(v_stations)
+        t["horizontal_point_count"] = len(h_stations)
+        t["profile_point_count"] = len(station_union)
+        t["profile_status"] = station_status if station_status != "MATCH" else "OK"
+
     # Symmetry check by family: L/R should have identical vertical profile and opposite horizontal offsets.
     symmetry_rows: list[dict[str, Any]] = []
     for fam in sorted({t["family"] for t in tendons}, key=_natural_tendon_sort_key):
@@ -356,11 +428,14 @@ def build_tendon_layout_model(
     dp_avg_mid = weighted_mid / total_weight if total_weight else None
     eccentricity_mid = dp_avg_mid - y_t_from_top_m if dp_avg_mid is not None else None
 
+    station_match_status = "MATCH" if station_match_rows and all(r.get("Station match status") == "MATCH" for r in station_match_rows) else "REVIEW"
     qa_rows = [
         {"Check": "Tendon count", "Value": len(tendons), "Status": "MATCH" if len(tendons) == 16 else "REVIEW"},
         {"Check": "General rows", "Value": len(general), "Status": "READY" if len(general) else "MISSING"},
         {"Check": "Vertical profile rows", "Value": len(vertical), "Status": "READY" if len(vertical) else "MISSING"},
         {"Check": "Horizontal profile rows", "Value": len(horizontal), "Status": "READY" if len(horizontal) else "MISSING"},
+        {"Check": "Merged profile rows", "Value": len(profile_rows), "Status": "READY" if len(profile_rows) else "MISSING"},
+        {"Check": "Vertical/Horizontal station match", "Value": station_match_status, "Status": station_match_status},
         {"Check": "BridgeObj imported", "Value": ", ".join(imported_objs), "Status": "REVIEW" if len(imported_objs) > 1 else "MATCH"},
         {"Check": "BridgeObj adopted", "Value": active_obj, "Status": "MAPPED" if map_to_active_bridge_object and len(imported_objs) > 1 else "MATCH"},
     ]
@@ -375,6 +450,8 @@ def build_tendon_layout_model(
         "span_m": span_m,
         "midspan_m": mid_m,
         "tendons": tendons,
+        "profile_rows": profile_rows,
+        "station_match_rows": station_match_rows,
         "group_summary": group_rows,
         "symmetry_rows": symmetry_rows,
         "qa_rows": qa_rows,
@@ -401,6 +478,16 @@ def tendon_model_to_frames(model: dict[str, Any]) -> tuple[pd.DataFrame, pd.Data
     symmetry = pd.DataFrame(model.get("symmetry_rows", []))
     qa = pd.DataFrame(model.get("qa_rows", []))
     return tendons, groups, symmetry, qa
+
+
+def tendon_model_to_profile_frame(model: dict[str, Any]) -> pd.DataFrame:
+    """Return merged vertical + horizontal tendon control-point rows for user-facing review."""
+    return pd.DataFrame(model.get("profile_rows", []))
+
+
+def tendon_model_to_station_match_frame(model: dict[str, Any]) -> pd.DataFrame:
+    """Return per-tendon vertical/horizontal station consistency checks."""
+    return pd.DataFrame(model.get("station_match_rows", []))
 
 
 def tendon_points_at_station(model: dict[str, Any], station_m: float) -> pd.DataFrame:

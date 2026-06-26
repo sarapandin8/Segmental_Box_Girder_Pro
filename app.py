@@ -44,6 +44,8 @@ from core.tendon_layout import (
     read_tendon_vertical_table,
     read_tendon_horizontal_table,
     tendon_model_to_frames,
+    tendon_model_to_profile_frame,
+    tendon_model_to_station_match_frame,
     tendon_points_at_station,
 )
 from core.load_models import (
@@ -1927,6 +1929,63 @@ def _render_tendon_import_summary_cards(model: dict[str, Any]) -> None:
             show_engineering_table(basis)
 
 
+
+
+def _tendon_summary_display_frame(tendons_df: pd.DataFrame) -> pd.DataFrame:
+    """Build a complete one-row-per-tendon display table for the adopted model."""
+    if tendons_df is None or tendons_df.empty:
+        return pd.DataFrame()
+    rows: list[dict[str, Any]] = []
+    for _, r in tendons_df.iterrows():
+        aps = float(r.get("area_mm2", 0.0) or 0.0)
+        force = float(r.get("force_kN", 0.0) or 0.0)
+        fpu = float(r.get("fpu_mpa", 1860.0) or 1860.0)
+        jstress = float(r.get("jacking_stress_mpa", 0.75 * fpu) or 0.75 * fpu)
+        rows.append(
+            {
+                "Tendon": r.get("tendon", ""),
+                "Family": r.get("family", ""),
+                "Side": r.get("side", ""),
+                "BridgeObj": r.get("bridge_obj", ""),
+                "Material": r.get("material", ""),
+                "Strand": r.get("strand_label", "-"),
+                "Aps / tendon": format_engineering_value(aps, "mm²"),
+                "fpu": format_engineering_value(fpu, "MPa"),
+                "Jacking stress": format_engineering_value(jstress, "MPa"),
+                "Jacking force": format_engineering_value(force, "kN"),
+                "Jack from": r.get("jack_from", ""),
+                "End dp": format_engineering_value(r.get("end_dp_m", None), "m"),
+                "Midspan dp": format_engineering_value(r.get("midspan_dp_m", None), "m"),
+                "End HorizOff": format_engineering_value(r.get("end_horiz_off_m", None), "m"),
+                "Midspan HorizOff": format_engineering_value(r.get("midspan_horiz_off_m", None), "m"),
+                "Profile pts": format_engineering_value(r.get("profile_point_count", 0), quantity="count"),
+                "Status": r.get("profile_status", "OK"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _tendon_profile_display_frame(profile_df: pd.DataFrame) -> pd.DataFrame:
+    """Build a merged vertical+horizontal profile table with report-style formatting."""
+    if profile_df is None or profile_df.empty:
+        return pd.DataFrame()
+    rows: list[dict[str, Any]] = []
+    for _, r in profile_df.iterrows():
+        rows.append(
+            {
+                "Tendon": r.get("Tendon", ""),
+                "Family": r.get("Family", ""),
+                "Side": r.get("Side", ""),
+                "Point No.": format_engineering_value(r.get("Point No.", 0), quantity="count"),
+                "SegType": r.get("SegType", ""),
+                "x": format_engineering_value(r.get("x_m", None), "m"),
+                "dp from top": format_engineering_value(r.get("dp_top_m", None), "m"),
+                "HorizOff": format_engineering_value(r.get("horiz_off_m", None), "m"),
+                "Status": r.get("Status", ""),
+            }
+        )
+    return pd.DataFrame(rows)
+
 def _apply_imported_tendon_summary_to_prestress(model: dict[str, Any]) -> None:
     """Adopt imported tendon summary into prestress one-source fields."""
     if not model.get("valid"):
@@ -2021,18 +2080,23 @@ def render_tendon_layout_reference() -> None:
                 st.error("Tendon model could not be built. Check imported tables and QA messages.")
             st.rerun()
 
-        if not general.empty:
-            with st.expander("Imported General tendon rows", expanded=False):
-                show_engineering_table(general[[c for c in ["BridgeObj", "Tendon", "Material", "TendonArea", "Aps_mm2", "strand_count_140mm2", "Force", "JackFrom"] if c in general.columns]])
-        if not vertical.empty:
-            with st.expander("Imported Vertical layout rows", expanded=False):
-                show_engineering_table(vertical[[c for c in ["BridgeObj", "Tendon", "SegType", "x_m", "dp_top_m"] if c in vertical.columns]].head(60))
-        if not horizontal.empty:
-            with st.expander("Imported Horizontal layout rows", expanded=False):
-                show_engineering_table(horizontal[[c for c in ["BridgeObj", "Tendon", "SegType", "x_m", "horiz_off_m"] if c in horizontal.columns]].head(60))
+        if not general.empty or not vertical.empty or not horizontal.empty:
+            with st.expander("Raw import data / QA only", expanded=False):
+                st.caption("Raw CSiBridge rows are shown only for parser QA. Use the Adopted Tendon Data tab for the complete merged tendon model used downstream.")
+                if not general.empty:
+                    st.markdown("##### Imported General tendon rows")
+                    show_engineering_table(general[[c for c in ["BridgeObj", "Tendon", "Material", "TendonArea", "Aps_mm2", "strand_label", "force_075fpu_kN", "Force", "JackFrom"] if c in general.columns]])
+                if not vertical.empty:
+                    st.markdown("##### Imported Vertical layout rows")
+                    show_engineering_table(vertical[[c for c in ["BridgeObj", "Tendon", "SegType", "x_m", "dp_top_m"] if c in vertical.columns]])
+                if not horizontal.empty:
+                    st.markdown("##### Imported Horizontal layout rows")
+                    show_engineering_table(horizontal[[c for c in ["BridgeObj", "Tendon", "SegType", "x_m", "horiz_off_m"] if c in horizontal.columns]])
 
     model = _active_tendon_model()
     tendons_df, group_df, symmetry_df, qa_df = tendon_model_to_frames(model)
+    profile_df = tendon_model_to_profile_frame(model)
+    station_match_df = tendon_model_to_station_match_frame(model)
 
     with tabs[1]:
         subsection_title("Tendon side elevation")
@@ -2083,12 +2147,16 @@ def render_tendon_layout_reference() -> None:
     with tabs[4]:
         subsection_title("Adopted tendon data")
         if model.get("valid"):
-            st.markdown('<div class="result-card"><b>Adopted Tendon Layout for Design</b> <span class="badge pass">USED BY PRESTRESS / REPORT CHECKS</span><br><span class="small-muted">This table is built from CSiBridge General + Vertical + Horizontal tendon exports. The app stores it as the single source for tendon layout figures and prestress summary values.</span></div>', unsafe_allow_html=True)
-            st.markdown("#### Tendon object summary")
-            tendon_cols = ["tendon", "family", "side", "bridge_obj", "material", "area_mm2", "strand_count_140mm2", "force_kN", "jack_from", "end_dp_m", "midspan_dp_m", "end_horiz_off_m", "midspan_horiz_off_m"]
-            show_engineering_table(tendons_df[[c for c in tendon_cols if c in tendons_df.columns]].rename(columns={
-                "tendon": "Tendon", "family": "Family", "side": "Side", "bridge_obj": "BridgeObj", "material": "Material", "area_mm2": "Aps", "strand_count_140mm2": "Strands (A=140)", "force_kN": "Force", "jack_from": "JackFrom", "end_dp_m": "End dp", "midspan_dp_m": "Midspan dp", "end_horiz_off_m": "End HorizOff", "midspan_horiz_off_m": "Midspan HorizOff"
-            }))
+            st.markdown('<div class="result-card"><b>Adopted Tendon Layout Table</b> <span class="badge pass">USED BY PRESTRESS / REPORT CHECKS</span><br><span class="small-muted">Complete one-row-per-tendon model merged from CSiBridge General + Vertical + Horizontal exports. This is the user-facing tendon table; raw import rows are QA-only.</span></div>', unsafe_allow_html=True)
+            st.markdown("#### Adopted Tendon Layout Table — one row per tendon")
+            summary_display = _tendon_summary_display_frame(tendons_df)
+            st.dataframe(summary_display, use_container_width=True, hide_index=True)
+
+            st.markdown("#### Merged Tendon Profile Table — vertical + horizontal")
+            st.caption("Each row combines station x, vertical dp measured from top, and horizontal offset from CL for the same tendon control point.")
+            profile_display = _tendon_profile_display_frame(profile_df)
+            st.dataframe(profile_display, use_container_width=True, hide_index=True)
+
             st.markdown("#### Report-style tendon group summary")
             show_engineering_table(group_df)
             st.markdown(f'<div class="note-box">Weighted average dp at end = {model.get("dp_avg_end_m", 0.0):.3f} m; at midspan = {model.get("dp_avg_midspan_m", 0.0):.3f} m; e_midspan = {model.get("eccentricity_midspan_m", 0.0):.3f} m using y_t = {D["section"].get("yt_from_top_m", 0.0):.3f} m.</div>', unsafe_allow_html=True)
@@ -2113,6 +2181,9 @@ def render_tendon_layout_reference() -> None:
         if not symmetry_df.empty:
             st.markdown("#### Left/right symmetry QA")
             show_engineering_table(symmetry_df)
+        if not station_match_df.empty:
+            st.markdown("#### Vertical / horizontal station matching QA")
+            show_engineering_table(station_match_df)
         st.markdown("#### Downstream trace")
         trace = pd.DataFrame([
             ["Tendon figures", "Imported General + Vertical + Horizontal profiles", "Side elevation / plan / section overlay", "READY" if model.get("valid") else "PENDING"],

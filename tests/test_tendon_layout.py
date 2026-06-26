@@ -4,6 +4,8 @@ import pandas as pd
 
 from core.tendon_layout import (
     build_tendon_layout_model,
+    tendon_model_to_profile_frame,
+    tendon_model_to_station_match_frame,
     normalize_general_tendon_rows,
     normalize_tendon_profile_rows,
     tendon_points_at_station,
@@ -85,3 +87,21 @@ def test_tendon_model_bridgeobj_mismatch_can_be_mapped_to_active():
     assert "B2_SPAN2" in model["imported_bridge_objects"]
     assert model["active_bridge_object"] == "B2_SPAN1"
     assert any(row["Check"] == "BridgeObj adopted" and row["Status"] == "MAPPED" for row in model["qa_rows"])
+
+
+
+def test_tendon_model_builds_complete_merged_profile_table():
+    general = normalize_general_tendon_rows(_raw_general())
+    vertical = normalize_tendon_profile_rows(_raw_vertical(), profile="vertical")
+    horizontal = normalize_tendon_profile_rows(_raw_horizontal(), profile="horizontal")
+    model = build_tendon_layout_model(general, vertical, horizontal, active_bridge_object="B2_SPAN1", y_t_from_top_m=0.839)
+    profile = tendon_model_to_profile_frame(model)
+    station_match = tendon_model_to_station_match_frame(model)
+    assert len(profile) == 12
+    assert {"Tendon", "Point No.", "x_m", "dp_top_m", "horiz_off_m", "Status"}.issubset(profile.columns)
+    t1l_mid = profile[(profile["Tendon"] == "T1-L") & (profile["x_m"] == 20.0)].iloc[0]
+    assert abs(t1l_mid["dp_top_m"] - 2.15) < 1e-9
+    assert abs(t1l_mid["horiz_off_m"] - 1.45) < 1e-9
+    assert len(station_match) == 4
+    assert set(station_match["Station match status"]) == {"MATCH"}
+    assert any(row["Check"] == "Merged profile rows" and row["Value"] == 12 for row in model["qa_rows"])

@@ -1,17 +1,19 @@
-# Segmental Box Girder Pro — COMMERCIAL.M3H.3
+# Segmental Box Girder Pro — COMMERCIAL.M3H.4
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
-## COMMERCIAL.M3H.3 updates
+## COMMERCIAL.M3H.4 updates
 
-- Fixes Project JSON load crash caused by modifying `st.session_state.current_workspace` after the sidebar radio widget was instantiated.
-- Adds a pending-load handoff: the explicit **Load uploaded project** button stores the validated/migrated project in a private pending state, reruns once, and applies the project plus workspace/subpage reset before any widgets are created.
-- Preserves the M3H.2 safety improvements: explicit load button, JSON decode/schema migration, fingerprint handling, and load status message.
-- Schema: `0.4.8-commercial-m3h3-json-widget-state-fix`.
+- Replaces incomplete raw Vertical/Horizontal tendon table previews with a complete **Adopted Tendon Layout Table**: one row per tendon, including tendon/family/side, BridgeObj, material, strand label, Aps per tendon, fpu, jacking stress, jacking force, JackFrom, end/midspan dp, end/midspan horizontal offset, profile point count, and status.
+- Adds a **Merged Tendon Profile Table** that combines CSiBridge Vertical and Horizontal layout rows into one control-point table with x, dp from top, and HorizOff in the same row.
+- Moves raw General/Vertical/Horizontal import rows into a collapsed **Raw import data / QA only** expander.
+- Adds per-tendon vertical/horizontal station matching QA and a merged profile row-count check.
+- Schema: `0.4.9-commercial-m3h4-tendon-adopted-table`.
 
 ## Retained commercial app foundations
 
 - Concrete Section Pro-style workspace/sidebar/card layout and Plotly figure conventions.
+- Explicit Project JSON load button with pending-load rerun workflow to avoid Streamlit widget-state crashes.
 - DPT seismic database and EQ workflow.
 - 1.3 Loads engines for SDL, LL+IM, LF/HF/CF, wind, CR/SH, and EQ.
 - Coordinate-driven section properties with CSiBridge XLSX/CSV import.

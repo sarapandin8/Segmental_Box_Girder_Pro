@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.8-commercial-m3h3-json-widget-state-fix"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.9-commercial-m3h4-tendon-adopted-table"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -257,3 +257,15 @@ def test_project_json_load_uses_pending_state_before_widget_keys():
     assert "st.session_state.current_subpage =" not in load_handler
     assert '"workspace": WORKSPACE_LABELS[0]' in load_handler
     assert '"subpage": get_workspace(WORKSPACE_LABELS[0])["subpages"][0]' in load_handler
+
+
+
+def test_m3h4_tendon_adopted_tables_are_complete_and_raw_tables_are_qa_only():
+    src = _src()
+    assert "Adopted Tendon Layout Table — one row per tendon" in src
+    assert "Merged Tendon Profile Table — vertical + horizontal" in src
+    assert "Raw import data / QA only" in src
+    assert "_tendon_summary_display_frame" in src
+    assert "_tendon_profile_display_frame" in src
+    assert "tendon_model_to_profile_frame" in src
+    assert "Vertical / horizontal station matching QA" in src
