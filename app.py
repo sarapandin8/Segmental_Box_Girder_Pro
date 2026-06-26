@@ -1812,6 +1812,63 @@ def _active_tendon_model() -> dict[str, Any]:
     return _build_and_store_tendon_model()
 
 
+def _render_tendon_import_summary_cards(model: dict[str, Any]) -> None:
+    """Show tendon import results as concise cards instead of a long instruction banner."""
+    valid = bool(model.get("valid"))
+    tendons = model.get("tendons", []) if valid else []
+    families = sorted({t.get("family", "") for t in tendons if t.get("family")})
+    material = model.get("material") or "-"
+    strand_label = model.get("strand_label") or "-"
+    aps = float(model.get("Aps_per_tendon_mm2") or 0.0)
+    total_aps = float(model.get("total_area_mm2") or 0.0)
+    fpu = float(model.get("fpu_mpa") or 1860.0)
+    jack_stress = float(model.get("jacking_stress_mpa") or 0.75 * fpu)
+    force_per = float(model.get("force_per_tendon_kN") or 0.0)
+    total_force = float(model.get("total_force_kN") or 0.0)
+    active_obj = model.get("active_bridge_object") or D["project"].get("bridge_object", "-")
+    dp_end = model.get("dp_avg_end_m")
+    dp_mid = model.get("dp_avg_midspan_m")
+    e_mid = model.get("eccentricity_midspan_m")
+    mapped = bool(model.get("mapped_to_active_bridge_object"))
+    imported_objs = model.get("imported_bridge_objects") or []
+    status = "READY" if valid else "PENDING"
+    status_note = "Profiles merged" if valid else "Upload General / Vertical / Horizontal tables"
+    if len(imported_objs) > 1:
+        status_note = "BridgeObj mapped by user" if mapped else "BridgeObj mismatch review"
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        card("Imported Tendon Model", f"{len(tendons)} tendons" if valid else "No model", f"{len(families)} mirrored families · {active_obj}", "pass" if valid else "")
+    with c2:
+        card("Strand / Area", strand_label if valid else "-", f"Aps/tendon = {format_engineering_value(aps, 'mm²')} mm² · Total = {format_engineering_value(total_aps, 'mm²')} mm²", "pass" if valid else "")
+    with c3:
+        card("Jacking Basis", f"0.75fpu = {format_engineering_value(jack_stress, 'MPa')} MPa" if valid else "0.75fpu", f"Pj/tendon = {format_engineering_value(force_per, 'kN')} kN · Total = {format_engineering_value(total_force, 'kN')} kN", "pass" if valid else "")
+    with c4:
+        card("Layout Status", status, f"{status_note} · Material {material}", "pass" if valid else "warn")
+
+    if valid:
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            card("Average end dp", format_engineering_value(float(dp_end or 0.0), "m"), "Area-weighted from imported vertical profiles", "pass")
+        with c2:
+            card("Average midspan dp", format_engineering_value(float(dp_mid or 0.0), "m"), "Area-weighted from imported vertical profiles", "pass")
+        with c3:
+            card("Midspan eccentricity", format_engineering_value(float(e_mid or 0.0), "m"), "e = dp(midspan) − y_t", "pass")
+
+        basis = pd.DataFrame([
+            ["Tendon system", D["project"].get("tendon_system", "External / Unbonded PT"), "Project basis"],
+            ["Material", material, "Imported CSiBridge General table"],
+            ["Strand", strand_label, "Derived from Aps = 24 × 140 mm² for BG40"],
+            ["Aps per tendon", aps, "mm²"],
+            ["fpu", fpu, "MPa"],
+            ["Jacking stress", jack_stress, "MPa = 0.75 fpu"],
+            ["Jacking force per tendon", force_per, "kN = 0.75 fpu × Aps"],
+            ["Total jacking force", total_force, "kN"],
+        ], columns=["Item", "Value", "Unit / source"])
+        with st.expander("Tendon import basis table", expanded=False):
+            show_engineering_table(basis)
+
+
 def _apply_imported_tendon_summary_to_prestress(model: dict[str, Any]) -> None:
     """Adopt imported tendon summary into prestress one-source fields."""
     if not model.get("valid"):
@@ -1846,13 +1903,9 @@ def _apply_imported_tendon_summary_to_prestress(model: dict[str, Any]) -> None:
 
 def render_tendon_layout_reference() -> None:
     section_title("2.4 Tendon Layout Reference")
-    st.markdown(
-        '<div class="note-box"><b>CSiBridge tendon-layout import:</b> import the General, Vertical Layout, and Horizontal Layout exports. '
-        'The app merges tendon area/force, vertical dp measured from top, and horizontal offset from CL into one tendon model. '
-        'Figures and summaries use this adopted tendon model; BridgeObj mismatches are warned and may be mapped to the active object only by user confirmation.</div>',
-        unsafe_allow_html=True,
-    )
     tl = D.setdefault("tendon_layout", {})
+    model_for_summary = _active_tendon_model()
+    _render_tendon_import_summary_cards(model_for_summary)
     tabs = st.tabs(["Import / Mapping", "Elevation View", "Plan View", "Section Overlay", "Adopted Tendon Data", "QA / Consistency"])
 
     with tabs[0]:

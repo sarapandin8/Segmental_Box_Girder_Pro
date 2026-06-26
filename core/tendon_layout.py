@@ -17,6 +17,11 @@ import numpy as np
 import pandas as pd
 
 REQUIRED_GENERAL_COLUMNS = {"BridgeObj", "Tendon", "Material", "TendonArea", "Force"}
+FPU_MPA = 1860.0
+JACKING_STRESS_RATIO = 0.75
+JACKING_STRESS_MPA = FPU_MPA * JACKING_STRESS_RATIO
+STRAND_NOMINAL_AREA_MM2 = 140.0
+STRAND_SIZE_LABEL = "T15.2"
 REQUIRED_VERTICAL_COLUMNS = {"BridgeObj", "Tendon", "TendonDist", "VertOff"}
 REQUIRED_HORIZONTAL_COLUMNS = {"BridgeObj", "Tendon", "TendonDist", "HorizOff"}
 
@@ -137,7 +142,14 @@ def normalize_general_tendon_rows(raw: pd.DataFrame | Any, filename: str | None 
     out["Force"] = pd.to_numeric(out.get("Force", 0.0), errors="coerce")
     out["Aps_mm2"] = out["TendonArea"] * 1_000_000.0
     # CSiBridge area for BG40 is 0.00336 m² = 3360 mm² = 24 x 140 mm².
-    out["strand_count_140mm2"] = out["Aps_mm2"] / 140.0
+    out["strand_count_140mm2"] = out["Aps_mm2"] / STRAND_NOMINAL_AREA_MM2
+    out["strand_count"] = out["strand_count_140mm2"].round().astype("Int64")
+    out["strand_size"] = STRAND_SIZE_LABEL
+    out["strand_label"] = out["strand_count"].astype(str) + "-" + STRAND_SIZE_LABEL
+    out["fpu_mpa"] = FPU_MPA
+    out["jacking_stress_mpa"] = JACKING_STRESS_MPA
+    out["force_imported_kN"] = out["Force"]
+    out["force_075fpu_kN"] = out["Aps_mm2"] * JACKING_STRESS_MPA / 1000.0
     return out.sort_values("Tendon", key=lambda s: s.map(_natural_tendon_sort_key)).reset_index(drop=True)
 
 
@@ -260,7 +272,9 @@ def build_tendon_layout_model(
         end_h = _interp_profile(horizontal, name, "horiz_off_m", 0.0)
         mid_h = _interp_profile(horizontal, name, "horiz_off_m", mid_m) if mid_m else None
         aps_mm2 = _to_float(g.get("Aps_mm2", 0.0), 0.0)
-        force_kn = _to_float(g.get("Force", 0.0), 0.0)
+        force_imported_kn = _to_float(g.get("force_imported_kN", g.get("Force", 0.0)), 0.0)
+        force_075fpu_kn = _to_float(g.get("force_075fpu_kN", aps_mm2 * JACKING_STRESS_MPA / 1000.0 if aps_mm2 else 0.0), 0.0)
+        force_kn = force_075fpu_kn
         tendons.append(
             {
                 "tendon": name,
@@ -274,7 +288,14 @@ def build_tendon_layout_model(
                 "area_m2": _to_float(g.get("TendonArea", aps_mm2 / 1_000_000.0 if aps_mm2 else 0.0)),
                 "area_mm2": aps_mm2,
                 "strand_count_140mm2": _to_float(g.get("strand_count_140mm2", 0.0)),
+                "strand_count": int(round(_to_float(g.get("strand_count_140mm2", 0.0)))) if _to_float(g.get("strand_count_140mm2", 0.0)) else 0,
+                "strand_size": STRAND_SIZE_LABEL,
+                "strand_label": f"{int(round(_to_float(g.get('strand_count_140mm2', 0.0))))}-{STRAND_SIZE_LABEL}" if _to_float(g.get("strand_count_140mm2", 0.0)) else "-",
+                "fpu_mpa": FPU_MPA,
+                "jacking_stress_mpa": JACKING_STRESS_MPA,
+                "force_imported_kN": force_imported_kn,
                 "force_kN": force_kn,
+                "force_basis": "0.75 fpu × Aps",
                 "end_dp_m": end_dp,
                 "midspan_dp_m": mid_dp,
                 "end_horiz_off_m": end_h,
@@ -360,6 +381,15 @@ def build_tendon_layout_model(
         "dp_avg_end_m": dp_avg_end,
         "dp_avg_midspan_m": dp_avg_mid,
         "eccentricity_midspan_m": eccentricity_mid,
+        "material": next((t.get("material") for t in tendons if t.get("material")), ""),
+        "strand_label": next((t.get("strand_label") for t in tendons if t.get("strand_label") and t.get("strand_label") != "-"), "-"),
+        "strand_count": int(round(float(np.mean([t.get("strand_count", 0) for t in tendons if t.get("strand_count", 0)])))) if any(t.get("strand_count", 0) for t in tendons) else 0,
+        "strand_size": STRAND_SIZE_LABEL,
+        "fpu_mpa": FPU_MPA,
+        "jacking_stress_ratio": JACKING_STRESS_RATIO,
+        "jacking_stress_mpa": JACKING_STRESS_MPA,
+        "Aps_per_tendon_mm2": float(np.mean([t["area_mm2"] for t in tendons if t["area_mm2"]])) if any(t["area_mm2"] for t in tendons) else 0.0,
+        "force_per_tendon_kN": float(np.mean([t["force_kN"] for t in tendons if t["force_kN"]])) if any(t["force_kN"] for t in tendons) else 0.0,
         "total_area_mm2": sum(t["area_mm2"] for t in tendons),
         "total_force_kN": sum(t["force_kN"] for t in tendons),
     }

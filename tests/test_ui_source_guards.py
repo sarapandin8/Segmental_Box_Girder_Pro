@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.5-commercial-m3h-tendon-import"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.6-commercial-m3h1-tendon-summary-cards"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -221,9 +221,13 @@ def test_m3g4_section_properties_j_adoption_controls_are_simple_and_explicit():
     assert "Torsion / Advanced" not in src.split("st.tabs([", 1)[1].split("])" , 1)[0]
 
 
-def test_m3h_tendon_import_ui_and_trace_are_present():
+def test_m3h1_tendon_import_summary_cards_and_trace_are_present():
     src = _src()
-    assert "CSiBridge tendon-layout import" in src
+    assert "_render_tendon_import_summary_cards" in src
+    assert "Imported Tendon Model" in src
+    assert "Strand / Area" in src
+    assert "Jacking Basis" in src
+    assert "0.75fpu" in src
     assert "General tendon table" in src
     assert "Vertical layout table" in src
     assert "Horizontal layout table" in src
