@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.3-commercial-m3g3-section-ux"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.4-commercial-m3g4-j-apply"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -208,12 +208,14 @@ def test_m3g_bridge_geometry_page_no_workspace_title_duplication_in_active_route
 
 
 
-def test_m3g3_section_properties_j_is_visible_in_adopted_design_tab():
+def test_m3g4_section_properties_j_adoption_controls_are_simple_and_explicit():
     src = _src()
     assert "Adopted Properties for Design" in src
     assert "Adopted Section Properties for Design" in src
     assert "USED BY DESIGN CHECKS" in src
     assert "J input source / method" in src
-    assert "Adopted J for design (m⁴)" in src
+    assert 'j_options = ["User override", "Thin-walled estimate adopted"]' in src
+    assert "User override J (m⁴)" in src
+    assert "Apply user override J to adopted properties" in src
     assert "Use thin-walled estimate as adopted J" in src
     assert "Torsion / Advanced" not in src.split("st.tabs([", 1)[1].split("])" , 1)[0]

@@ -1607,45 +1607,71 @@ def render_section_properties() -> None:
         else:
             st.info("Import valid coordinates to calculate A/I/S/centroid. Adopted values below can still be reviewed or keyed from FEA.")
 
-        st.markdown("#### Adopted properties table")
-        active_rows = [
-            ["Cross-sectional area", "A", s["Ac_m2"], "m²", s.get("coordinate_source", "FEA / CSiBridge keyed value")],
-            ["Moment of inertia major", "I33", s["I33_m4"], "m⁴", s.get("coordinate_source", "FEA / CSiBridge keyed value")],
-            ["Moment of inertia minor", "I22", s["I22_m4"], "m⁴", s.get("coordinate_source", "FEA / CSiBridge keyed value")],
-            ["Torsional constant", "J", s["J_m4"], "m⁴", s.get("J_method", "CSiBridge / FEA manual value")],
-            ["Section modulus top", "S33(+)", s["S_top_m3"], "m³", s.get("coordinate_source", "FEA / CSiBridge keyed value")],
-            ["Section modulus bottom", "S33(-)", s["S_bottom_m3"], "m³", s.get("coordinate_source", "FEA / CSiBridge keyed value")],
-            ["Centroid from left", "x_cg", s.get("xcg_from_left_m", "-"), "m", "Adopted value"],
-            ["Centroid from bottom", "y_cg", s["ycg_from_bottom_m"], "m", "Adopted value"],
-            ["Centroid from top", "y_t", s["yt_from_top_m"], "m", "Adopted value"],
-        ]
-        show_engineering_table(pd.DataFrame(active_rows, columns=["Property", "Symbol", "Adopted value", "Unit", "Source / Method"]))
+        def _render_adopted_section_properties_table(container) -> None:
+            active_rows = [
+                ["Cross-sectional area", "A", s["Ac_m2"], "m²", s.get("coordinate_source", "FEA / CSiBridge keyed value")],
+                ["Moment of inertia major", "I33", s["I33_m4"], "m⁴", s.get("coordinate_source", "FEA / CSiBridge keyed value")],
+                ["Moment of inertia minor", "I22", s["I22_m4"], "m⁴", s.get("coordinate_source", "FEA / CSiBridge keyed value")],
+                ["Torsional constant", "J", s["J_m4"], "m⁴", s.get("J_method", "User override")],
+                ["Section modulus top", "S33(+)", s["S_top_m3"], "m³", s.get("coordinate_source", "FEA / CSiBridge keyed value")],
+                ["Section modulus bottom", "S33(-)", s["S_bottom_m3"], "m³", s.get("coordinate_source", "FEA / CSiBridge keyed value")],
+                ["Centroid from left", "x_cg", s.get("xcg_from_left_m", "-"), "m", "Adopted value"],
+                ["Centroid from bottom", "y_cg", s["ycg_from_bottom_m"], "m", "Adopted value"],
+                ["Centroid from top", "y_t", s["yt_from_top_m"], "m", "Adopted value"],
+            ]
+            with container.container():
+                st.markdown("#### Adopted properties table")
+                show_engineering_table(pd.DataFrame(active_rows, columns=["Property", "Symbol", "Adopted value", "Unit", "Source / Method"]))
+
+        adopted_table_slot = st.empty()
 
         st.markdown("#### Torsional Constant J — adopted value")
         st.markdown(
             '<div class="warn-box"><b>Important:</b> A, centroid, I and S are calculated from polygon coordinates. '
             'Torsional constant J is not directly obtained from polygon inertia for hollow box sections. '
-            'Use CSiBridge / FEA J as the default design value, or explicitly adopt the thin-walled estimate after review.</div>',
+            'For verified section-property values from CSiBridge / FEA, select <b>User override</b> and key the verified J value here. '
+            'Alternatively, explicitly adopt the thin-walled estimate after review.</div>',
             unsafe_allow_html=True,
         )
-        old_method = D["section"].get("J_method", "CSiBridge / FEA manual value")
+        old_method = D["section"].get("J_method", "User override")
         method_map = {
-            "FEA / manual override": "CSiBridge / FEA manual value",
+            "CSiBridge / FEA manual value": "User override",
+            "FEA / manual override": "User override",
             "User override": "User override",
             "Auto thin-walled single-cell estimate": "Thin-walled estimate adopted",
+            "Thin-walled estimate adopted": "Thin-walled estimate adopted",
         }
-        old_method = method_map.get(old_method, old_method)
-        j_options = ["CSiBridge / FEA manual value", "User override", "Thin-walled estimate adopted"]
-        if old_method not in j_options:
-            old_method = "CSiBridge / FEA manual value"
+        old_method = method_map.get(old_method, "User override")
+        j_options = ["User override", "Thin-walled estimate adopted"]
         c1, c2 = st.columns([1.0, 1.0])
         with c1:
-            D["section"]["J_method"] = st.selectbox("J input source / method", j_options, index=j_options.index(old_method), key="section_j_source_method")
+            selected_j_method = st.selectbox("J input source / method", j_options, index=j_options.index(old_method), key="section_j_source_method")
         with c2:
-            editable_value(["section", "J_m4"], "Adopted J for design (m⁴)", 0.001, "%.4f")
-        D["section"]["J_note"] = st.text_input("J source note", D["section"].get("J_note", "CSiBridge section property window"), key="section_j_source_note")
+            pending_j_value = st.number_input(
+                "User override J (m⁴)",
+                value=float(D["section"].get("J_m4", 0.0) or 0.0),
+                step=0.001,
+                format="%.4f",
+                disabled=(selected_j_method != "User override"),
+                key="section_j_pending_override_value",
+            )
+        pending_j_note = st.text_input(
+            "J source note",
+            D["section"].get("J_note", "J keyed by user from CSiBridge / FEA section property window or another verified source."),
+            disabled=(selected_j_method != "User override"),
+            key="section_j_pending_override_note",
+        )
+        if selected_j_method == "User override":
+            if st.button("Apply user override J to adopted properties", type="primary", use_container_width=True):
+                D["section"]["J_m4"] = float(pending_j_value)
+                D["section"]["J_method"] = "User override"
+                D["section"]["J_note"] = pending_j_note or "User override J value."
+                st.success("Adopted J updated from user override and will be used by downstream design checks.")
+                st.rerun()
+        else:
+            st.info("Select the thin-walled estimate after reviewing the QA comparison below, then use the adopt button inside the expander.")
 
-        with st.expander("Thin-walled closed-box J estimate for QA comparison", expanded=True):
+        with st.expander("Thin-walled closed-box J estimate for QA comparison", expanded=(selected_j_method == "Thin-walled estimate adopted")):
             c1, c2, c3 = st.columns(3)
             with c1:
                 editable_value(["section", "t_top_m"], "Top slab thickness t_top (m)", 0.01, "%.3f")
@@ -1666,7 +1692,7 @@ def render_section_properties() -> None:
                     diff_pct = abs(float(j_est["J_m4"]) - ref_j) / max(abs(ref_j), 1e-12) * 100.0 if ref_j else None
                     D["section"]["J_thin_walled_difference_pct"] = diff_pct
                     j_rows = pd.DataFrame([
-                        ["Adopted J for design", "J", D["section"].get("J_m4"), "m⁴", D["section"].get("J_method", "CSiBridge / FEA manual value")],
+                        ["Adopted J for design", "J", D["section"].get("J_m4"), "m⁴", D["section"].get("J_method", "User override")],
                         ["Thin-walled estimate", "J_tw", j_est["J_m4"], "m⁴", j_est["method"]],
                         ["Centreline area", "A_m", j_est["Am_m2"], "m²", "Estimated from Opening Polygon + wall thicknesses"],
                         ["Σ(l/t)", "Σ(l/t)", j_est["sum_l_over_t"], "-", "Thin-walled denominator"],
@@ -1691,6 +1717,8 @@ def render_section_properties() -> None:
                         st.error(err)
             else:
                 st.info("Import valid section coordinates to calculate the thin-walled closed-box J estimate.")
+
+        _render_adopted_section_properties_table(adopted_table_slot)
 
     with tabs[3]:
         subsection_title("Coordinate QA / Comparison")

@@ -1,10 +1,10 @@
-# Segmental Box Girder Pro — Commercial M3G.3
+# Segmental Box Girder Pro — Commercial M3G.4
 
 Commercial, report-driven Streamlit design-review app for BG40 PT segmental box girder.
 
 This milestone simplifies the coordinate-driven section properties UX by moving the adopted section-property table and J input into one clear design-use page. The app now makes the downstream design source explicit, keeps J visible beside A/I/S/centroid, and moves comparison details to QA. It preserves the M3F workspace reorganization, M3E Wind Load engine, M3C AASHTO bridge I/R controls, M3B DPT seismic database, Concrete Section Pro style alignment, one-source state discipline, and global engineering display-formatting rules.
 
-## Current milestone: COMMERCIAL.M3G.3
+## Current milestone: COMMERCIAL.M3G.4
 
 ### Workspace reorganization
 
@@ -63,14 +63,16 @@ New sidebar workflow:
 - `J_tw = 4A_m²/Σ(l/t)` remains a QA/preliminary comparison value and can be adopted only by an explicit button with source trace and warning.
 
 
-### M3G.3 additions
+### M3G.4 additions
 
 - Simplified `2.3 Section Properties` to four tabs: Coordinate Input, Section Preview, Adopted Properties for Design, and QA / Comparison.
 - Removed the confusing top-level `Torsion / Advanced` tab; J is no longer hidden on a separate page.
 - Renamed the active table to **Adopted Section Properties for Design** and labels it as `USED BY DESIGN CHECKS`.
-- Added an always-visible `J input source / method`, `Adopted J for design (m⁴)`, and `J source note` in the adopted-properties page.
+- Simplified the `J input source / method` dropdown to only `User override` and `Thin-walled estimate adopted`.
+- Removed the confusing `CSiBridge / FEA manual value` option from the dropdown; CSiBridge/FEA values are entered through `User override` with source trace.
+- Added an explicit `Apply user override J to adopted properties` action so the adopted table updates intentionally and immediately after user confirmation.
+- Kept thin-walled closed-box `J` estimate as an expandable QA comparison tool with an explicit adopt button.
 - Moved App-vs-adopted comparison and loop consistency checks to the QA page.
-- Kept thin-walled closed-box `J` estimate as an expandable QA comparison tool, not the design default.
 
 ### Analysis model scope note
 
@@ -132,7 +134,7 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
-M3G.3 targeted regression result: `60 passed`.
+M3G.4 targeted regression result: `60 passed`.
 
 ## Engineering limitations
 
@@ -160,9 +162,9 @@ M3G.3 targeted regression result: `60 passed`.
 - Added x-centroid reporting, CSiBridge/centerline origin display modes, point-label controls, App-vs-CSiBridge comparison, thin-walled J estimate, and J source tracing.
 - Updated schema version to `0.4.2-commercial-m3g2-section-qa`.
 
-## COMMERCIAL.M3G.3 — Section Properties UX Simplification
+## COMMERCIAL.M3G.4 — Section Properties UX Simplification
 
 - Consolidates A/I/S/centroid and J into a single **Adopted Properties for Design** workflow.
 - Makes the table used by downstream checks explicit with a `USED BY DESIGN CHECKS` badge.
 - Moves comparison/consistency outputs to QA so the primary user path is import → preview → adopt values → enter/check J.
-- Updated schema version to `0.4.3-commercial-m3g3-section-ux`.
+- Updated schema version to `0.4.4-commercial-m3g4-j-apply`.
