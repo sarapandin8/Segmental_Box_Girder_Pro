@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.9-commercial-m3h4-tendon-adopted-table"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.10-commercial-m3h5-tendon-overlay-polish"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -269,3 +269,12 @@ def test_m3h4_tendon_adopted_tables_are_complete_and_raw_tables_are_qa_only():
     assert "_tendon_profile_display_frame" in src
     assert "tendon_model_to_profile_frame" in src
     assert "Vertical / horizontal station matching QA" in src
+
+
+def test_m3h5_tendon_overlay_polish_controls_are_present():
+    app_src = APP_SOURCE.read_text(encoding="utf-8")
+    assert "Quick station" in app_src
+    assert "Tendon label mode" in app_src
+    assert "Centerline origin (CL = 0)" in app_src
+    assert "Tendon location QA" in app_src
+    assert "classify_point_in_section_void" in app_src

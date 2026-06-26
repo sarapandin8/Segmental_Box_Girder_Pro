@@ -8,7 +8,7 @@ Commercial report-driven Streamlit workspace for PT segmental box-girder design 
 - Adds a **Merged Tendon Profile Table** that combines CSiBridge Vertical and Horizontal layout rows into one control-point table with x, dp from top, and HorizOff in the same row.
 - Moves raw General/Vertical/Horizontal import rows into a collapsed **Raw import data / QA only** expander.
 - Adds per-tendon vertical/horizontal station matching QA and a merged profile row-count check.
-- Schema: `0.4.9-commercial-m3h4-tendon-adopted-table`.
+- Schema: `0.4.10-commercial-m3h5-tendon-overlay-polish`.
 
 ## Retained commercial app foundations
 
@@ -49,3 +49,6 @@ python -m pytest -q
 - AASHTO LRFD 2014 Table 3.10.7.1-1 is used as bridge R-factor guidance for substructure system recommendation.
 - Full station-by-station FEA import remains pending.
 - Coordinate-driven section properties use Structural Polygon 1 and Opening Polygon 1 from CSiBridge exports.
+
+## COMMERCIAL.M3H.5
+- Polishes Tendon Section Overlay with centerline-origin display, quick station buttons, family/all/hidden label modes, family-colored tendon markers, inside-void QA, minimum clearance to inner-boundary reporting, formatted selected-station tables, and hover details.

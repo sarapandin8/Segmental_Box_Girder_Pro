@@ -105,3 +105,30 @@ def test_tendon_model_builds_complete_merged_profile_table():
     assert len(station_match) == 4
     assert set(station_match["Station match status"]) == {"MATCH"}
     assert any(row["Check"] == "Merged profile rows" and row["Value"] == 12 for row in model["qa_rows"])
+
+
+def test_tendon_section_void_classification_for_overlay_qa():
+    from core.section_geometry import classify_point_in_section_void, normalize_coordinate_rows
+
+    coords = normalize_coordinate_rows(pd.DataFrame([
+        {"loop_name": "Structural Polygon 1", "point_no": 1, "x_mm": 0.0, "y_mm": 0.0},
+        {"loop_name": "Structural Polygon 1", "point_no": 2, "x_mm": 1000.0, "y_mm": 0.0},
+        {"loop_name": "Structural Polygon 1", "point_no": 3, "x_mm": 1000.0, "y_mm": 1000.0},
+        {"loop_name": "Structural Polygon 1", "point_no": 4, "x_mm": 0.0, "y_mm": 1000.0},
+        {"loop_name": "Opening Polygon 1", "point_no": 1, "x_mm": 250.0, "y_mm": 250.0},
+        {"loop_name": "Opening Polygon 1", "point_no": 2, "x_mm": 750.0, "y_mm": 250.0},
+        {"loop_name": "Opening Polygon 1", "point_no": 3, "x_mm": 750.0, "y_mm": 750.0},
+        {"loop_name": "Opening Polygon 1", "point_no": 4, "x_mm": 250.0, "y_mm": 750.0},
+    ]))
+
+    inside_void = classify_point_in_section_void((500.0, 500.0), coords)
+    inside_concrete = classify_point_in_section_void((100.0, 100.0), coords)
+    outside = classify_point_in_section_void((1200.0, 500.0), coords)
+
+    assert inside_void["status"] == "PASS"
+    assert inside_void["location"] == "INSIDE VOID"
+    assert abs(inside_void["min_clearance_to_inner_boundary_mm"] - 250.0) < 1e-9
+    assert inside_concrete["status"] == "FAIL"
+    assert inside_concrete["location"] == "INSIDE CONCRETE"
+    assert outside["status"] == "FAIL"
+    assert outside["location"] == "OUTSIDE SECTION"

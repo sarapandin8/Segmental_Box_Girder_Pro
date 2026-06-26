@@ -37,7 +37,7 @@ from core.aashto_seismic import (
 )
 from core.formatting import format_engineering_table, format_engineering_value
 from core.project_io import ProjectJsonLoadError, load_project_json_bytes, project_json_fingerprint, project_load_summary
-from core.section_geometry import calculate_section_properties, default_coordinate_template, estimate_thin_walled_closed_box_j, normalize_coordinate_rows, read_coordinate_table
+from core.section_geometry import calculate_section_properties, classify_point_in_section_void, default_coordinate_template, estimate_thin_walled_closed_box_j, normalize_coordinate_rows, read_coordinate_table
 from core.tendon_layout import (
     build_tendon_layout_model,
     read_tendon_general_table,
@@ -1986,6 +1986,73 @@ def _tendon_profile_display_frame(profile_df: pd.DataFrame) -> pd.DataFrame:
         )
     return pd.DataFrame(rows)
 
+
+def _format_tendon_points_table(points: pd.DataFrame) -> pd.DataFrame:
+    """Display selected-station tendon points with fixed engineering precision."""
+    if points is None or points.empty:
+        return pd.DataFrame()
+    out = points.copy()
+    for col in ["Station (m)", "dp from top (m)", "HorizOff (m)"]:
+        if col in out.columns:
+            out[col] = [format_engineering_value(v, "m") for v in out[col]]
+    if "Min clearance to inner boundary (mm)" in out.columns:
+        out["Min clearance to inner boundary (mm)"] = [format_engineering_value(v, "mm") for v in out["Min clearance to inner boundary (mm)"]]
+    return out
+
+
+def _add_section_coordinates_to_tendon_points(
+    points: pd.DataFrame,
+    section_props: dict[str, Any],
+    *,
+    positive_offset_direction: str = "left",
+    origin_mode: str = "csibridge",
+) -> pd.DataFrame:
+    """Append section x/y coordinates in mm for QA and tabular review."""
+    if points is None or points.empty:
+        return pd.DataFrame()
+    width_m = float(section_props.get("width_m") or section_props.get("B_m") or 0.0)
+    depth_m = float(section_props.get("depth_m") or section_props.get("D_m") or 0.0)
+    bounds = section_props.get("bounds_mm", {}) if section_props else {}
+    xmin = float(bounds.get("xmin", 0.0))
+    xmax = float(bounds.get("xmax", width_m * 1000.0))
+    x_shift = 0.5 * (xmin + xmax) if str(origin_mode).lower().startswith("center") else 0.0
+    rows = []
+    for _, r in points.iterrows():
+        off = float(r["HorizOff (m)"])
+        dp = float(r["dp from top (m)"])
+        if positive_offset_direction == "left":
+            x_m = width_m / 2.0 - off
+        else:
+            x_m = width_m / 2.0 + off
+        y_m = depth_m - dp
+        row = r.to_dict()
+        row["section_x_mm"] = x_m * 1000.0
+        row["section_y_mm"] = y_m * 1000.0
+        row["display_x_mm"] = row["section_x_mm"] - x_shift
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _tendon_section_location_qa(points: pd.DataFrame, section_coords: pd.DataFrame) -> pd.DataFrame:
+    """Classify tendon points relative to section void/concrete/outside regions."""
+    if points is None or points.empty or section_coords is None or section_coords.empty:
+        return pd.DataFrame()
+    rows = []
+    for _, r in points.iterrows():
+        qa = classify_point_in_section_void((float(r["section_x_mm"]), float(r["section_y_mm"])), section_coords)
+        rows.append(
+            {
+                "Tendon": r.get("Tendon", ""),
+                "Family": r.get("Family", ""),
+                "Station (m)": r.get("Station (m)", None),
+                "Location": qa["location"],
+                "Min clearance to inner boundary (mm)": qa.get("min_clearance_to_inner_boundary_mm"),
+                "Status": qa["status"],
+                "Note": qa["note"],
+            }
+        )
+    return pd.DataFrame(rows)
+
 def _apply_imported_tendon_summary_to_prestress(model: dict[str, Any]) -> None:
     """Adopt imported tendon summary into prestress one-source fields."""
     if not model.get("valid"):
@@ -2126,19 +2193,94 @@ def render_tendon_layout_reference() -> None:
         props = _section_computation_from_state()
         if model.get("valid") and props.get("valid"):
             max_station = float(model.get("span_m") or D["project"].get("span_m", 40.0))
-            station = st.slider("Station x (m)", min_value=0.0, max_value=max_station, value=float(model.get("midspan_m") or max_station / 2.0), step=0.01, key="tendon_section_overlay_station")
-            tl["positive_horiz_offset_direction"] = st.selectbox("Positive HorizOff direction in section overlay", ["left", "right"], index=0 if tl.get("positive_horiz_offset_direction", "left") == "left" else 1, format_func=lambda x: "Positive = left of CL" if x == "left" else "Positive = right of CL", key="tendon_offset_direction")
-            points = tendon_points_at_station(model, station)
-            fig = tendon_section_overlay_figure(
-                props.get("coordinates", _section_coordinate_df_from_state()),
+            mid_station = float(model.get("midspan_m") or max_station / 2.0)
+            station_key = "tendon_section_overlay_station"
+            if station_key not in st.session_state:
+                st.session_state[station_key] = mid_station
+
+            st.markdown("##### Quick station")
+            b1, b2, b3, b4, b5 = st.columns(5)
+            if b1.button("Start", use_container_width=True, key="overlay_station_start"):
+                st.session_state[station_key] = 0.0
+            if b2.button("0.25L", use_container_width=True, key="overlay_station_q1"):
+                st.session_state[station_key] = 0.25 * max_station
+            if b3.button("Midspan", use_container_width=True, key="overlay_station_mid"):
+                st.session_state[station_key] = mid_station
+            if b4.button("0.75L", use_container_width=True, key="overlay_station_q3"):
+                st.session_state[station_key] = 0.75 * max_station
+            if b5.button("End", use_container_width=True, key="overlay_station_end"):
+                st.session_state[station_key] = max_station
+
+            station = st.slider("Station x (m)", min_value=0.0, max_value=max_station, value=float(st.session_state.get(station_key, mid_station)), step=0.01, key=station_key)
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                tl["positive_horiz_offset_direction"] = st.selectbox(
+                    "Positive HorizOff direction",
+                    ["left", "right"],
+                    index=0 if tl.get("positive_horiz_offset_direction", "left") == "left" else 1,
+                    format_func=lambda x: "Positive = left of CL" if x == "left" else "Positive = right of CL",
+                    key="tendon_offset_direction",
+                )
+            with c2:
+                tl["section_overlay_origin_mode"] = st.selectbox(
+                    "Display origin",
+                    ["centerline", "csibridge"],
+                    index=0 if tl.get("section_overlay_origin_mode", "centerline") == "centerline" else 1,
+                    format_func=lambda x: "Centerline origin (CL = 0)" if x == "centerline" else "CSiBridge origin",
+                    key="tendon_overlay_origin_mode",
+                )
+            with c3:
+                tl["section_overlay_label_mode"] = st.selectbox(
+                    "Tendon label mode",
+                    ["family", "hide", "all"],
+                    index={"family": 0, "hide": 1, "all": 2}.get(tl.get("section_overlay_label_mode", "family"), 0),
+                    format_func=lambda x: {"family": "Family labels only", "hide": "Hide labels / hover only", "all": "All tendon labels"}[x],
+                    key="tendon_overlay_label_mode",
+                )
+
+            raw_points = tendon_points_at_station(model, station)
+            points = _add_section_coordinates_to_tendon_points(
+                raw_points,
                 props,
-                points,
                 positive_offset_direction=tl.get("positive_horiz_offset_direction", "left"),
+                origin_mode=tl.get("section_overlay_origin_mode", "centerline"),
+            )
+            coords = props.get("coordinates", _section_coordinate_df_from_state())
+            fig = tendon_section_overlay_figure(
+                coords,
+                props,
+                raw_points,
+                positive_offset_direction=tl.get("positive_horiz_offset_direction", "left"),
+                point_label_mode=tl.get("section_overlay_label_mode", "family"),
                 show_point_numbers=False,
+                origin_mode=tl.get("section_overlay_origin_mode", "centerline"),
             )
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
+
+            qa_points = _tendon_section_location_qa(points, coords)
+            pass_count = int((qa_points.get("Status", pd.Series(dtype=str)) == "PASS").sum()) if not qa_points.empty else 0
+            fail_count = int((qa_points.get("Status", pd.Series(dtype=str)) == "FAIL").sum()) if not qa_points.empty else 0
+            min_clearance = None
+            if not qa_points.empty and "Min clearance to inner boundary (mm)" in qa_points.columns:
+                min_clearance = pd.to_numeric(qa_points["Min clearance to inner boundary (mm)"], errors="coerce").min()
+            qc1, qc2, qc3 = st.columns(3)
+            with qc1:
+                card("Void location check", "PASS" if fail_count == 0 and pass_count else "REVIEW", f"{pass_count} points inside void · {fail_count} review", "pass" if fail_count == 0 and pass_count else "warn")
+            with qc2:
+                card("Minimum clearance", format_engineering_value(min_clearance, "mm") if min_clearance is not None and pd.notna(min_clearance) else "—", "to inner void boundary", "pass" if min_clearance is not None and pd.notna(min_clearance) else "")
+            with qc3:
+                card("Station", format_engineering_value(station, "m"), "selected overlay section", "pass")
+
             st.markdown("#### Tendon positions at selected station")
-            show_engineering_table(points)
+            display_cols = [c for c in ["Tendon", "Family", "Side", "Station (m)", "dp from top (m)", "HorizOff (m)", "section_x_mm", "section_y_mm"] if c in points.columns]
+            display_points = points[display_cols].rename(columns={"section_x_mm": "Section x (mm)", "section_y_mm": "Section y (mm)"})
+            st.dataframe(_format_tendon_points_table(display_points), use_container_width=True, hide_index=True)
+
+            st.markdown("#### Tendon location QA")
+            if not qa_points.empty:
+                st.dataframe(_format_tendon_points_table(qa_points), use_container_width=True, hide_index=True)
+            else:
+                st.info("No tendon QA rows available at this station.")
         elif not props.get("valid"):
             st.warning("Import valid section coordinates first to overlay tendon points on the box-girder section.")
         else:

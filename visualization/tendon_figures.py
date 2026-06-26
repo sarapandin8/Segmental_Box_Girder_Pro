@@ -5,6 +5,32 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 
+
+
+FAMILY_COLORS = [
+    "#2563eb", "#16a34a", "#d97706", "#7c3aed",
+    "#0891b2", "#db2777", "#65a30d", "#dc2626",
+]
+
+
+def _family_index(family: str) -> int:
+    import re
+    m = re.search(r"(\d+)", str(family or ""))
+    return (int(m.group(1)) - 1) if m else 0
+
+
+def _family_color(family: str) -> str:
+    return FAMILY_COLORS[_family_index(family) % len(FAMILY_COLORS)]
+
+
+def _label_for_mode(row: dict, label_mode: str) -> str:
+    mode = str(label_mode or "hide").lower()
+    if mode.startswith("all"):
+        return str(row.get("Tendon", row.get("tendon", "")))
+    if mode.startswith("family"):
+        return str(row.get("Family", row.get("family", "")))
+    return ""
+
 PLOTLY_TENDON_CONFIG = {
     "displaylogo": False,
     "modeBarButtonsToAdd": ["drawline", "drawrect", "eraseshape"],
@@ -95,39 +121,66 @@ def tendon_section_overlay_figure(
     tendon_points: pd.DataFrame,
     *,
     positive_offset_direction: str = "left",
+    point_label_mode: str = "family",
     show_point_numbers: bool = True,
+    origin_mode: str = "csibridge",
 ) -> go.Figure:
     from visualization.section_figures import section_polygon_figure
 
-    fig = section_polygon_figure(section_coords, section_props, point_label_mode="major" if show_point_numbers else "hide", show_dimensions=True, origin_mode="csibridge")
+    fig = section_polygon_figure(
+        section_coords,
+        section_props,
+        point_label_mode="major" if show_point_numbers else "hide",
+        show_dimensions=True,
+        origin_mode=origin_mode,
+    )
     if tendon_points is not None and not tendon_points.empty:
         width_m = float(section_props.get("width_m") or section_props.get("B_m") or 0.0)
         depth_m = float(section_props.get("depth_m") or section_props.get("D_m") or 0.0)
-        xs = []
-        ys = []
-        labels = []
-        for _, r in tendon_points.iterrows():
-            off = float(r["HorizOff (m)"])
-            dp = float(r["dp from top (m)"])
-            if positive_offset_direction == "left":
-                x_m = width_m / 2.0 - off
-            else:
-                x_m = width_m / 2.0 + off
-            y_m = depth_m - dp
-            xs.append(x_m * 1000.0)
-            ys.append(y_m * 1000.0)
-            labels.append(str(r["Tendon"]))
-        fig.add_trace(
-            go.Scatter(
-                x=xs,
-                y=ys,
-                mode="markers+text",
-                name="Tendons",
-                text=labels,
-                textposition="top center",
-                marker=dict(symbol="circle", size=9, color="#ef4444", line=dict(width=1, color="#7f1d1d")),
-                hovertemplate="%{text}<br>x = %{x:.0f} mm<br>y = %{y:.0f} mm<extra></extra>",
+        bounds = section_props.get("bounds_mm", {}) if section_props else {}
+        xmin = float(bounds.get("xmin", 0.0))
+        xmax = float(bounds.get("xmax", width_m * 1000.0))
+        x_shift = 0.0
+        if str(origin_mode).lower().startswith("center"):
+            x_shift = 0.5 * (xmin + xmax)
+
+        for family, g in tendon_points.groupby("Family", sort=False):
+            xs = []
+            ys = []
+            text = []
+            hover = []
+            for _, r in g.iterrows():
+                off = float(r["HorizOff (m)"])
+                dp = float(r["dp from top (m)"])
+                if positive_offset_direction == "left":
+                    x_m = width_m / 2.0 - off
+                else:
+                    x_m = width_m / 2.0 + off
+                y_m = depth_m - dp
+                x_mm = x_m * 1000.0 - x_shift
+                y_mm = y_m * 1000.0
+                xs.append(x_mm)
+                ys.append(y_mm)
+                label = _label_for_mode(r.to_dict(), point_label_mode)
+                text.append(label)
+                hover.append(
+                    f"{r['Tendon']}<br>Family = {r['Family']}<br>Station = {float(r['Station (m)']):.3f} m"
+                    f"<br>dp = {dp:.3f} m<br>HorizOff = {off:.3f} m"
+                    f"<br>x(section) = {x_mm:.0f} mm<br>y(section) = {y_mm:.0f} mm"
+                )
+            show_text = any(str(t) for t in text)
+            fig.add_trace(
+                go.Scatter(
+                    x=xs,
+                    y=ys,
+                    mode="markers+text" if show_text else "markers",
+                    name=str(family),
+                    text=text,
+                    textposition="top center",
+                    marker=dict(symbol="circle", size=10, color=_family_color(str(family)), line=dict(width=1.2, color="#0f172a")),
+                    hovertemplate="%{customdata}<extra></extra>",
+                    customdata=hover,
+                )
             )
-        )
     fig.update_layout(title={"text": "Tendon section overlay at selected station", "x": 0.01, "xanchor": "left"})
     return fig

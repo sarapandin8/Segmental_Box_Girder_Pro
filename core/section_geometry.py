@@ -266,6 +266,88 @@ def point_in_polygon(point: tuple[float, float], polygon: list[tuple[float, floa
     return inside
 
 
+def _distance_point_to_segment(point: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> float:
+    """Shortest distance from a point to a line segment, in the same units as input."""
+    px, py = point
+    ax, ay = a
+    bx, by = b
+    dx = bx - ax
+    dy = by - ay
+    denom = dx * dx + dy * dy
+    if denom <= 1e-18:
+        return sqrt((px - ax) ** 2 + (py - ay) ** 2)
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / denom))
+    qx = ax + t * dx
+    qy = ay + t * dy
+    return sqrt((px - qx) ** 2 + (py - qy) ** 2)
+
+
+def _minimum_distance_to_polygon_boundary(point: tuple[float, float], polygon: list[tuple[float, float]]) -> float | None:
+    if not polygon:
+        return None
+    distances = [
+        _distance_point_to_segment(point, polygon[i], polygon[(i + 1) % len(polygon)])
+        for i in range(len(polygon))
+    ]
+    return min(distances) if distances else None
+
+
+def section_loop_polygons(df: pd.DataFrame) -> dict[str, list[list[tuple[float, float]]]]:
+    """Return normalized outer and hole polygons from section coordinates in mm."""
+    coords = normalize_coordinate_rows(df)
+    loops: dict[str, list[list[tuple[float, float]]]] = {"outer": [], "hole": [], "unknown": []}
+    if coords.empty:
+        return loops
+    for _, g in coords.groupby("loop_name", sort=False):
+        loop_type = str(g["loop_type"].iloc[0]) if "loop_type" in g else "unknown"
+        pts = _remove_consecutive_duplicate_points(list(zip(g["x_mm"].astype(float), g["y_mm"].astype(float))))
+        if len(pts) >= 3:
+            loops.setdefault(loop_type, []).append(pts)
+    return loops
+
+
+def classify_point_in_section_void(point_mm: tuple[float, float], df: pd.DataFrame) -> dict[str, Any]:
+    """Classify a point relative to the concrete section and voids.
+
+    Returns a QA dictionary suitable for external tendon checks.  For an external
+    tendon inside a hollow box, the desired status is ``INSIDE VOID``.
+    """
+    loops = section_loop_polygons(df)
+    outer_polys = loops.get("outer", [])
+    hole_polys = loops.get("hole", [])
+    inside_outer = any(point_in_polygon(point_mm, poly) for poly in outer_polys) if outer_polys else False
+    inside_hole = any(point_in_polygon(point_mm, poly) for poly in hole_polys) if hole_polys else False
+
+    distances = []
+    for poly in hole_polys:
+        d = _minimum_distance_to_polygon_boundary(point_mm, poly)
+        if d is not None:
+            distances.append(d)
+    min_clearance = min(distances) if distances else None
+
+    if inside_hole:
+        status = "PASS"
+        location = "INSIDE VOID"
+        note = "External tendon point is inside the box-girder void."
+    elif inside_outer:
+        status = "FAIL"
+        location = "INSIDE CONCRETE"
+        note = "External tendon point is inside the concrete polygon; review dp/HorizOff convention."
+    else:
+        status = "FAIL"
+        location = "OUTSIDE SECTION"
+        note = "Tendon point is outside the structural polygon; review coordinates and sign convention."
+
+    return {
+        "status": status,
+        "location": location,
+        "inside_outer": inside_outer,
+        "inside_void": inside_hole,
+        "min_clearance_to_inner_boundary_mm": min_clearance,
+        "note": note,
+    }
+
+
 def calculate_section_properties(df: pd.DataFrame) -> dict[str, Any]:
     """Calculate hollow-section properties from normalized coordinate rows in mm."""
     coords = normalize_coordinate_rows(df)
