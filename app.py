@@ -36,7 +36,7 @@ from core.aashto_seismic import (
     substructure_options,
 )
 from core.formatting import format_engineering_table, format_engineering_value
-from core.section_geometry import calculate_section_properties, default_coordinate_template, normalize_coordinate_rows
+from core.section_geometry import calculate_section_properties, default_coordinate_template, normalize_coordinate_rows, read_coordinate_table
 from core.load_models import (
     en_dynamic_factor_standard_maintenance,
     hunting_force_en1991,
@@ -1472,19 +1472,19 @@ def render_geometry_analysis_model() -> None:
 
 def render_section_properties() -> None:
     section_title("2.3 Section Properties")
-    st.markdown('<div class="note-box"><b>Coordinate-driven section engine:</b> import CSiBridge Structural Polygon and Opening Polygon coordinates in mm. The app draws the box-girder section and calculates A, centroid, I33/I22, and S values from the imported loops. Torsional constant J remains FEA/manual unless a later advanced torsion solver is enabled.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="note-box"><b>Coordinate-driven section engine:</b> import CSiBridge Structural Polygon and Opening Polygon coordinates. CSiBridge XLSX/CSV exports with X/Y in metres are auto-converted to mm for calculation and drawing. The app draws the box-girder section and calculates A, centroid, I33/I22, and S values from the imported loops. Torsional constant J remains FEA/manual unless a later advanced torsion solver is enabled.</div>', unsafe_allow_html=True)
     s = D["section"]
     tabs = st.tabs(["Coordinate Input", "Section Preview", "Computed Properties", "Torsion / Advanced", "QA / Consistency"])
 
     with tabs[0]:
         c1, c2 = st.columns([1.6, 1.0])
         with c1:
-            uploaded = st.file_uploader("Import CSiBridge section coordinates CSV", type=["csv"], key="section_coordinate_csv_upload")
+            uploaded = st.file_uploader("Import CSiBridge section coordinates CSV / Excel", type=["csv", "xlsx", "xls"], key="section_coordinate_file_upload")
             if uploaded is not None:
                 try:
-                    imported = pd.read_csv(uploaded)
+                    imported = read_coordinate_table(uploaded, getattr(uploaded, "name", ""), coordinate_unit="auto")
                     _store_section_coordinate_df(imported)
-                    st.success("Coordinate CSV imported. Review/edit the table below before applying properties.")
+                    st.success(f"Imported {len(imported)} coordinate rows. CSiBridge metre-based X/Y coordinates are auto-converted to mm.")
                 except Exception as exc:  # noqa: BLE001
                     st.error(f"Could not import coordinates: {exc}")
         with c2:
@@ -1494,7 +1494,7 @@ def render_section_properties() -> None:
                 st.rerun()
         coord_df = _section_coordinate_df_from_state()
         if coord_df.empty:
-            st.info("No coordinate rows loaded yet. Upload a CSiBridge CSV or paste rows into the editable table.")
+            st.info("No coordinate rows loaded yet. Upload a CSiBridge CSV/XLSX or paste rows into the editable table.")
             coord_df = default_coordinate_template().iloc[0:0].copy()
         editor_df = coord_df[[c for c in ["loop_name", "point_no", "x_mm", "y_mm"] if c in coord_df.columns]].copy()
         edited = st.data_editor(
@@ -1510,7 +1510,7 @@ def render_section_properties() -> None:
             },
         )
         _store_section_coordinate_df(edited)
-        st.caption("CSiBridge point order may be clockwise. The app uses loop type to add Structural Polygon area and subtract Opening Polygon area, so clockwise/counter-clockwise orientation is normalized internally.")
+        st.caption("CSiBridge point order may be clockwise. The app uses loop type to add Structural Polygon area and subtract Opening Polygon area, and auto-converts CSiBridge X/Y metre exports to mm internally.")
 
     props = _section_computation_from_state()
     coords = props.get("coordinates", _section_coordinate_df_from_state())

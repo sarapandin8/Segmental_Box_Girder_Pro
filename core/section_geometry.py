@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import isfinite, sqrt
-from typing import Iterable, Any
+from typing import Iterable, Any, BinaryIO
 
 import pandas as pd
 
@@ -47,17 +47,48 @@ def canonical_loop_type(loop_name: str) -> str:
     return "unknown"
 
 
-def normalize_coordinate_rows(rows: Iterable[dict[str, Any]] | pd.DataFrame) -> pd.DataFrame:
+def _detect_coordinate_unit(out: pd.DataFrame, source_columns: dict[str, str], coordinate_unit: str = "auto") -> str:
+    unit = str(coordinate_unit or "auto").strip().lower()
+    if unit in {"mm", "millimetre", "millimeter", "millimetres", "millimeters"}:
+        return "mm"
+    if unit in {"m", "metre", "meter", "metres", "meters"}:
+        return "m"
+
+    x_col = str(source_columns.get("x_mm", "")).strip().lower()
+    y_col = str(source_columns.get("y_mm", "")).strip().lower()
+    joined = f"{x_col} {y_col}"
+    if "mm" in joined:
+        return "mm"
+    if "(m)" in joined or joined.endswith("_m") or " metre" in joined or " meter" in joined:
+        return "m"
+
+    # CSiBridge section-coordinate exports often use generic X/Y columns in metres
+    # (e.g. 0..11.2 m and 0..2.5 m).  App editor/template rows use x_mm/y_mm.
+    try:
+        xs = pd.to_numeric(out["x_mm"], errors="coerce").dropna()
+        ys = pd.to_numeric(out["y_mm"], errors="coerce").dropna()
+        span = max(float(xs.max() - xs.min()) if len(xs) else 0.0, float(ys.max() - ys.min()) if len(ys) else 0.0)
+        max_abs = max(float(xs.abs().max()) if len(xs) else 0.0, float(ys.abs().max()) if len(ys) else 0.0)
+    except Exception:
+        return "mm"
+    if 0.1 <= span <= 100.0 and max_abs <= 500.0:
+        return "m"
+    return "mm"
+
+
+def normalize_coordinate_rows(rows: Iterable[dict[str, Any]] | pd.DataFrame, coordinate_unit: str = "auto") -> pd.DataFrame:
     """Normalize CSiBridge-style section coordinate rows.
 
     Supported aliases include Shape/loop_name, Point/point_no, X/x_mm, Y/y_mm.
-    The input coordinates are expected in millimetres.
+    CSiBridge Excel exports commonly use X/Y in metres, whereas the app editor
+    stores x_mm/y_mm.  ``coordinate_unit='auto'`` converts likely metre inputs
+    to millimetres and leaves explicit x_mm/y_mm data unchanged.
     """
     df = rows.copy() if isinstance(rows, pd.DataFrame) else pd.DataFrame(list(rows))
     if df.empty:
         return pd.DataFrame(columns=["loop_name", "loop_type", "point_no", "x_mm", "y_mm"])
 
-    colmap = {}
+    colmap: dict[str, str] = {}
     normalized_names = {str(c).strip().lower(): c for c in df.columns}
     for target, aliases in {
         "loop_name": ["loop_name", "loop", "shape", "polygon", "polygon_name", "loop id", "loop_id"],
@@ -81,14 +112,43 @@ def normalize_coordinate_rows(rows: Iterable[dict[str, Any]] | pd.DataFrame) -> 
             "y_mm": df[colmap["y_mm"]],
         }
     )
+    # Drop CSiBridge reference/insertion rows and blank separator rows before integer conversion.
+    out = out.dropna(subset=["point_no", "x_mm", "y_mm"], how="any")
     out = out[out["point_no"].astype(str).str.strip().ne("")]
     out = out[out["x_mm"].astype(str).str.strip().ne("") & out["y_mm"].astype(str).str.strip().ne("")]
+    out = out[out["point_no"].astype(str).str.lower().ne("nan")]
+    out = out[out["x_mm"].astype(str).str.lower().ne("nan") & out["y_mm"].astype(str).str.lower().ne("nan")]
+
+    source_unit = _detect_coordinate_unit(out, colmap, coordinate_unit)
     out["point_no"] = out["point_no"].apply(lambda v: int(float(str(v).strip())))
     out["x_mm"] = out["x_mm"].apply(_as_float)
     out["y_mm"] = out["y_mm"].apply(_as_float)
+    if source_unit == "m":
+        out["x_mm"] = out["x_mm"] * 1000.0
+        out["y_mm"] = out["y_mm"] * 1000.0
+
     out["loop_type"] = out["loop_name"].apply(canonical_loop_type)
-    out = out.sort_values(["loop_name", "point_no"], kind="stable").reset_index(drop=True)
+    type_order = {"outer": 0, "hole": 1, "unknown": 2}
+    out["_loop_order"] = out["loop_type"].map(type_order).fillna(9)
+    out = out.sort_values(["_loop_order", "loop_name", "point_no"], kind="stable").drop(columns=["_loop_order"]).reset_index(drop=True)
     return out[["loop_name", "loop_type", "point_no", "x_mm", "y_mm"]]
+
+
+def read_coordinate_table(uploaded: BinaryIO | Any, filename: str | None = None, coordinate_unit: str = "auto") -> pd.DataFrame:
+    """Read a CSiBridge coordinate table from CSV or Excel and normalize to mm.
+
+    Excel support is required because CSiBridge commonly exports section coordinates
+    as .xlsx with columns Shape, Point, Material, X, Y and generic X/Y in metres.
+    """
+    name = str(filename or getattr(uploaded, "name", "")).lower()
+    if name.endswith((".xlsx", ".xls")):
+        try:
+            raw = pd.read_excel(uploaded, sheet_name=0)
+        except ImportError as exc:
+            raise ImportError("Excel import requires openpyxl. Install project requirements and retry.") from exc
+    else:
+        raw = pd.read_csv(uploaded)
+    return normalize_coordinate_rows(raw, coordinate_unit=coordinate_unit)
 
 
 def _signed_area(points: list[tuple[float, float]]) -> float:
@@ -99,6 +159,16 @@ def _signed_area(points: list[tuple[float, float]]) -> float:
         x1, y1 = points[(i + 1) % n]
         total += x0 * y1 - x1 * y0
     return 0.5 * total
+
+
+def _remove_consecutive_duplicate_points(points: list[tuple[float, float]], tol: float = 1e-9) -> list[tuple[float, float]]:
+    cleaned: list[tuple[float, float]] = []
+    for pt in points:
+        if not cleaned or abs(pt[0] - cleaned[-1][0]) > tol or abs(pt[1] - cleaned[-1][1]) > tol:
+            cleaned.append(pt)
+    if len(cleaned) > 1 and abs(cleaned[0][0] - cleaned[-1][0]) <= tol and abs(cleaned[0][1] - cleaned[-1][1]) <= tol:
+        cleaned.pop()
+    return cleaned
 
 
 def _loop_properties(points: list[tuple[float, float]], loop_type: str, name: str) -> LoopProperties:
@@ -210,7 +280,10 @@ def calculate_section_properties(df: pd.DataFrame) -> dict[str, Any]:
 
     for loop_name, g in coords.groupby("loop_name", sort=False):
         loop_type = str(g["loop_type"].iloc[0])
-        points = list(zip(g["x_mm"].astype(float), g["y_mm"].astype(float)))
+        points_raw = list(zip(g["x_mm"].astype(float), g["y_mm"].astype(float)))
+        points = _remove_consecutive_duplicate_points(points_raw)
+        if len(points) < len(points_raw):
+            warnings.append(f"Loop {loop_name!r} contains consecutive duplicate CSiBridge points; duplicates are ignored for property calculation.")
         if loop_type == "unknown":
             warnings.append(f"Loop {loop_name!r} has unknown type; use loop name Structural Polygon 1 or Opening Polygon 1.")
             continue

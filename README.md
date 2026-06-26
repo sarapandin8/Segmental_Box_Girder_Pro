@@ -132,3 +132,14 @@ M3G targeted regression result: `55 passed`.
 - Full station-by-station FEA import remains pending.
 - Coordinate-derived section properties are reliable for area, centroid, inertia, and section modulus. Torsional constant `J` remains FEA/manual unless a separately verified torsion method is enabled.
 - Report export is still a structured preview, not a final Word/PDF generator.
+
+
+## COMMERCIAL.M3G.1 — CSiBridge XLSX Coordinate Import Fix
+
+- Added direct `.xlsx` / `.xls` support for CSiBridge section-coordinate exports.
+- Supports CSiBridge table format with columns `Shape`, `Point`, `Material`, `X`, `Y`.
+- Drops `Reference Point` / `Insertion Point` rows with blank point numbers.
+- Auto-converts CSiBridge generic `X`/`Y` metre coordinates to internal `x_mm`/`y_mm`.
+- Ignores consecutive duplicate CSiBridge polygon points for property calculation while preserving imported rows for review.
+- Verified against the user-supplied `Box girder section coordinate from Csibridge.xlsx`: 27 structural points + 17 opening points, A ≈ 5.698 m², I33 ≈ 4.681 m⁴, I22 ≈ 39.520 m⁴, S33(+) ≈ 5.577 m³, S33(-) ≈ 2.819 m³.
+- Updated schema version to `0.4.1-commercial-m3g-xlsx`.

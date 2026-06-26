@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.0-commercial-m3g"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.1-commercial-m3g-xlsx"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -190,6 +190,8 @@ def test_m3g_coordinate_section_engine_ui_is_present():
     assert "section_coordinate_editor" in src
     assert "section_polygon_figure" in src
     assert "calculate_section_properties" in src
+    assert "CSV / Excel" in src
+    assert "read_coordinate_table" in src
     assert "Apply computed A/I/S/centroid" in src
     assert "Torsional constant J remains FEA/manual" in src
 
