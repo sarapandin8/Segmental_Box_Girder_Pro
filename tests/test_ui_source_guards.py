@@ -64,12 +64,12 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.6-commercial-m3h1-tendon-summary-cards"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.7-commercial-m3h2-json-load-stability"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "Commercial M3G" in readme or "COMMERCIAL.M3G" in readme
+    assert "COMMERCIAL.M3" in readme or "COMMERCIAL.M3H" in readme
     assert "Display formatting rules" in readme
     assert "1.3.7 Wind Load" in readme
     assert "DPT seismic database" in readme

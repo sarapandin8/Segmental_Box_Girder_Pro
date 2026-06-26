@@ -36,6 +36,7 @@ from core.aashto_seismic import (
     substructure_options,
 )
 from core.formatting import format_engineering_table, format_engineering_value
+from core.project_io import ProjectJsonLoadError, load_project_json_bytes, project_json_fingerprint, project_load_summary
 from core.section_geometry import calculate_section_properties, default_coordinate_template, estimate_thin_walled_closed_box_j, normalize_coordinate_rows, read_coordinate_table
 from core.tendon_layout import (
     build_tendon_layout_model,
@@ -637,13 +638,33 @@ def render_sidebar() -> None:
             mime="application/json",
             use_container_width=True,
         )
-        uploaded = st.file_uploader("Load Project JSON", type=["json"])
+        uploaded = st.file_uploader("Load Project JSON", type=["json"], key="project_json_upload")
         if uploaded is not None:
-            try:
-                st.session_state.project = ensure_project_schema(json.loads(uploaded.read().decode("utf-8")))
-                st.rerun()
-            except Exception as exc:  # noqa: BLE001
-                st.error(f"Could not load JSON: {exc}")
+            raw_project_json = uploaded.getvalue()
+            upload_fp = project_json_fingerprint(raw_project_json, getattr(uploaded, "name", ""))
+            loaded_fp = st.session_state.get("project_json_loaded_fingerprint")
+            st.caption(f"Selected: {getattr(uploaded, 'name', 'project.json')} · {len(raw_project_json) / 1024:.1f} KB")
+            if loaded_fp == upload_fp:
+                st.success("This uploaded project JSON is already loaded.")
+            if st.button("Load uploaded project", key="load_project_json_button", use_container_width=True):
+                try:
+                    loaded_project = load_project_json_bytes(raw_project_json, getattr(uploaded, "name", ""))
+                    summary = project_load_summary(loaded_project)
+                    st.session_state.project = loaded_project
+                    st.session_state.current_workspace = WORKSPACE_LABELS[0]
+                    st.session_state.current_subpage = get_workspace(WORKSPACE_LABELS[0])["subpages"][0]
+                    st.session_state.project_json_loaded_fingerprint = upload_fp
+                    st.session_state.project_load_message = (
+                        f"Loaded project {summary['project']} / {summary['bridge_object']} "
+                        f"with schema {summary['schema_version']}."
+                    )
+                    st.rerun()
+                except ProjectJsonLoadError as exc:
+                    st.error(f"Could not load JSON: {exc}")
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Could not load JSON due to an unexpected error: {exc}")
+        if st.session_state.get("project_load_message"):
+            st.success(st.session_state.project_load_message)
 
 
 def render_header() -> None:

@@ -1,31 +1,28 @@
-# Segmental Box Girder Pro — COMMERCIAL.M3H.1
+# Segmental Box Girder Pro — COMMERCIAL.M3H.2
 
 Commercial report-driven design-review workspace for PT segmental box girder bridge checks.
 
-This milestone fixes the top of `2.4 Tendon Layout Reference` by replacing the long import instruction banner with report-style tendon import summary cards. The cards show the imported tendon model, strand/area basis, jacking basis, and layout status using values merged from the CSiBridge General, Vertical Layout, and Horizontal Layout exports.
+This milestone fixes project JSON loading stability. Earlier builds could appear to hang because the Streamlit `file_uploader` kept the uploaded project file present across reruns and the app loaded + reran automatically. M3H.2 changes the workflow to an explicit `Load uploaded project` action, validates/migrates the JSON safely, and prevents repeated load/rerun loops.
 
-## M3H.1 changes
+## M3H.2 changes
 
-- Replaced the `CSiBridge tendon-layout import` text banner with summary cards.
-- Added visible tendon-model summary:
-  - active BridgeObj
-  - number of imported tendons
-  - mirrored tendon families
-  - tendon material
-  - strand label, e.g. `24-T15.2`
-  - Aps per tendon and total Aps
-- Added jacking-basis summary:
-  - `fpu = 1860 MPa`
-  - `0.75 fpu = 1395 MPa`
-  - `Pj = 0.75 fpu × Aps`
-  - jacking force per tendon and total jacking force
-- Added layout design summary cards:
-  - average end `dp`
-  - average midspan `dp`
-  - midspan eccentricity `e = dp(midspan) - y_t`
-- Added tendon import basis expander table for traceability.
-- Updated tendon model data to use the derived `0.75 fpu × Aps` jacking force as the adopted jacking basis while keeping imported force trace fields.
-- Bumped schema to `0.4.6-commercial-m3h1-tendon-summary-cards`.
+- Replaced automatic project JSON loading with an explicit `Load uploaded project` button.
+- Added `core/project_io.py` for safe JSON decoding, size checks, schema migration, file fingerprinting, and user-facing load summaries.
+- Added loaded-file fingerprint tracking so an already-loaded JSON is not repeatedly applied.
+- Reset workspace/subpage safely after a successful project load.
+- Added user-facing load status and clearer JSON error messages.
+- Added regression tests for valid project migration, invalid JSON handling, fingerprinting, and the no-auto-rerun upload workflow.
+- Bumped schema to `0.4.7-commercial-m3h2-json-load-stability`.
+
+## Current capabilities retained from prior M3 milestones
+
+- Display formatting rules aligned with Concrete Section Pro.
+- `1.3.7 Wind Load` report-driven EN 1991-1-4 / DPT 1311-50 workflow with Table 2.5 factor logic.
+- DPT seismic database with Bangkok Basin Zone 1–10 routing.
+- AASHTO LRFD 2014 Table 3.10.7.1-1 bridge seismic R recommendation.
+- Coordinate-driven section properties using CSiBridge `Structural Polygon 1` and `Opening Polygon 1` imports.
+- CSiBridge tendon layout import and viewer with tendon summary cards.
+- Full station-by-station FEA import remains pending.
 
 ## Verification
 
@@ -33,7 +30,7 @@ This milestone fixes the top of `2.4 Tendon Layout Reference` by replacing the l
 python -m compileall -q .
 python -m pytest -q
 
-65 passed
+69 passed
 ```
 
 ## Packaging
