@@ -1,10 +1,10 @@
-# Segmental Box Girder Pro — Commercial M3G.4
+# Segmental Box Girder Pro — Commercial M3H
 
 Commercial, report-driven Streamlit design-review app for BG40 PT segmental box girder.
 
-This milestone simplifies the coordinate-driven section properties UX by moving the adopted section-property table and J input into one clear design-use page. The app now makes the downstream design source explicit, keeps J visible beside A/I/S/centroid, and moves comparison details to QA. It preserves the M3F workspace reorganization, M3E Wind Load engine, M3C AASHTO bridge I/R controls, M3B DPT seismic database, Concrete Section Pro style alignment, one-source state discipline, and global engineering display-formatting rules.
+This milestone adds CSiBridge tendon-layout import and visualization. The app now reads General, Vertical Layout, and Horizontal Layout tendon exports, merges them into a one-source adopted tendon model, draws side-elevation and plan-view tendon figures, overlays tendon positions on the imported box-girder section, and produces a report-style tendon group summary for prestress use. It preserves M3G.4 section-property UX, M3F workspace reorganization, M3E Wind Load engine, M3C AASHTO bridge I/R controls, M3B DPT seismic database, Concrete Section Pro style alignment, one-source state discipline, and global engineering display-formatting rules.
 
-## Current milestone: COMMERCIAL.M3G.4
+## Current milestone: COMMERCIAL.M3H
 
 ### Workspace reorganization
 
@@ -48,6 +48,26 @@ New sidebar workflow:
 - `3.9 EQ`
 - `3.10 FEA Summary`
 - `QA / Report Preview`
+
+
+### M3H additions — CSiBridge Tendon Layout Import + Viewer
+
+`2.4 Tendon Layout Reference` now supports CSiBridge tendon exports:
+
+- Imports three CSiBridge tables: General, Vertical Layout, and Horizontal Layout.
+- Supports `.xlsx`, `.xls`, and `.csv` files.
+- Reads tendon object data: tendon name, material, tendon area, jacking force, and jacking end.
+- Reads vertical layout using `TendonDist` and `VertOff`; `VertOff` is interpreted as depth from top by absolute value for BG40.
+- Reads horizontal layout using `TendonDist` and `HorizOff`; `HorizOff = 0` is the section CL.
+- Detects BridgeObj mismatches between imported tables and allows user-confirmed mapping to the active BridgeObj.
+- Merges the three tables into one adopted tendon model used by layout figures, report tables, and prestress summaries.
+- Draws Plotly tendon side elevation and plan view.
+- Overlays tendon positions on the imported box-girder section at a selected station.
+- Generates a report-style tendon group summary for T1–T2, T3–T4, T5–T6, and T7–T8.
+- Computes weighted average end/midspan dp and midspan eccentricity `e = dp_avg - y_t`.
+- Adds left/right tendon symmetry QA, tendon-count checks, BridgeObj trace, and downstream trace.
+- Includes an explicit action to use imported tendon summary values for prestress fields while preserving friction angle values until a later curvature-import engine is added.
+- Updated schema version to `0.4.5-commercial-m3h-tendon-import`.
 
 ### Coordinate-driven section properties and QA polish
 
@@ -94,7 +114,7 @@ The dedicated Loads workspace still includes the report-driven EN 1991-1-4 / DPT
 
 ### Schema
 
-- Updated schema version to `0.4.0-commercial-m3g`.
+- Updated schema version to `0.4.5-commercial-m3h-tendon-import`.
 - Existing project JSON files are promoted through `ensure_project_schema()` while preserving engineering values.
 
 ## Display formatting rules
@@ -134,7 +154,7 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
-M3G.4 targeted regression result: `60 passed`.
+M3H targeted regression result: `pending/see final milestone response`.
 
 ## Engineering limitations
 

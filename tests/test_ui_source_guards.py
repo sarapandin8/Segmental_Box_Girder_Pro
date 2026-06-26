@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.4-commercial-m3g4-j-apply"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.5-commercial-m3h-tendon-import"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -219,3 +219,26 @@ def test_m3g4_section_properties_j_adoption_controls_are_simple_and_explicit():
     assert "Apply user override J to adopted properties" in src
     assert "Use thin-walled estimate as adopted J" in src
     assert "Torsion / Advanced" not in src.split("st.tabs([", 1)[1].split("])" , 1)[0]
+
+
+def test_m3h_tendon_import_ui_and_trace_are_present():
+    src = _src()
+    assert "CSiBridge tendon-layout import" in src
+    assert "General tendon table" in src
+    assert "Vertical layout table" in src
+    assert "Horizontal layout table" in src
+    assert "Build / refresh adopted tendon layout model" in src
+    assert "tendon_elevation_figure" in src
+    assert "tendon_plan_figure" in src
+    assert "tendon_section_overlay_figure" in src
+    assert "BridgeObj mismatch detected" in src
+    assert "Use imported tendon summary for prestress values" in src
+
+
+def test_m3h_tendon_layout_core_module_exists():
+    root = APP_SOURCE.resolve().parents[0]
+    tendon_src = (root / "core" / "tendon_layout.py").read_text(encoding="utf-8")
+    assert "build_tendon_layout_model" in tendon_src
+    assert "normalize_general_tendon_rows" in tendon_src
+    assert "normalize_tendon_profile_rows" in tendon_src
+    assert "BridgeObj mismatch" in tendon_src

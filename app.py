@@ -37,6 +37,14 @@ from core.aashto_seismic import (
 )
 from core.formatting import format_engineering_table, format_engineering_value
 from core.section_geometry import calculate_section_properties, default_coordinate_template, estimate_thin_walled_closed_box_j, normalize_coordinate_rows, read_coordinate_table
+from core.tendon_layout import (
+    build_tendon_layout_model,
+    read_tendon_general_table,
+    read_tendon_vertical_table,
+    read_tendon_horizontal_table,
+    tendon_model_to_frames,
+    tendon_points_at_station,
+)
 from core.load_models import (
     en_dynamic_factor_standard_maintenance,
     hunting_force_en1991,
@@ -47,6 +55,7 @@ from core.load_models import (
     wind_vb0_recommended_from_group,
 )
 from visualization.section_figures import PLOTLY_SECTION_CONFIG, section_polygon_figure
+from visualization.tendon_figures import PLOTLY_TENDON_CONFIG, tendon_elevation_figure, tendon_plan_figure, tendon_section_overlay_figure
 from visualization.load_figures import (
     PLOTLY_CONFIG,
     rail_horizontal_forces_diagram,
@@ -1758,12 +1767,249 @@ def render_section_properties() -> None:
                 st.error(err)
             st.info("Expected CSiBridge loop names: Structural Polygon 1 for the outer concrete boundary and Opening Polygon 1 for the internal void.")
 
+
+def _df_from_records(records: list[dict[str, Any]]) -> pd.DataFrame:
+    return pd.DataFrame(records or [])
+
+
+def _parse_and_store_tendon_file(uploaded: Any, kind: str) -> None:
+    filename = getattr(uploaded, "name", "")
+    if kind == "general":
+        df = read_tendon_general_table(uploaded, filename)
+        D["tendon_layout"]["general_rows"] = df.to_dict("records")
+        st.success(f"Imported General tendon table: {len(df)} tendons.")
+    elif kind == "vertical":
+        df = read_tendon_vertical_table(uploaded, filename)
+        D["tendon_layout"]["vertical_rows"] = df.to_dict("records")
+        st.success(f"Imported Vertical tendon profile table: {len(df)} rows.")
+    elif kind == "horizontal":
+        df = read_tendon_horizontal_table(uploaded, filename)
+        D["tendon_layout"]["horizontal_rows"] = df.to_dict("records")
+        st.success(f"Imported Horizontal tendon profile table: {len(df)} rows.")
+
+
+def _build_and_store_tendon_model() -> dict[str, Any]:
+    tl = D.setdefault("tendon_layout", {})
+    general = _df_from_records(tl.get("general_rows", []))
+    vertical = _df_from_records(tl.get("vertical_rows", []))
+    horizontal = _df_from_records(tl.get("horizontal_rows", []))
+    model = build_tendon_layout_model(
+        general,
+        vertical,
+        horizontal,
+        active_bridge_object=tl.get("active_bridge_object", "B2_SPAN1"),
+        map_to_active_bridge_object=bool(tl.get("map_bridge_objects_to_active", True)),
+        y_t_from_top_m=float(D["section"].get("yt_from_top_m", 0.0)),
+    )
+    tl["model"] = model
+    return model
+
+
+def _active_tendon_model() -> dict[str, Any]:
+    tl = D.setdefault("tendon_layout", {})
+    if tl.get("model"):
+        return tl["model"]
+    return _build_and_store_tendon_model()
+
+
+def _apply_imported_tendon_summary_to_prestress(model: dict[str, Any]) -> None:
+    """Adopt imported tendon summary into prestress one-source fields."""
+    if not model.get("valid"):
+        return
+    p = D["prestress"]
+    tendons = model.get("tendons", [])
+    groups = model.get("group_summary", [])
+    if tendons:
+        p["num_tendons"] = int(len(tendons))
+        aps_vals = [float(t.get("area_mm2") or 0.0) for t in tendons if float(t.get("area_mm2") or 0.0) > 0]
+        if aps_vals:
+            p["Aps_per_tendon_mm2"] = float(sum(aps_vals) / len(aps_vals))
+            p["Aps_total_mm2"] = float(sum(aps_vals))
+    if model.get("dp_avg_end_m") is not None:
+        p["dp_avg_end_m"] = float(model["dp_avg_end_m"])
+    if model.get("dp_avg_midspan_m") is not None:
+        p["dp_avg_midspan_m"] = float(model["dp_avg_midspan_m"])
+    if model.get("eccentricity_midspan_m") is not None:
+        p["eccentricity_midspan_m"] = float(model["eccentricity_midspan_m"])
+
+    # Update only end/midspan dp in existing friction groups. Alpha values remain from report/FEA route until a later curvature engine imports them.
+    group_map = {g["Group"]: g for g in groups}
+    for g in p.get("tendon_friction_groups", []):
+        row = group_map.get(g.get("group"))
+        if row:
+            if row.get("End dp (m)") is not None:
+                g["end_dp_m"] = float(row["End dp (m)"])
+            if row.get("Midspan dp (m)") is not None:
+                g["midspan_dp_m"] = float(row["Midspan dp (m)"])
+    D["tendon_layout"]["adopted_status"] = "Imported CSiBridge tendon layout adopted for prestress summary / report figures"
+
+
 def render_tendon_layout_reference() -> None:
     section_title("2.4 Tendon Layout Reference")
-    tendon_df = pd.DataFrame(D["prestress"]["tendon_friction_groups"])[["group", "n", "end_dp_m", "midspan_dp_m", "alpha_vert_rad", "alpha_horiz_rad"]]
-    show_engineering_table(tendon_df.rename(columns={"group": "Group", "n": "Count", "end_dp_m": "End dp (m)", "midspan_dp_m": "Midspan dp (m)", "alpha_vert_rad": "αvert (rad)", "alpha_horiz_rad": "αhoriz (rad)"}))
-    st.markdown(f'<div class="note-box">Weighted average dp at end = {D["prestress"]["dp_avg_end_m"]:.3f} m; at midspan = {D["prestress"]["dp_avg_midspan_m"]:.3f} m; e_midspan = {D["prestress"]["eccentricity_midspan_m"]:.3f} m.</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="note-box"><b>CSiBridge tendon-layout import:</b> import the General, Vertical Layout, and Horizontal Layout exports. '
+        'The app merges tendon area/force, vertical dp measured from top, and horizontal offset from CL into one tendon model. '
+        'Figures and summaries use this adopted tendon model; BridgeObj mismatches are warned and may be mapped to the active object only by user confirmation.</div>',
+        unsafe_allow_html=True,
+    )
+    tl = D.setdefault("tendon_layout", {})
+    tabs = st.tabs(["Import / Mapping", "Elevation View", "Plan View", "Section Overlay", "Adopted Tendon Data", "QA / Consistency"])
 
+    with tabs[0]:
+        subsection_title("Tendon import / mapping")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            gen = st.file_uploader("General tendon table (.xlsx/.csv)", type=["xlsx", "xls", "csv"], key="tendon_general_upload")
+            if gen is not None:
+                try:
+                    _parse_and_store_tendon_file(gen, "general")
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Could not import General tendon table: {exc}")
+        with c2:
+            vert = st.file_uploader("Vertical layout table (.xlsx/.csv)", type=["xlsx", "xls", "csv"], key="tendon_vertical_upload")
+            if vert is not None:
+                try:
+                    _parse_and_store_tendon_file(vert, "vertical")
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Could not import Vertical tendon table: {exc}")
+        with c3:
+            horiz = st.file_uploader("Horizontal layout table (.xlsx/.csv)", type=["xlsx", "xls", "csv"], key="tendon_horizontal_upload")
+            if horiz is not None:
+                try:
+                    _parse_and_store_tendon_file(horiz, "horizontal")
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Could not import Horizontal tendon table: {exc}")
+
+        general = _df_from_records(tl.get("general_rows", []))
+        vertical = _df_from_records(tl.get("vertical_rows", []))
+        horizontal = _df_from_records(tl.get("horizontal_rows", []))
+        imported_objs: list[str] = []
+        for df in (general, vertical, horizontal):
+            if not df.empty and "BridgeObj" in df.columns:
+                for obj in df["BridgeObj"].dropna().astype(str).unique().tolist():
+                    if obj and obj not in imported_objs:
+                        imported_objs.append(obj)
+        default_obj = tl.get("active_bridge_object") or (general["BridgeObj"].mode().iloc[0] if not general.empty and "BridgeObj" in general.columns else D["project"].get("bridge_object", "B2_SPAN1"))
+        c1, c2 = st.columns([1.0, 1.0])
+        with c1:
+            tl["active_bridge_object"] = st.text_input("Active BridgeObj for adopted tendon layout", value=str(default_obj), key="tendon_active_bridge_obj")
+        with c2:
+            tl["map_bridge_objects_to_active"] = st.checkbox("Map all imported BridgeObj values to active BridgeObj after review", value=bool(tl.get("map_bridge_objects_to_active", True)), key="tendon_map_bridge_obj")
+        if len(imported_objs) > 1:
+            st.warning(f"BridgeObj mismatch detected: {', '.join(imported_objs)}. Review and map to the active object only if this is an export label mismatch.")
+        elif imported_objs:
+            st.success(f"Imported BridgeObj: {', '.join(imported_objs)}")
+        else:
+            st.info("Upload the three CSiBridge tendon tables to build the tendon model.")
+
+        if st.button("Build / refresh adopted tendon layout model", type="primary", use_container_width=True):
+            model = _build_and_store_tendon_model()
+            if model.get("valid"):
+                st.success(f"Tendon model built: {len(model.get('tendons', []))} tendons, span reference = {model.get('span_m', 0.0):.3f} m.")
+            else:
+                st.error("Tendon model could not be built. Check imported tables and QA messages.")
+            st.rerun()
+
+        if not general.empty:
+            with st.expander("Imported General tendon rows", expanded=False):
+                show_engineering_table(general[[c for c in ["BridgeObj", "Tendon", "Material", "TendonArea", "Aps_mm2", "strand_count_140mm2", "Force", "JackFrom"] if c in general.columns]])
+        if not vertical.empty:
+            with st.expander("Imported Vertical layout rows", expanded=False):
+                show_engineering_table(vertical[[c for c in ["BridgeObj", "Tendon", "SegType", "x_m", "dp_top_m"] if c in vertical.columns]].head(60))
+        if not horizontal.empty:
+            with st.expander("Imported Horizontal layout rows", expanded=False):
+                show_engineering_table(horizontal[[c for c in ["BridgeObj", "Tendon", "SegType", "x_m", "horiz_off_m"] if c in horizontal.columns]].head(60))
+
+    model = _active_tendon_model()
+    tendons_df, group_df, symmetry_df, qa_df = tendon_model_to_frames(model)
+
+    with tabs[1]:
+        subsection_title("Tendon side elevation")
+        if model.get("valid"):
+            show_labels = st.checkbox("Show tendon labels", value=False, key="tendon_elev_labels")
+            fig = tendon_elevation_figure(model, show_labels=show_labels)
+            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: card("Tendons", str(len(model.get("tendons", []))), "Imported tendon objects", "pass")
+            with c2: card("dp avg end", format_engineering_value(model.get("dp_avg_end_m") or 0.0, "m"), "Weighted by tendon area", "pass")
+            with c3: card("dp avg midspan", format_engineering_value(model.get("dp_avg_midspan_m") or 0.0, "m"), "Weighted by tendon area", "pass")
+            with c4: card("e midspan", format_engineering_value(model.get("eccentricity_midspan_m") or 0.0, "m"), "dp_avg - y_t", "pass")
+        else:
+            st.info("Build a valid tendon model to show side elevation.")
+
+    with tabs[2]:
+        subsection_title("Tendon plan / horizontal layout")
+        if model.get("valid"):
+            show_labels = st.checkbox("Show tendon labels", value=False, key="tendon_plan_labels")
+            fig = tendon_plan_figure(model, show_labels=show_labels)
+            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
+        else:
+            st.info("Build a valid tendon model to show plan view.")
+
+    with tabs[3]:
+        subsection_title("Section overlay at selected station")
+        props = _section_computation_from_state()
+        if model.get("valid") and props.get("valid"):
+            max_station = float(model.get("span_m") or D["project"].get("span_m", 40.0))
+            station = st.slider("Station x (m)", min_value=0.0, max_value=max_station, value=float(model.get("midspan_m") or max_station / 2.0), step=0.01, key="tendon_section_overlay_station")
+            tl["positive_horiz_offset_direction"] = st.selectbox("Positive HorizOff direction in section overlay", ["left", "right"], index=0 if tl.get("positive_horiz_offset_direction", "left") == "left" else 1, format_func=lambda x: "Positive = left of CL" if x == "left" else "Positive = right of CL", key="tendon_offset_direction")
+            points = tendon_points_at_station(model, station)
+            fig = tendon_section_overlay_figure(
+                props.get("coordinates", _section_coordinate_df_from_state()),
+                props,
+                points,
+                positive_offset_direction=tl.get("positive_horiz_offset_direction", "left"),
+                show_point_numbers=False,
+            )
+            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
+            st.markdown("#### Tendon positions at selected station")
+            show_engineering_table(points)
+        elif not props.get("valid"):
+            st.warning("Import valid section coordinates first to overlay tendon points on the box-girder section.")
+        else:
+            st.info("Build a valid tendon model first.")
+
+    with tabs[4]:
+        subsection_title("Adopted tendon data")
+        if model.get("valid"):
+            st.markdown('<div class="result-card"><b>Adopted Tendon Layout for Design</b> <span class="badge pass">USED BY PRESTRESS / REPORT CHECKS</span><br><span class="small-muted">This table is built from CSiBridge General + Vertical + Horizontal tendon exports. The app stores it as the single source for tendon layout figures and prestress summary values.</span></div>', unsafe_allow_html=True)
+            st.markdown("#### Tendon object summary")
+            tendon_cols = ["tendon", "family", "side", "bridge_obj", "material", "area_mm2", "strand_count_140mm2", "force_kN", "jack_from", "end_dp_m", "midspan_dp_m", "end_horiz_off_m", "midspan_horiz_off_m"]
+            show_engineering_table(tendons_df[[c for c in tendon_cols if c in tendons_df.columns]].rename(columns={
+                "tendon": "Tendon", "family": "Family", "side": "Side", "bridge_obj": "BridgeObj", "material": "Material", "area_mm2": "Aps", "strand_count_140mm2": "Strands (A=140)", "force_kN": "Force", "jack_from": "JackFrom", "end_dp_m": "End dp", "midspan_dp_m": "Midspan dp", "end_horiz_off_m": "End HorizOff", "midspan_horiz_off_m": "Midspan HorizOff"
+            }))
+            st.markdown("#### Report-style tendon group summary")
+            show_engineering_table(group_df)
+            st.markdown(f'<div class="note-box">Weighted average dp at end = {model.get("dp_avg_end_m", 0.0):.3f} m; at midspan = {model.get("dp_avg_midspan_m", 0.0):.3f} m; e_midspan = {model.get("eccentricity_midspan_m", 0.0):.3f} m using y_t = {D["section"].get("yt_from_top_m", 0.0):.3f} m.</div>', unsafe_allow_html=True)
+            if st.button("Use imported tendon summary for prestress values", type="primary", use_container_width=True):
+                _apply_imported_tendon_summary_to_prestress(model)
+                st.success("Prestress tendon count, Aps,total, dp averages, and group end/midspan dp values updated from imported tendon layout. Friction angle values remain from report/FEA route.")
+                st.rerun()
+        else:
+            st.info("Build a valid tendon model to show adopted tendon data.")
+
+    with tabs[5]:
+        subsection_title("Tendon QA / consistency")
+        if model.get("warnings"):
+            for w in model["warnings"]:
+                st.warning(w)
+        if model.get("errors"):
+            for e in model["errors"]:
+                st.error(e)
+        if not qa_df.empty:
+            st.markdown("#### Import QA")
+            show_engineering_table(qa_df)
+        if not symmetry_df.empty:
+            st.markdown("#### Left/right symmetry QA")
+            show_engineering_table(symmetry_df)
+        st.markdown("#### Downstream trace")
+        trace = pd.DataFrame([
+            ["Tendon figures", "Imported General + Vertical + Horizontal profiles", "Side elevation / plan / section overlay", "READY" if model.get("valid") else "PENDING"],
+            ["Prestress summary", "Imported tendon model", "Aps,total and dp averages can be adopted", "READY" if model.get("valid") else "PENDING"],
+            ["Friction angle α", "Existing BG40 report route", "Not recalculated from geometry in M3H", "REVIEW"],
+            ["Report export", "Adopted tendon model", "Figures and tables are report-ready", "READY" if model.get("valid") else "PENDING"],
+        ], columns=["Item", "Source", "App action", "Status"])
+        show_engineering_table(trace)
 
 def render_bridge_consistency() -> None:
     section_title("2.5 Consistency Checks")
