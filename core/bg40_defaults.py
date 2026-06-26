@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.1-commercial-m3g-xlsx",
+        "schema_version": "0.4.2-commercial-m3g2-section-qa",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 R10 baseline loaded; DPT seismic database and AASHTO bridge R recommendation active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -152,6 +152,8 @@ BG40_DEFAULT = {
         "AS2_m2": 2.028,
         "S_top_m3": 5.577,
         "S_bottom_m3": 2.819,
+        "xcg_from_left_m": 5.600,
+        "xcg_from_right_m": 5.600,
         "Z33_m3": 4.057,
         "ycg_from_bottom_m": 1.661,
         "yt_from_top_m": 0.839,
@@ -162,6 +164,8 @@ BG40_DEFAULT = {
         "coordinate_rows": [],
         "computed_from_coordinates": {},
         "J_method": "FEA / manual override",
+        "J_thin_walled_m4": None,
+        "J_thin_walled_difference_pct": None,
         "J_note": "Torsional constant J is retained from FEA/manual value unless a later advanced torsion solver is enabled.",
         "Aoh_mm2": 24260000.0,
         "ph_mm": 26102.0,

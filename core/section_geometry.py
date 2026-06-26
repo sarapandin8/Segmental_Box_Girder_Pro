@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isfinite, sqrt
+from math import isfinite, sqrt, pi
 from typing import Iterable, Any, BinaryIO
 
 import pandas as pd
@@ -362,12 +362,127 @@ def calculate_section_properties(df: pd.DataFrame) -> dict[str, Any]:
         "S_bottom_m3": S_bottom / 1e9,
         "S_left_m3": S_left / 1e9,
         "S_right_m3": S_right / 1e9,
+        "xcg_from_left_m": x_left / 1000.0,
+        "xcg_from_right_m": x_right / 1000.0,
         "ycg_from_bottom_m": y_bottom / 1000.0,
         "yt_from_top_m": y_top / 1000.0,
         "width_m": (xmax - xmin) / 1000.0,
         "depth_m": (ymax - ymin) / 1000.0,
         "bounds_mm": {"xmin": xmin, "xmax": xmax, "ymin": ymin, "ymax": ymax},
         "mapping_note": "App x/y coordinates are read from CSiBridge section X/Y. I33 is reported from Ixx about the horizontal centroidal axis and I22 from Iyy about the vertical centroidal axis for BG40 review mapping.",
+    }
+
+
+
+def estimate_thin_walled_closed_box_j(
+    df: pd.DataFrame,
+    *,
+    t_top_m: float,
+    t_bot_m: float,
+    t_web_m: float,
+    include_corner_correction: bool = True,
+) -> dict[str, Any]:
+    """Estimate St. Venant torsional constant J for a single-cell closed box.
+
+    This is a thin-walled closed-section estimate intended for QA/preliminary
+    comparison only.  It uses the Opening Polygon as the inner void boundary,
+    classifies void-boundary segments as top slab / bottom slab / web based on
+    their location, and estimates the wall centreline area as:
+
+        A_m ≈ A_inner + 0.5 Σ(l_i t_i) + corner correction
+
+    Then:
+
+        J ≈ 4 A_m² / Σ(l_i/t_i)
+
+    The method is deliberately labelled as an estimate because CSiBridge/J from
+    section analysis or FEA remains the preferred design-source value.
+    """
+    coords = normalize_coordinate_rows(df)
+    props = calculate_section_properties(coords)
+    if not props.get("valid"):
+        return {"valid": False, "errors": props.get("errors", ["Invalid section coordinates"]), "warnings": props.get("warnings", [])}
+
+    t_top = float(t_top_m)
+    t_bot = float(t_bot_m)
+    t_web = float(t_web_m)
+    if min(t_top, t_bot, t_web) <= 0:
+        return {"valid": False, "errors": ["Wall thicknesses must be positive for thin-walled J estimate."], "warnings": []}
+
+    hole_groups = [(name, g) for name, g in coords.groupby("loop_name", sort=False) if str(g["loop_type"].iloc[0]) == "hole"]
+    if len(hole_groups) != 1:
+        return {"valid": False, "errors": ["Thin-walled closed-box J estimate requires exactly one Opening Polygon / cell."], "warnings": []}
+
+    name, g = hole_groups[0]
+    pts_mm = _remove_consecutive_duplicate_points(list(zip(g["x_mm"].astype(float), g["y_mm"].astype(float))))
+    if len(pts_mm) < 3:
+        return {"valid": False, "errors": ["Opening Polygon has fewer than 3 unique points."], "warnings": []}
+
+    lp = _loop_properties(pts_mm, "hole", str(name))
+    inner_area_m2 = abs(lp.area_mm2) / 1e6
+    bounds = props["bounds_mm"]
+    ymin = float(bounds["ymin"])
+    ymax = float(bounds["ymax"])
+    depth = max(ymax - ymin, 1e-9)
+    cy = float(props["cy_mm"])
+    bottom_threshold = ymin + 0.35 * depth
+
+    segment_rows: list[dict[str, Any]] = []
+    sum_l_over_t = 0.0
+    sum_l_t = 0.0
+    for i, (p0, p1) in enumerate(zip(pts_mm, pts_mm[1:] + pts_mm[:1]), start=1):
+        x0, y0 = p0
+        x1, y1 = p1
+        length_m = sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2) / 1000.0
+        if length_m <= 1e-9:
+            continue
+        y_mid = 0.5 * (y0 + y1)
+        if y_mid >= cy:
+            component = "top slab / upper haunch"
+            t = t_top
+        elif y_mid <= bottom_threshold:
+            component = "bottom slab / lower corner"
+            t = t_bot
+        else:
+            component = "web"
+            t = t_web
+        sum_l_over_t += length_m / t
+        sum_l_t += length_m * t
+        segment_rows.append({
+            "segment": i,
+            "component": component,
+            "length_m": length_m,
+            "t_m": t,
+            "l_over_t": length_m / t,
+        })
+
+    if sum_l_over_t <= 0:
+        return {"valid": False, "errors": ["Could not compute Σ(l/t) for thin-walled J estimate."], "warnings": []}
+
+    # First-order variable-thickness offset estimate from the inner void boundary.
+    centerline_area_m2 = inner_area_m2 + 0.5 * sum_l_t
+    if include_corner_correction:
+        # Approximate the corner term using the average half-thickness. This improves
+        # rectangular/box estimates but remains a QA-level estimate.
+        avg_half_thickness = 0.5 * sum_l_t / sum(seg["length_m"] for seg in segment_rows)
+        centerline_area_m2 += pi * avg_half_thickness * avg_half_thickness
+
+    j_m4 = 4.0 * centerline_area_m2 * centerline_area_m2 / sum_l_over_t
+    warnings = [
+        "Thin-walled J is an estimate for QA/preliminary comparison. Use FEA/manual J for design unless the estimate is explicitly reviewed and adopted.",
+        "Segment thickness classification is inferred from Opening Polygon location: upper segments use t_top, lower segments use t_bot, and side segments use t_web.",
+    ]
+    return {
+        "valid": True,
+        "errors": [],
+        "warnings": warnings,
+        "J_m4": j_m4,
+        "Am_m2": centerline_area_m2,
+        "inner_area_m2": inner_area_m2,
+        "sum_l_over_t": sum_l_over_t,
+        "sum_l_t_m2": sum_l_t,
+        "segment_rows": segment_rows,
+        "method": "Thin-walled single-cell closed-box estimate: J ≈ 4Am² / Σ(l/t)",
     }
 
 

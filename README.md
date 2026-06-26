@@ -1,10 +1,10 @@
-# Segmental Box Girder Pro — Commercial M3G
+# Segmental Box Girder Pro — Commercial M3G.2
 
 Commercial, report-driven Streamlit design-review app for BG40 PT segmental box girder.
 
-This milestone adds the coordinate-driven section properties foundation requested for the Bridge Geometry / Section Properties workspace. It preserves the M3F workspace reorganization, M3E Wind Load engine, M3C AASHTO bridge I/R controls, M3B DPT seismic database, Concrete Section Pro style alignment, one-source state discipline, and global engineering display-formatting rules.
+This milestone polishes the coordinate-driven section properties workflow by adding section-property QA comparison, centroid-X reporting, centerline-origin drawing mode, point-label controls, and a thin-walled closed-box torsional constant estimate for QA comparison. It preserves the M3F workspace reorganization, M3E Wind Load engine, M3C AASHTO bridge I/R controls, M3B DPT seismic database, Concrete Section Pro style alignment, one-source state discipline, and global engineering display-formatting rules.
 
-## Current milestone: COMMERCIAL.M3G
+## Current milestone: COMMERCIAL.M3G.2
 
 ### Workspace reorganization
 
@@ -49,7 +49,7 @@ New sidebar workflow:
 - `3.10 FEA Summary`
 - `QA / Report Preview`
 
-### Coordinate-driven section properties
+### Coordinate-driven section properties and QA polish
 
 `2.3 Section Properties` now supports CSiBridge-style polygon coordinate input:
 
@@ -57,9 +57,19 @@ New sidebar workflow:
 - `Opening Polygon 1` is treated as the internal void / hole.
 - Point order may be clockwise or counter-clockwise; loop type controls add/subtract behavior.
 - The section preview draws the outer boundary, opening, centroid, point numbers, dimensions, and centroidal fiber guides.
-- The engine calculates `A`, centroid, `I33/I22`, `S33(+)`, `S33(-)`, overall width/depth, `y_cg`, and `y_t` from coordinates.
+- The engine calculates `A`, `x_cg`, `y_cg`, `I33/I22`, `S33(+)`, `S33(-)`, overall width/depth, `y_cg` from bottom, and `y_t` from top from coordinates.
 - A button allows the engineer to apply computed A/I/S/centroid values to active section properties.
-- `J` remains FEA/manual by default, with an explicit engineering warning that torsional constant for a hollow box is not obtained from polygon inertia alone.
+- `J` remains FEA/manual by default, but the app now provides a thin-walled single-cell closed-box estimate `J_tw = 4A_m²/Σ(l/t)` for QA/preliminary comparison. The active design value can be switched/adopted only with an explicit source trace and warning.
+
+
+### M3G.2 additions
+
+- Added `x_cg` and `x_right` to the computed and active section-property tables.
+- Added CSiBridge origin / centerline-origin drawing mode for the section preview.
+- Added point-label controls: major points only, all point numbers, or hide point numbers.
+- Added App vs CSiBridge / active-property comparison table with MATCH/REVIEW/CHECK status.
+- Added thin-walled closed-box `J` estimate with wall-thickness inputs and segment-classification table.
+- Preserved FEA/manual `J` as the default design source and clearly labels `J_tw` as an estimate.
 
 ### Analysis model scope note
 

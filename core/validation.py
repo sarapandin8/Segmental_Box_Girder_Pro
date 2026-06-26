@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.1-commercial-m3g-xlsx"
+PROJECT_SCHEMA_VERSION = "0.4.2-commercial-m3g2-section-qa"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 

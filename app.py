@@ -36,7 +36,7 @@ from core.aashto_seismic import (
     substructure_options,
 )
 from core.formatting import format_engineering_table, format_engineering_value
-from core.section_geometry import calculate_section_properties, default_coordinate_template, normalize_coordinate_rows, read_coordinate_table
+from core.section_geometry import calculate_section_properties, default_coordinate_template, estimate_thin_walled_closed_box_j, normalize_coordinate_rows, read_coordinate_table
 from core.load_models import (
     en_dynamic_factor_standard_maintenance,
     hunting_force_en1991,
@@ -1398,6 +1398,8 @@ def _apply_computed_section_properties(props: dict[str, Any]) -> None:
     s["I22_m4"] = float(props["I22_m4"])
     s["S_top_m3"] = float(props["S_top_m3"])
     s["S_bottom_m3"] = float(props["S_bottom_m3"])
+    s["xcg_from_left_m"] = float(props["xcg_from_left_m"])
+    s["xcg_from_right_m"] = float(props["xcg_from_right_m"])
     s["ycg_from_bottom_m"] = float(props["ycg_from_bottom_m"])
     s["yt_from_top_m"] = float(props["yt_from_top_m"])
     s["B_m"] = float(props["width_m"])
@@ -1408,6 +1410,8 @@ def _apply_computed_section_properties(props: dict[str, Any]) -> None:
         "I22_m4": float(props["I22_m4"]),
         "S_top_m3": float(props["S_top_m3"]),
         "S_bottom_m3": float(props["S_bottom_m3"]),
+        "xcg_from_left_m": float(props["xcg_from_left_m"]),
+        "xcg_from_right_m": float(props["xcg_from_right_m"]),
         "ycg_from_bottom_m": float(props["ycg_from_bottom_m"]),
         "yt_from_top_m": float(props["yt_from_top_m"]),
         "width_m": float(props["width_m"]),
@@ -1470,9 +1474,37 @@ def render_geometry_analysis_model() -> None:
     st.markdown('<div class="warn-box"><b>Report figure requirement:</b> Figure 2.1 FEA model is managed here for report output. The app does not replace or regenerate the external FEA model.</div>', unsafe_allow_html=True)
 
 
+def _section_comparison_rows(props: dict[str, Any], s: dict[str, Any]) -> pd.DataFrame:
+    rows: list[list[Any]] = []
+    if not props.get("valid"):
+        return pd.DataFrame(columns=["Property", "Symbol", "App calculated", "Reference / active", "Difference", "% diff", "Unit", "Status"])
+    comparisons = [
+        ("Cross-sectional area", "A", props.get("A_m2"), s.get("Ac_m2"), "m²"),
+        ("Moment of inertia major", "I33", props.get("I33_m4"), s.get("I33_m4"), "m⁴"),
+        ("Moment of inertia minor", "I22", props.get("I22_m4"), s.get("I22_m4"), "m⁴"),
+        ("Section modulus top", "S33(+)", props.get("S_top_m3"), s.get("S_top_m3"), "m³"),
+        ("Section modulus bottom", "S33(-)", props.get("S_bottom_m3"), s.get("S_bottom_m3"), "m³"),
+        ("Centroid X from left", "x_cg", props.get("xcg_from_left_m"), s.get("xcg_from_left_m", props.get("xcg_from_left_m")), "m"),
+        ("Centroid Y from bottom", "y_cg", props.get("ycg_from_bottom_m"), s.get("ycg_from_bottom_m"), "m"),
+        ("Overall width", "B", props.get("width_m"), s.get("B_m"), "m"),
+        ("Overall depth", "D", props.get("depth_m"), s.get("D_m"), "m"),
+    ]
+    for name, sym, app_v, ref_v, unit in comparisons:
+        if app_v is None or ref_v is None:
+            diff = None
+            pct = None
+            status = "-"
+        else:
+            diff = float(app_v) - float(ref_v)
+            pct = abs(diff) / max(abs(float(ref_v)), 1e-12) * 100.0
+            status = "MATCH" if pct <= 0.15 else ("REVIEW" if pct <= 2.0 else "CHECK")
+        rows.append([name, sym, app_v, ref_v, diff, pct, unit, status])
+    return pd.DataFrame(rows, columns=["Property", "Symbol", "App calculated", "Reference / active", "Difference", "% diff", "Unit", "Status"])
+
+
 def render_section_properties() -> None:
     section_title("2.3 Section Properties")
-    st.markdown('<div class="note-box"><b>Coordinate-driven section engine:</b> import CSiBridge Structural Polygon and Opening Polygon coordinates. CSiBridge XLSX/CSV exports with X/Y in metres are auto-converted to mm for calculation and drawing. The app draws the box-girder section and calculates A, centroid, I33/I22, and S values from the imported loops. Torsional constant J remains FEA/manual unless a later advanced torsion solver is enabled.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="note-box"><b>Coordinate-driven section engine:</b> import CSiBridge Structural Polygon and Opening Polygon coordinates. CSiBridge XLSX/CSV exports with X/Y in metres are auto-converted to mm for calculation and drawing. The app draws the box-girder section and calculates A, centroid, I33/I22, and S values from the imported loops. Torsional constant J is kept traceable: FEA/manual is the default design source, and thin-walled closed-box J is available as a QA estimate.</div>', unsafe_allow_html=True)
     s = D["section"]
     tabs = st.tabs(["Coordinate Input", "Section Preview", "Computed Properties", "Torsion / Advanced", "QA / Consistency"])
 
@@ -1516,16 +1548,22 @@ def render_section_properties() -> None:
     coords = props.get("coordinates", _section_coordinate_df_from_state())
 
     with tabs[1]:
-        show_points = st.checkbox("Show point numbers", value=True, key="section_show_point_numbers")
-        show_dims = st.checkbox("Show dimension guides / centroid fibers", value=True, key="section_show_dimensions")
+        c1, c2, c3 = st.columns([1.0, 1.0, 1.0])
+        with c1:
+            point_mode = st.selectbox("Point labels", ["major", "all", "hide"], format_func=lambda x: {"major": "Major points only", "all": "All point numbers", "hide": "Hide point numbers"}[x], index=0, key="section_point_label_mode")
+        with c2:
+            show_dims = st.checkbox("Show dimension guides / centroid fibers", value=True, key="section_show_dimensions")
+        with c3:
+            origin_mode = st.selectbox("Coordinate display mode", ["csibridge", "centerline"], format_func=lambda x: {"csibridge": "CSiBridge origin", "centerline": "Centerline origin (CL = 0)"}[x], index=0, key="section_origin_display_mode")
         if props.get("valid"):
-            fig = section_polygon_figure(coords, props, show_points=show_points, show_dimensions=show_dims)
+            fig = section_polygon_figure(coords, props, point_label_mode=point_mode, show_dimensions=show_dims, origin_mode=origin_mode)
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_SECTION_CONFIG)
-            c1, c2, c3, c4 = st.columns(4)
+            c1, c2, c3, c4, c5 = st.columns(5)
             with c1: card("Area", format_engineering_value(props["A_m2"], "m²"), "Calculated from loops", "pass")
-            with c2: card("Centroid y", format_engineering_value(props["ycg_from_bottom_m"], "m"), "from bottom fiber", "pass")
-            with c3: card("I33", format_engineering_value(props["I33_m4"], "m⁴"), "about horizontal centroidal axis", "pass")
-            with c4: card("I22", format_engineering_value(props["I22_m4"], "m⁴"), "about vertical centroidal axis", "pass")
+            with c2: card("Centroid X", format_engineering_value(props["xcg_from_left_m"], "m"), "from left fiber", "pass")
+            with c3: card("Centroid Y", format_engineering_value(props["ycg_from_bottom_m"], "m"), "from bottom fiber", "pass")
+            with c4: card("I33", format_engineering_value(props["I33_m4"], "m⁴"), "about horizontal centroidal axis", "pass")
+            with c5: card("I22", format_engineering_value(props["I22_m4"], "m⁴"), "about vertical centroidal axis", "pass")
         else:
             st.warning("Section preview requires valid coordinate loops.")
             for err in props.get("errors", []):
@@ -1539,6 +1577,8 @@ def render_section_properties() -> None:
                 ["Moment of inertia minor", "I22", props["I22_m4"], "m⁴", "Mapped from Iyy"],
                 ["Section modulus top", "S33(+)", props["S_top_m3"], "m³", "I33 / y_t"],
                 ["Section modulus bottom", "S33(-)", props["S_bottom_m3"], "m³", "I33 / y_cg"],
+                ["Centroid from left", "x_cg", props["xcg_from_left_m"], "m", "from coordinate bounds"],
+                ["Centroid from right", "x_right", props["xcg_from_right_m"], "m", "from coordinate bounds"],
                 ["Centroid from bottom", "y_cg", props["ycg_from_bottom_m"], "m", "from coordinate bounds"],
                 ["Centroid from top", "y_t", props["yt_from_top_m"], "m", "from coordinate bounds"],
                 ["Overall width", "B", props["width_m"], "m", "xmax - xmin"],
@@ -1546,6 +1586,9 @@ def render_section_properties() -> None:
             ]
             show_engineering_table(pd.DataFrame(computed_rows, columns=["Property", "Symbol", "Value", "Unit", "Source"]))
             st.markdown('<div class="calc-card"><b>Mapping note</b><br><span class="small-muted">For BG40 review, app I33 is calculated from Ixx about the horizontal centroidal axis; app I22 is calculated from Iyy about the vertical centroidal axis. Confirm the local axis mapping if a different FEA convention is used.</span></div>', unsafe_allow_html=True)
+            compare_df = _section_comparison_rows(props, s)
+            st.markdown("#### App vs CSiBridge / active values")
+            show_engineering_table(compare_df)
             if st.button("Apply computed A/I/S/centroid to active section properties", type="primary", use_container_width=True):
                 _apply_computed_section_properties(props)
                 st.success("Active section properties updated from coordinate calculation.")
@@ -1560,6 +1603,7 @@ def render_section_properties() -> None:
             ["Torsional constant", "J", s["J_m4"], "m⁴", s.get("J_method", "FEA / manual override")],
             ["Section modulus top", "S33(+)", s["S_top_m3"], "m³", "Active value"],
             ["Section modulus bottom", "S33(-)", s["S_bottom_m3"], "m³", "Active value"],
+            ["Centroid from left", "x_cg", s.get("xcg_from_left_m", "-"), "m", "Active value"],
             ["Centroid from bottom", "y_cg", s["ycg_from_bottom_m"], "m", "Active value"],
             ["Centroid from top", "y_t", s["yt_from_top_m"], "m", "Active value"],
         ]
@@ -1567,9 +1611,52 @@ def render_section_properties() -> None:
 
     with tabs[3]:
         subsection_title("Torsion / Advanced")
-        D["section"]["J_method"] = st.selectbox("J source / method", ["FEA / manual override", "Future thin-walled single-cell estimate"], index=0, key="section_j_method")
-        editable_value(["section", "J_m4"], "Torsional constant J (m⁴)", 0.001, "%.3f")
-        st.markdown('<div class="warn-box"><b>Engineering caution:</b> A, centroid, I and S are robustly calculated from polygon coordinates. Torsional constant J for a hollow box is not generally obtained by the same polygon area/inertia formulas. Use the FEA value or a separately verified thin-walled / numerical torsion method.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="warn-box"><b>Engineering caution:</b> A, centroid, I and S are robustly calculated from polygon coordinates. Torsional constant J for a hollow box is not generally obtained by the same polygon area/inertia formulas. Use the FEA/manual value for design unless a thin-walled estimate is explicitly reviewed and adopted.</div>', unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            editable_value(["section", "t_top_m"], "Top slab thickness t_top (m)", 0.01, "%.3f")
+        with c2:
+            editable_value(["section", "t_bot_m"], "Bottom slab thickness t_bot (m)", 0.01, "%.3f")
+        with c3:
+            editable_value(["section", "t_web_m"], "Web thickness t_web (m)", 0.01, "%.3f")
+        t_top = float(D["section"]["t_top_m"])
+        t_bot = float(D["section"]["t_bot_m"])
+        t_web = float(D["section"]["t_web_m"])
+        D["section"]["J_method"] = st.selectbox("Active J source / method", ["FEA / manual override", "Auto thin-walled single-cell estimate", "User override"], index=["FEA / manual override", "Auto thin-walled single-cell estimate", "User override"].index(D["section"].get("J_method", "FEA / manual override")) if D["section"].get("J_method", "FEA / manual override") in ["FEA / manual override", "Auto thin-walled single-cell estimate", "User override"] else 0, key="section_j_method")
+        editable_value(["section", "J_m4"], "Active torsional constant J (m⁴)", 0.001, "%.3f")
+        if props.get("valid"):
+            j_est = estimate_thin_walled_closed_box_j(coords, t_top_m=t_top, t_bot_m=t_bot, t_web_m=t_web)
+            if j_est.get("valid"):
+                D["section"]["J_thin_walled_m4"] = float(j_est["J_m4"])
+                ref_j = float(D["section"].get("J_m4", 0.0) or 0.0)
+                diff_pct = abs(float(j_est["J_m4"]) - ref_j) / max(abs(ref_j), 1e-12) * 100.0 if ref_j else None
+                D["section"]["J_thin_walled_difference_pct"] = diff_pct
+                j_rows = pd.DataFrame([
+                    ["FEA / manual J", "J_FEA", D["section"].get("J_m4"), "m⁴", "Design source unless changed"],
+                    ["Thin-walled estimate", "J_tw", j_est["J_m4"], "m⁴", j_est["method"]],
+                    ["Centreline area", "A_m", j_est["Am_m2"], "m²", "Estimated from Opening Polygon + wall thicknesses"],
+                    ["Σ(l/t)", "Σ(l/t)", j_est["sum_l_over_t"], "-", "Thin-walled denominator"],
+                    ["Difference from active J", "ΔJ", diff_pct if diff_pct is not None else None, "%", "Review if > 5%"],
+                ], columns=["Item", "Symbol", "Value", "Unit", "Source / note"])
+                show_engineering_table(j_rows)
+                if diff_pct is not None and diff_pct > 5.0:
+                    st.warning(f"Thin-walled J differs from active FEA/manual J by {diff_pct:.1f}%. Review wall thicknesses and torsion basis before adopting.")
+                else:
+                    st.success("Thin-walled J estimate is reasonably close to the active J for QA comparison.")
+                with st.expander("Thin-walled segment classification used for Σ(l/t)"):
+                    seg_df = pd.DataFrame(j_est["segment_rows"])
+                    show_engineering_table(seg_df.rename(columns={"segment": "Segment", "component": "Component", "length_m": "Length", "t_m": "t", "l_over_t": "l/t"}))
+                if st.button("Adopt thin-walled J estimate as active J", use_container_width=True):
+                    D["section"]["J_m4"] = float(j_est["J_m4"])
+                    D["section"]["J_method"] = "Auto thin-walled single-cell estimate"
+                    D["section"]["J_note"] = "J adopted from app thin-walled closed-box estimate; review required for final design."
+                    st.success("Active J updated from thin-walled estimate. Review QA warning before design use.")
+                    st.rerun()
+            else:
+                for err in j_est.get("errors", []):
+                    st.error(err)
+        else:
+            st.info("Import valid section coordinates to calculate the thin-walled closed-box J estimate.")
 
     with tabs[4]:
         subsection_title("Coordinate QA / Consistency")
@@ -1583,19 +1670,27 @@ def render_section_properties() -> None:
                     st.warning(warning)
             else:
                 st.success("Coordinate loops are valid for section-property calculation.")
+            compare_df = _section_comparison_rows(props, s)
+            show_engineering_table(compare_df)
+            if not compare_df.empty and (compare_df["Status"] == "CHECK").any():
+                st.error("At least one coordinate-calculated property differs from the active/CSiBridge reference beyond tolerance.")
+            elif not compare_df.empty and (compare_df["Status"] == "REVIEW").any():
+                st.warning("Some coordinate-calculated properties require review against the active/CSiBridge reference.")
+            else:
+                st.success("Coordinate-calculated properties match the active/CSiBridge reference within display tolerance.")
             S_top_calc = s["I33_m4"] / s["yt_from_top_m"] if s["yt_from_top_m"] else 0.0
             S_bot_calc = s["I33_m4"] / s["ycg_from_bottom_m"] if s["ycg_from_bottom_m"] else 0.0
             consistency = pd.DataFrame([
                 ["Active S33(+) = I33 / y_t", S_top_calc, s["S_top_m3"], "m³"],
                 ["Active S33(-) = I33 / y_cg", S_bot_calc, s["S_bottom_m3"], "m³"],
                 ["Active D = y_cg + y_t", s["ycg_from_bottom_m"] + s["yt_from_top_m"], s["D_m"], "m"],
+                ["Active B = x_left + x_right", s.get("xcg_from_left_m", 0.0) + s.get("xcg_from_right_m", 0.0), s["B_m"], "m"],
             ], columns=["Check", "Calculated", "Active / report", "Unit"])
-            st.dataframe(consistency, use_container_width=True, hide_index=True)
+            show_engineering_table(consistency)
         else:
             for err in props.get("errors", []):
                 st.error(err)
             st.info("Expected CSiBridge loop names: Structural Polygon 1 for the outer concrete boundary and Opening Polygon 1 for the internal void.")
-
 
 def render_tendon_layout_reference() -> None:
     section_title("2.4 Tendon Layout Reference")

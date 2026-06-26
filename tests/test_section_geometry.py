@@ -86,3 +86,21 @@ def test_csibridge_consecutive_duplicate_points_are_ignored_for_properties():
     assert props["valid"] is True
     assert abs(props["A_m2"] - 8.0) < 1e-9
     assert any("consecutive duplicate" in w for w in props["warnings"])
+
+
+
+def test_section_properties_include_x_centroid_distances():
+    props = calculate_section_properties(_rect_hole_rows())
+    assert props["valid"] is True
+    assert abs(props["xcg_from_left_m"] - 2.0) < 1e-9
+    assert abs(props["xcg_from_right_m"] - 2.0) < 1e-9
+
+
+def test_thin_walled_j_estimate_for_single_cell_hollow_rectangle():
+    from core.section_geometry import estimate_thin_walled_closed_box_j
+    props = estimate_thin_walled_closed_box_j(_rect_hole_rows(), t_top_m=0.5, t_bot_m=0.5, t_web_m=0.5)
+    assert props["valid"] is True
+    assert props["J_m4"] > 0
+    assert props["Am_m2"] > 0
+    assert props["sum_l_over_t"] > 0
+    assert len(props["segment_rows"]) == 4
