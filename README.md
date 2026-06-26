@@ -1,10 +1,10 @@
-# Segmental Box Girder Pro — Commercial M3G.2
+# Segmental Box Girder Pro — Commercial M3G.3
 
 Commercial, report-driven Streamlit design-review app for BG40 PT segmental box girder.
 
-This milestone polishes the coordinate-driven section properties workflow by adding section-property QA comparison, centroid-X reporting, centerline-origin drawing mode, point-label controls, and a thin-walled closed-box torsional constant estimate for QA comparison. It preserves the M3F workspace reorganization, M3E Wind Load engine, M3C AASHTO bridge I/R controls, M3B DPT seismic database, Concrete Section Pro style alignment, one-source state discipline, and global engineering display-formatting rules.
+This milestone simplifies the coordinate-driven section properties UX by moving the adopted section-property table and J input into one clear design-use page. The app now makes the downstream design source explicit, keeps J visible beside A/I/S/centroid, and moves comparison details to QA. It preserves the M3F workspace reorganization, M3E Wind Load engine, M3C AASHTO bridge I/R controls, M3B DPT seismic database, Concrete Section Pro style alignment, one-source state discipline, and global engineering display-formatting rules.
 
-## Current milestone: COMMERCIAL.M3G.2
+## Current milestone: COMMERCIAL.M3G.3
 
 ### Workspace reorganization
 
@@ -58,18 +58,19 @@ New sidebar workflow:
 - Point order may be clockwise or counter-clockwise; loop type controls add/subtract behavior.
 - The section preview draws the outer boundary, opening, centroid, point numbers, dimensions, and centroidal fiber guides.
 - The engine calculates `A`, `x_cg`, `y_cg`, `I33/I22`, `S33(+)`, `S33(-)`, overall width/depth, `y_cg` from bottom, and `y_t` from top from coordinates.
-- A button allows the engineer to apply computed A/I/S/centroid values to active section properties.
-- `J` remains FEA/manual by default, but the app now provides a thin-walled single-cell closed-box estimate `J_tw = 4A_m²/Σ(l/t)` for QA/preliminary comparison. The active design value can be switched/adopted only with an explicit source trace and warning.
+- A primary action allows the engineer to use calculated A/I/S/centroid values as adopted design properties.
+- `J` is displayed and edited directly in the **Adopted Properties for Design** tab, next to the values used by downstream checks.
+- `J_tw = 4A_m²/Σ(l/t)` remains a QA/preliminary comparison value and can be adopted only by an explicit button with source trace and warning.
 
 
-### M3G.2 additions
+### M3G.3 additions
 
-- Added `x_cg` and `x_right` to the computed and active section-property tables.
-- Added CSiBridge origin / centerline-origin drawing mode for the section preview.
-- Added point-label controls: major points only, all point numbers, or hide point numbers.
-- Added App vs CSiBridge / active-property comparison table with MATCH/REVIEW/CHECK status.
-- Added thin-walled closed-box `J` estimate with wall-thickness inputs and segment-classification table.
-- Preserved FEA/manual `J` as the default design source and clearly labels `J_tw` as an estimate.
+- Simplified `2.3 Section Properties` to four tabs: Coordinate Input, Section Preview, Adopted Properties for Design, and QA / Comparison.
+- Removed the confusing top-level `Torsion / Advanced` tab; J is no longer hidden on a separate page.
+- Renamed the active table to **Adopted Section Properties for Design** and labels it as `USED BY DESIGN CHECKS`.
+- Added an always-visible `J input source / method`, `Adopted J for design (m⁴)`, and `J source note` in the adopted-properties page.
+- Moved App-vs-adopted comparison and loop consistency checks to the QA page.
+- Kept thin-walled closed-box `J` estimate as an expandable QA comparison tool, not the design default.
 
 ### Analysis model scope note
 
@@ -131,7 +132,7 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
-M3G targeted regression result: `55 passed`.
+M3G.3 targeted regression result: `60 passed`.
 
 ## Engineering limitations
 
@@ -153,3 +154,15 @@ M3G targeted regression result: `55 passed`.
 - Ignores consecutive duplicate CSiBridge polygon points for property calculation while preserving imported rows for review.
 - Verified against the user-supplied `Box girder section coordinate from Csibridge.xlsx`: 27 structural points + 17 opening points, A ≈ 5.698 m², I33 ≈ 4.681 m⁴, I22 ≈ 39.520 m⁴, S33(+) ≈ 5.577 m³, S33(-) ≈ 2.819 m³.
 - Updated schema version to `0.4.1-commercial-m3g-xlsx`.
+
+## COMMERCIAL.M3G.2 — Section Properties QA + Thin-Walled J Estimate
+
+- Added x-centroid reporting, CSiBridge/centerline origin display modes, point-label controls, App-vs-CSiBridge comparison, thin-walled J estimate, and J source tracing.
+- Updated schema version to `0.4.2-commercial-m3g2-section-qa`.
+
+## COMMERCIAL.M3G.3 — Section Properties UX Simplification
+
+- Consolidates A/I/S/centroid and J into a single **Adopted Properties for Design** workflow.
+- Makes the table used by downstream checks explicit with a `USED BY DESIGN CHECKS` badge.
+- Moves comparison/consistency outputs to QA so the primary user path is import → preview → adopt values → enter/check J.
+- Updated schema version to `0.4.3-commercial-m3g3-section-ux`.
