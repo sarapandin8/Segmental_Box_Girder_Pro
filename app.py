@@ -212,6 +212,38 @@ SECTION_TEMPLATE_CSV = "loop_name,point_no,x_mm,y_mm\nStructural Polygon 1,1,0,0
 # -----------------------------------------------------------------------------
 # Session state
 # -----------------------------------------------------------------------------
+def _apply_pending_project_json_load() -> None:
+    """Apply a loaded project before any widget-bound session keys are instantiated.
+
+    Streamlit disallows modifying a session-state key after a widget with the same
+    key has been created in the current run. The sidebar workspace/subpage radios
+    use ``current_workspace`` and ``current_subpage`` as widget keys, so a project
+    JSON load stores pending state first, reruns, and this function applies the
+    project/navigation reset at the very top of the next run.
+    """
+    pending = st.session_state.pop("_pending_project_json_load", None)
+    if not isinstance(pending, dict):
+        return
+    loaded_project = pending.get("project")
+    if isinstance(loaded_project, dict):
+        st.session_state.project = ensure_project_schema(loaded_project)
+    target_workspace = pending.get("workspace", WORKSPACE_LABELS[0])
+    if target_workspace not in WORKSPACE_LABELS:
+        target_workspace = WORKSPACE_LABELS[0]
+    target_subpage = pending.get("subpage")
+    ws_def = get_workspace(target_workspace)
+    if target_subpage not in ws_def["subpages"]:
+        target_subpage = ws_def["subpages"][0]
+    st.session_state.current_workspace = target_workspace
+    st.session_state.current_subpage = target_subpage
+    if pending.get("fingerprint"):
+        st.session_state.project_json_loaded_fingerprint = str(pending["fingerprint"])
+    if pending.get("message"):
+        st.session_state.project_load_message = str(pending["message"])
+
+
+_apply_pending_project_json_load()
+
 if "project" not in st.session_state:
     st.session_state.project = ensure_project_schema(BG40_DEFAULT)
 else:
@@ -650,14 +682,19 @@ def render_sidebar() -> None:
                 try:
                     loaded_project = load_project_json_bytes(raw_project_json, getattr(uploaded, "name", ""))
                     summary = project_load_summary(loaded_project)
-                    st.session_state.project = loaded_project
-                    st.session_state.current_workspace = WORKSPACE_LABELS[0]
-                    st.session_state.current_subpage = get_workspace(WORKSPACE_LABELS[0])["subpages"][0]
-                    st.session_state.project_json_loaded_fingerprint = upload_fp
-                    st.session_state.project_load_message = (
-                        f"Loaded project {summary['project']} / {summary['bridge_object']} "
-                        f"with schema {summary['schema_version']}."
-                    )
+                    # Do not mutate widget-bound keys such as current_workspace/current_subpage
+                    # after their radio widgets have been instantiated. Store a pending load
+                    # and apply it at the top of the next run before any widgets are created.
+                    st.session_state._pending_project_json_load = {
+                        "project": loaded_project,
+                        "workspace": WORKSPACE_LABELS[0],
+                        "subpage": get_workspace(WORKSPACE_LABELS[0])["subpages"][0],
+                        "fingerprint": upload_fp,
+                        "message": (
+                            f"Loaded project {summary['project']} / {summary['bridge_object']} "
+                            f"with schema {summary['schema_version']}."
+                        ),
+                    }
                     st.rerun()
                 except ProjectJsonLoadError as exc:
                     st.error(f"Could not load JSON: {exc}")

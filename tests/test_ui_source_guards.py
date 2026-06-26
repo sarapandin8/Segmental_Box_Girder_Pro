@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.7-commercial-m3h2-json-load-stability"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.8-commercial-m3h3-json-widget-state-fix"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -246,3 +246,14 @@ def test_m3h_tendon_layout_core_module_exists():
     assert "normalize_general_tendon_rows" in tendon_src
     assert "normalize_tendon_profile_rows" in tendon_src
     assert "BridgeObj mismatch" in tendon_src
+
+
+def test_project_json_load_uses_pending_state_before_widget_keys():
+    src = APP_SOURCE.read_text(encoding="utf-8")
+    assert "def _apply_pending_project_json_load" in src
+    assert "st.session_state._pending_project_json_load" in src
+    load_handler = src.split('if st.button("Load uploaded project"', 1)[1].split('except ProjectJsonLoadError', 1)[0]
+    assert "st.session_state.current_workspace =" not in load_handler
+    assert "st.session_state.current_subpage =" not in load_handler
+    assert '"workspace": WORKSPACE_LABELS[0]' in load_handler
+    assert '"subpage": get_workspace(WORKSPACE_LABELS[0])["subpages"][0]' in load_handler
