@@ -124,6 +124,8 @@ def tendon_section_overlay_figure(
     point_label_mode: str = "family",
     show_point_numbers: bool = True,
     origin_mode: str = "csibridge",
+    station_label: str | None = None,
+    station_m: float | None = None,
 ) -> go.Figure:
     from visualization.section_figures import section_polygon_figure
 
@@ -134,6 +136,18 @@ def tendon_section_overlay_figure(
         show_dimensions=True,
         origin_mode=origin_mode,
     )
+    # Clean CSiBridge loop names into report-ready legend labels.
+    for tr in fig.data:
+        name = str(getattr(tr, "name", ""))
+        if name.startswith("Structural Polygon"):
+            tr.name = "Concrete"
+            tr.legendgroup = "section"
+        elif name.startswith("Opening Polygon"):
+            tr.name = "Inner void"
+            tr.legendgroup = "section"
+        elif name == "Centroid":
+            tr.legendgroup = "section"
+
     if tendon_points is not None and not tendon_points.empty:
         width_m = float(section_props.get("width_m") or section_props.get("B_m") or 0.0)
         depth_m = float(section_props.get("depth_m") or section_props.get("D_m") or 0.0)
@@ -182,5 +196,29 @@ def tendon_section_overlay_figure(
                     customdata=hover,
                 )
             )
-    fig.update_layout(title={"text": "Tendon section overlay at selected station", "x": 0.01, "xanchor": "left"})
+    if station_label:
+        label = f"Station = {station_m:.3f} m · {station_label}" if station_m is not None else str(station_label)
+        fig.add_annotation(
+            xref="paper",
+            yref="paper",
+            x=0.01,
+            y=0.985,
+            text=label,
+            showarrow=False,
+            align="left",
+            bgcolor="rgba(255,255,255,0.92)",
+            bordercolor="#bfd4f2",
+            borderwidth=1,
+            borderpad=5,
+            font=dict(color="#092454", size=12),
+        )
+
+    fig.update_layout(
+        title={"text": "", "x": 0.01, "xanchor": "left"},
+        legend=dict(orientation="h", yanchor="bottom", y=1.055, xanchor="center", x=0.5, font=dict(size=11)),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+    )
+    fig.update_xaxes(showgrid=True, gridcolor="#eef2f7", zeroline=True, zerolinecolor="#94a3b8")
+    fig.update_yaxes(showgrid=True, gridcolor="#eef2f7", zeroline=True, zerolinecolor="#94a3b8")
     return fig

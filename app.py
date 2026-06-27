@@ -200,6 +200,13 @@ hr {margin: 1rem 0;}
 .qa-card {background:#fffbeb; border-color:#fed7aa;}
 .table-card {padding:10px 12px 14px 12px;}
 .info-strip {border-left:5px solid #175cd3; background:#eef6ff; border-radius:10px; padding:12px 14px; margin:10px 0 14px 0; color:#0f2f5f;}
+.canvas-panel {border:1px solid #c7d9f2; border-radius:16px; background:#ffffff; padding:14px 16px 12px 16px; margin:14px 0 10px 0; box-shadow:0 6px 20px rgba(15,23,42,0.045);}
+.canvas-kicker {font-size:0.72rem; letter-spacing:0.10em; color:#667085; font-weight:900; text-transform:uppercase; margin-bottom:4px;}
+.canvas-head {display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:6px;}
+.canvas-title {font-size:1.18rem; font-weight:950; color:#092454; line-height:1.15;}
+.canvas-note {border-left:4px solid #175cd3; background:#f3f8ff; color:#29435f; border-radius:10px; padding:9px 11px; font-size:0.86rem; margin:8px 0 8px 0;}
+.canvas-pill {border:1px solid #bcd3f5; color:#0b3b91; background:#ffffff; border-radius:999px; padding:6px 10px; font-size:0.76rem; font-weight:850; white-space:nowrap;}
+.canvas-caption {font-size:0.82rem; color:#667085; margin:0.20rem 0 0.60rem 0;}
 .formula-caption {font-size:0.78rem; color:#667085; margin-top:-0.35rem; margin-bottom:0.55rem;}
 .table-caption {font-size:0.78rem; color:#667085; margin-top:0.35rem;}
 .dataframe th {font-weight:850 !important;}
@@ -2224,16 +2231,6 @@ def render_tendon_layout_reference() -> None:
             if station_key not in st.session_state:
                 st.session_state[station_key] = mid_station
 
-            st.markdown(
-                """
-                <div class="info-strip">
-                <b>Tendon section overlay QA.</b> Review the imported external tendon positions against the active box-girder void at the selected station. 
-                The figure uses the imported vertical layout as <i>d<sub>p</sub></i> from top surface and the imported horizontal layout as offset from section CL.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
             st.markdown("##### Station control · Quick station")
             b1, b2, b3, b4, b5 = st.columns(5)
             if b1.button("Start", use_container_width=True, key="overlay_station_start"):
@@ -2297,16 +2294,32 @@ def render_tendon_layout_reference() -> None:
                 min_clearance = pd.to_numeric(qa_points["Min clearance to inner boundary (mm)"], errors="coerce").min()
             clearance_status = bool(min_clearance is not None and pd.notna(min_clearance) and float(min_clearance) >= float(min_clearance_req))
 
-            sc1, sc2, sc3, sc4 = st.columns(4)
-            with sc1:
-                card("Selected station", f"{station_label} · {format_engineering_value(station, 'm')}", "section used for tendon overlay", "pass")
-            with sc2:
-                card("Tendon points", f"{pass_count}/{len(points)} in void", f"{concrete_count} concrete · {outside_count} outside", "pass" if fail_count == 0 and pass_count else "warn")
-            with sc3:
-                card("Minimum clearance", format_engineering_value(min_clearance, "mm") if min_clearance is not None and pd.notna(min_clearance) else "—", f"limit ≥ {format_engineering_value(min_clearance_req, 'mm')}", "pass" if clearance_status else "warn")
-            with sc4:
-                origin_text = "CL = 0" if tl.get("section_overlay_origin_mode", "centerline") == "centerline" else "CSiBridge origin"
-                card("Display mode", origin_text, "positive offset: left of CL" if tl.get("positive_horiz_offset_direction", "left") == "left" else "positive offset: right of CL", "")
+            origin_text = "CL = 0" if tl.get("section_overlay_origin_mode", "centerline") == "centerline" else "CSiBridge origin"
+            positive_offset_text = "positive offset: left of CL" if tl.get("positive_horiz_offset_direction", "left") == "left" else "positive offset: right of CL"
+            clearance_text = format_engineering_value(min_clearance, "mm") if min_clearance is not None and pd.notna(min_clearance) else "—"
+            clearance_limit_text = format_engineering_value(min_clearance_req, "mm")
+            station_text = f"{station_label} · {format_engineering_value(station, 'm')}"
+            points_text = f"{pass_count}/{len(points)} in void"
+            qa_note = f"{concrete_count} concrete · {outside_count} outside"
+
+            st.markdown(
+                f"""
+                <div class="canvas-panel">
+                  <div class="canvas-kicker">CANVAS</div>
+                  <div class="canvas-head">
+                    <div>
+                      <div class="canvas-title">Live Tendon Section Preview</div>
+                      <div class="small-muted">Imported external tendon positions overlaid on the active BG40 box-girder section.</div>
+                    </div>
+                    <div class="canvas-pill">External tendon QA</div>
+                  </div>
+                  <div class="canvas-note">
+                    The preview uses CSiBridge vertical layout as <i>d<sub>p</sub></i> from the top surface and horizontal layout as offset from section CL. Concrete/rebar graphics remain controlled by their own pages.
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
             fig = tendon_section_overlay_figure(
                 coords,
@@ -2316,13 +2329,25 @@ def render_tendon_layout_reference() -> None:
                 point_label_mode=tl.get("section_overlay_label_mode", "hide"),
                 show_point_numbers=False,
                 origin_mode=tl.get("section_overlay_origin_mode", "centerline"),
+                station_label=station_label,
+                station_m=station,
             )
-            fig.update_layout(height=560, margin=dict(l=50, r=18, t=52, b=55))
+            fig.update_layout(height=560, margin=dict(l=50, r=18, t=72, b=55))
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
-            st.caption(
-                f"Figure: Tendon section overlay at {station_label} ({station:.3f} m). "
-                "External tendon points are plotted inside the imported box-girder void using CSiBridge vertical and horizontal tendon layouts."
+            st.markdown(
+                f'<div class="canvas-caption"><b>Figure 2.x</b> Tendon section overlay at {station_label} ({station:.3f} m), showing imported external tendon positions within the box-girder void.</div>',
+                unsafe_allow_html=True,
             )
+
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            with sc1:
+                card("Geometry", "Ready", "active box-girder polygon", "pass")
+            with sc2:
+                card("Tendon QA", points_text, qa_note, "pass" if fail_count == 0 and pass_count else "warn")
+            with sc3:
+                card("Minimum clearance", clearance_text, f"limit ≥ {clearance_limit_text}", "pass" if clearance_status else "warn")
+            with sc4:
+                card("Display", origin_text, positive_offset_text, "")
 
             st.markdown("#### Selected-station tendon QA table")
             overlay_table = _merge_tendon_overlay_points_with_qa(points, qa_points)

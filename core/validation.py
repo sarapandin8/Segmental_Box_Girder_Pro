@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.11-commercial-m3h6-overlay-grade9"
+PROJECT_SCHEMA_VERSION = "0.4.12-commercial-m3h7-overlay-canvas"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 

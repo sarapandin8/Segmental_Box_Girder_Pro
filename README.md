@@ -8,7 +8,7 @@ Commercial report-driven Streamlit workspace for PT segmental box-girder design 
 - Adds a **Merged Tendon Profile Table** that combines CSiBridge Vertical and Horizontal layout rows into one control-point table with x, dp from top, and HorizOff in the same row.
 - Moves raw General/Vertical/Horizontal import rows into a collapsed **Raw import data / QA only** expander.
 - Adds per-tendon vertical/horizontal station matching QA and a merged profile row-count check.
-- Schema: `0.4.11-commercial-m3h6-overlay-grade9`.
+- Schema: `0.4.12-commercial-m3h7-overlay-canvas`.
 
 ## Retained commercial app foundations
 
@@ -52,3 +52,12 @@ python -m pytest -q
 
 ## COMMERCIAL.M3H.6
 - Polishes Tendon Section Overlay with centerline-origin display, quick station buttons, family/all/hidden label modes, family-colored tendon markers, inside-void QA, minimum clearance to inner-boundary reporting, formatted selected-station tables, and hover details.
+
+
+## COMMERCIAL.M3H.7 — Tendon Overlay Canvas Polish
+
+- Reworked the Section Overlay page toward the Concrete Section Pro canvas style.
+- Added a CANVAS header, Live Tendon Section Preview wording, external tendon QA pill, and report-ready figure caption.
+- Cleaned Plotly legend labels to Concrete / Inner void / Centroid / tendon families.
+- Added station annotation directly inside the figure for report/export readability.
+- Kept selected-station QA in concise cards below the canvas and preserved the merged tendon QA table.

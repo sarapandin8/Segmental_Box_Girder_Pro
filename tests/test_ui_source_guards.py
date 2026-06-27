@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.11-commercial-m3h6-overlay-grade9"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.12-commercial-m3h7-overlay-canvas"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -278,3 +278,15 @@ def test_m3h5_tendon_overlay_polish_controls_are_present():
     assert "Centerline origin (CL = 0)" in app_src
     assert "Tendon location QA" in app_src
     assert "classify_point_in_section_void" in app_src
+
+
+def test_m3h7_tendon_overlay_uses_csp_canvas_language():
+    src = _src()
+    assert "Live Tendon Section Preview" in src
+    assert "canvas-panel" in src
+    assert "External tendon QA" in src
+    assert "Figure 2.x" in src
+    tendon_fig_src = (APP_SOURCE.resolve().parents[0] / "visualization" / "tendon_figures.py").read_text(encoding="utf-8")
+    assert "Concrete" in tendon_fig_src
+    assert "Inner void" in tendon_fig_src
+    assert "Station =" in tendon_fig_src
