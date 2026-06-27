@@ -401,3 +401,16 @@ def test_bugfix1_section_data_gate_is_present():
     assert "Coordinate rows" in src
     assert "Computed section" in src
     assert "Adopted properties" in src
+
+
+def test_m41a_interactive_3d_tendon_view_is_present_after_plan_view():
+    src = _src()
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.M4.1A" in readme
+    assert '"Plan View", "3D Tendon View", "Section Overlay"' in src
+    assert "Interactive 3D Tendon Review" in src
+    assert "tendon_3d_review_figure" in src
+    assert "Show outer shell" in src
+    assert "Show inner void" in src
+    assert "Tendon focus" in src
+    assert "preview only" in src

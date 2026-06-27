@@ -74,6 +74,7 @@ from visualization.tendon_figures import (
     PLOTLY_TENDON_REVIEW_CONFIG,
     tendon_elevation_figure,
     tendon_plan_figure,
+    tendon_3d_review_figure,
     tendon_section_overlay_figure,
 )
 from visualization.load_figures import (
@@ -2419,7 +2420,7 @@ def render_tendon_layout_reference() -> None:
     model_for_summary = _active_tendon_model()
     _render_tendon_import_summary_cards(model_for_summary)
     _render_tendon_adoption_cards(model_for_summary)
-    tabs = st.tabs(["Import / Mapping", "Elevation View", "Plan View", "Section Overlay", "Adopted Tendon Data", "QA / Consistency"])
+    tabs = st.tabs(["Import / Mapping", "Elevation View", "Plan View", "3D Tendon View", "Section Overlay", "Adopted Tendon Data", "QA / Consistency"])
 
     with tabs[0]:
         subsection_title("Tendon import / mapping")
@@ -2627,6 +2628,103 @@ def render_tendon_layout_reference() -> None:
             st.info("Build a valid tendon model to show plan view.")
 
     with tabs[3]:
+        subsection_title("Interactive 3D tendon review")
+        props = _section_computation_from_state()
+        section_coords = _section_coordinate_df_from_state()
+        adopted_model = _active_adopted_tendon_model()
+        display_model = adopted_model if adopted_model else model
+        source_label = "Adopted design-source model" if adopted_model else "Working imported model · not yet adopted"
+        source_mode = "pass" if adopted_model else "warn"
+
+        if display_model.get("valid") and props.get("valid"):
+            families = list(dict.fromkeys([str(t.get("family", "")) for t in display_model.get("tendons", []) if str(t.get("family", "")).strip()]))
+            c1, c2, c3, c4 = st.columns([1.0, 1.0, 1.0, 1.0])
+            with c1:
+                view_preset = st.selectbox("3D view preset", ["Isometric", "Top", "Side", "End", "Tendon focus"], index=0, key="tendon_3d_view_preset")
+            with c2:
+                tendon3d_family_filter = st.selectbox("Family filter", ["All families"] + families, index=0, key="tendon_3d_family_filter")
+            with c3:
+                tendon3d_side_filter = st.selectbox("Side filter", ["Both sides", "Left only", "Right only"], index=0, key="tendon_3d_side_filter")
+            with c4:
+                show_tendon_labels_3d = st.checkbox("Show tendon labels", value=False, key="tendon_3d_labels")
+
+            d1, d2, d3 = st.columns([1.0, 1.0, 1.0])
+            with d1:
+                show_outer_shell = st.checkbox("Show outer shell", value=True, key="tendon_3d_outer_shell")
+            with d2:
+                show_inner_void = st.checkbox("Show inner void", value=True, key="tendon_3d_inner_void")
+            with d3:
+                show_station_markers = st.checkbox("Show station markers", value=True, key="tendon_3d_station_markers")
+
+            selected_families = families if tendon3d_family_filter == "All families" else [tendon3d_family_filter]
+            visible_tendons = [
+                t for t in display_model.get("tendons", [])
+                if (tendon3d_family_filter == "All families" or str(t.get("family", "")) == tendon3d_family_filter)
+                and (tendon3d_side_filter == "Both sides" or (tendon3d_side_filter == "Left only" and str(t.get("side", "")) == "L") or (tendon3d_side_filter == "Right only" and str(t.get("side", "")) == "R"))
+            ]
+            view_mode_text, view_mode_note = _figure_view_texts()
+            if not adopted_model:
+                st.markdown(
+                    '<div class="warn-box"><b>3D preview source is not locked:</b> this viewport is using the current working tendon model. Adopt/Re-adopt the tendon model before downstream prestress or report use.</div>',
+                    unsafe_allow_html=True,
+                )
+            with st.container(border=True):
+                st.markdown(
+                    f"""
+                    <div class="canvas-kicker">CANVAS</div>
+                    <div class="canvas-head">
+                      <div>
+                        <div class="canvas-title">Interactive 3D Tendon Review</div>
+                        <div class="small-muted">Transparent section envelope with external tendon profiles from the merged vertical/horizontal layout model.</div>
+                      </div>
+                      <div class="canvas-pill">3D review viewport</div>
+                    </div>
+                    <div class="canvas-note">
+                      This is a review model, not a full bridge solid model. 3D convention: X = station along span, Y = horizontal offset from CL, Z = vertical coordinate from section bottom.
+                    </div>
+                    <div class="canvas-meta-strip">
+                      <div class="canvas-station-badge"><span>Design source</span><strong>{source_label}</strong></div>
+                      <div class="canvas-meta-right">
+                        <div class="canvas-view-badge">{view_mode_text} · {view_mode_note}</div>
+                        <div class="canvas-dim-badge">View: {view_preset}</div>
+                      </div>
+                    </div>
+                    {_engineering_canvas_legend_html([{"label": "Outer shell", "kind": "line", "color": "#294860"}, {"label": "Inner void", "kind": "dash", "color": "#2563eb"}] + _tendon_family_legend_items(selected_families))}
+                    """,
+                    unsafe_allow_html=True,
+                )
+                fig = tendon_3d_review_figure(
+                    display_model,
+                    section_coords,
+                    props,
+                    family_filter=tendon3d_family_filter,
+                    side_filter=tendon3d_side_filter,
+                    show_outer_shell=show_outer_shell,
+                    show_inner_void=show_inner_void,
+                    show_station_markers=show_station_markers,
+                    show_tendon_labels=show_tendon_labels_3d,
+                    view_preset=view_preset,
+                )
+                st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
+                st.markdown(
+                    '<div class="canvas-caption"><b>Figure 2.x</b> Interactive 3D tendon review model showing external tendon profiles within the transparent box-girder section envelope.</div>',
+                    unsafe_allow_html=True,
+                )
+                footer_html = (
+                    '<div class="canvas-footer-grid">'
+                    + _canvas_footer_card_html("Source", "ADOPTED" if adopted_model else "WORKING", "design-source snapshot" if adopted_model else "preview only", source_mode)
+                    + _canvas_footer_card_html("Visible tendons", str(len(visible_tendons)), f"{tendon3d_family_filter} · {tendon3d_side_filter}", "pass" if visible_tendons else "warn")
+                    + _canvas_footer_card_html("Envelope", "On" if show_outer_shell or show_inner_void else "Hidden", "outer shell / inner void", "neutral")
+                    + _canvas_footer_card_html("Interaction", "Rotate / pan / zoom", "Plotly WebGL 3D viewport", "neutral")
+                    + '</div>'
+                )
+                st.markdown(footer_html, unsafe_allow_html=True)
+        elif not props.get("valid"):
+            st.warning("Import valid section coordinates first to build the transparent section envelope for 3D tendon review.")
+        else:
+            st.info("Build a valid tendon model first to show the 3D tendon review viewport.")
+
+    with tabs[4]:
         subsection_title("Section overlay at selected station")
         props = _section_computation_from_state()
         if model.get("valid") and props.get("valid"):
@@ -2831,7 +2929,7 @@ def render_tendon_layout_reference() -> None:
         else:
             st.info("Build a valid tendon model first.")
 
-    with tabs[4]:
+    with tabs[5]:
         subsection_title("Adopted tendon data")
         if model.get("valid"):
             adopted_model = _active_adopted_tendon_model()
@@ -2894,7 +2992,7 @@ def render_tendon_layout_reference() -> None:
         else:
             st.info("Build a valid tendon model to show adopted tendon data.")
 
-    with tabs[5]:
+    with tabs[6]:
         subsection_title("Tendon QA / consistency")
         gate = tendon_model_status(model, tl)
         adopted_model = _active_adopted_tendon_model()

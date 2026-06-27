@@ -78,3 +78,64 @@ def test_tendon_overlay_viewport_opens_compact_without_scaleanchor_expansion():
     assert y_range[0] > -350
     assert y_range[1] < 3300
     assert fig.layout.yaxis.autorange is False
+
+
+def _model_3d() -> dict:
+    return {
+        "valid": True,
+        "span_m": 40.0,
+        "tendons": [
+            {
+                "tendon": "T1-L",
+                "family": "T1",
+                "side": "L",
+                "vertical_profile": [
+                    {"x_m": 0.0, "dp_top_m": 1.20},
+                    {"x_m": 20.0, "dp_top_m": 2.15},
+                    {"x_m": 40.0, "dp_top_m": 1.20},
+                ],
+                "horizontal_profile": [
+                    {"x_m": 0.0, "horiz_off_m": 1.30},
+                    {"x_m": 20.0, "horiz_off_m": 1.45},
+                    {"x_m": 40.0, "horiz_off_m": 1.30},
+                ],
+            },
+            {
+                "tendon": "T1-R",
+                "family": "T1",
+                "side": "R",
+                "vertical_profile": [
+                    {"x_m": 0.0, "dp_top_m": 1.20},
+                    {"x_m": 20.0, "dp_top_m": 2.15},
+                    {"x_m": 40.0, "dp_top_m": 1.20},
+                ],
+                "horizontal_profile": [
+                    {"x_m": 0.0, "horiz_off_m": -1.30},
+                    {"x_m": 20.0, "horiz_off_m": -1.45},
+                    {"x_m": 40.0, "horiz_off_m": -1.30},
+                ],
+            },
+        ],
+    }
+
+
+def test_tendon_3d_review_uses_section_envelope_and_3d_tendon_lines():
+    from visualization.tendon_figures import tendon_3d_review_figure
+
+    fig = tendon_3d_review_figure(_model_3d(), _coords(), _props(), view_preset="Isometric")
+    trace_types = [tr.type for tr in fig.data]
+    assert "mesh3d" in trace_types
+    assert "scatter3d" in trace_types
+    assert fig.layout.scene.xaxis.title.text == "Station x (m)"
+    assert fig.layout.scene.yaxis.title.text == "HorizOff / section Y (m)"
+    assert fig.layout.scene.zaxis.title.text == "z from bottom (m)"
+    assert fig.layout.uirevision == "tendon_3d_review"
+
+
+def test_tendon_3d_review_filter_can_show_left_side_only():
+    from visualization.tendon_figures import tendon_3d_review_figure
+
+    fig = tendon_3d_review_figure(_model_3d(), _coords(), _props(), side_filter="Left only", show_outer_shell=False, show_inner_void=False, show_station_markers=False)
+    tendon_names = {str(tr.name) for tr in fig.data if tr.type == "scatter3d"}
+    assert "T1-L" in tendon_names
+    assert "T1-R" not in tendon_names

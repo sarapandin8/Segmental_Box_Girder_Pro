@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -168,6 +169,340 @@ def tendon_plan_figure(
     fig.update_yaxes(gridcolor="rgba(148,163,184,0.09)")
     return fig
 
+
+
+
+def _loop_groups(section_coords: pd.DataFrame) -> list[tuple[str, str, pd.DataFrame]]:
+    """Return ordered section coordinate loops for figure generation."""
+    if section_coords is None or section_coords.empty:
+        return []
+    df = section_coords.copy()
+    if "point_no" in df.columns:
+        df = df.sort_values(["loop_type", "loop_name", "point_no"])
+    groups: list[tuple[str, str, pd.DataFrame]] = []
+    for (loop_type, loop_name), g in df.groupby(["loop_type", "loop_name"], sort=False):
+        gg = g[["x_mm", "y_mm"]].dropna().copy()
+        if len(gg) >= 2:
+            groups.append((str(loop_type), str(loop_name), gg))
+    return groups
+
+
+def _section_loop_to_yz_m(loop_df: pd.DataFrame, section_props: dict) -> tuple[list[float], list[float]]:
+    """Map section x/y coordinates in mm into 3D local Y/Z coordinates in m.
+
+    3D convention:
+    - X = station along span (m)
+    - Y = transverse coordinate from section centerline (m)
+    - Z = vertical coordinate from section bottom (m)
+    """
+    bounds = section_props.get("bounds_mm", {}) if section_props else {}
+    xmin = float(bounds.get("xmin", loop_df["x_mm"].min()))
+    xmax = float(bounds.get("xmax", loop_df["x_mm"].max()))
+    x_shift = 0.5 * (xmin + xmax)
+    y_m = ((loop_df["x_mm"].astype(float) - x_shift) / 1000.0).tolist()
+    z_m = (loop_df["y_mm"].astype(float) / 1000.0).tolist()
+    return y_m, z_m
+
+
+def _add_section_loop_surface_3d(
+    fig: go.Figure,
+    loop_df: pd.DataFrame,
+    section_props: dict,
+    *,
+    span_m: float,
+    name: str,
+    color: str,
+    opacity: float,
+    legendgroup: str,
+    showlegend: bool,
+) -> None:
+    """Add translucent extruded boundary surfaces for a section loop."""
+    y, z = _section_loop_to_yz_m(loop_df, section_props)
+    if len(y) < 2 or span_m <= 0:
+        return
+    xs: list[float] = []
+    ys: list[float] = []
+    zs: list[float] = []
+    i: list[int] = []
+    j: list[int] = []
+    k: list[int] = []
+    n = len(y)
+    for idx in range(n):
+        idx2 = (idx + 1) % n
+        base = len(xs)
+        xs.extend([0.0, 0.0, span_m, span_m])
+        ys.extend([y[idx], y[idx2], y[idx2], y[idx]])
+        zs.extend([z[idx], z[idx2], z[idx2], z[idx]])
+        i.extend([base, base, base + 2])
+        j.extend([base + 1, base + 2, base + 3])
+        k.extend([base + 2, base + 3, base])
+    fig.add_trace(
+        go.Mesh3d(
+            x=xs,
+            y=ys,
+            z=zs,
+            i=i,
+            j=j,
+            k=k,
+            name=name,
+            legendgroup=legendgroup,
+            showlegend=showlegend,
+            color=color,
+            opacity=opacity,
+            hoverinfo="skip",
+            flatshading=True,
+        )
+    )
+
+
+def _add_section_loop_wireframe_3d(
+    fig: go.Figure,
+    loop_df: pd.DataFrame,
+    section_props: dict,
+    *,
+    span_m: float,
+    name: str,
+    color: str,
+    dash: str = "solid",
+    legendgroup: str = "section",
+    showlegend: bool = False,
+) -> None:
+    """Add start/end section frames and longitudinal edge lines."""
+    y, z = _section_loop_to_yz_m(loop_df, section_props)
+    if len(y) < 2:
+        return
+    y_closed = y + [y[0]]
+    z_closed = z + [z[0]]
+    for xval, frame_name, legend in [(0.0, f"{name} start", showlegend), (span_m, f"{name} end", False)]:
+        fig.add_trace(
+            go.Scatter3d(
+                x=[xval] * len(y_closed),
+                y=y_closed,
+                z=z_closed,
+                mode="lines",
+                name=frame_name,
+                legendgroup=legendgroup,
+                showlegend=legend,
+                line=dict(color=color, width=5, dash=dash),
+                hoverinfo="skip",
+            )
+        )
+    for yy, zz in zip(y, z):
+        fig.add_trace(
+            go.Scatter3d(
+                x=[0.0, span_m],
+                y=[yy, yy],
+                z=[zz, zz],
+                mode="lines",
+                name=f"{name} longitudinal edge",
+                legendgroup=legendgroup,
+                showlegend=False,
+                line=dict(color=color, width=2.6, dash=dash),
+                hoverinfo="skip",
+            )
+        )
+
+
+def _profile_xyz_for_tendon(tendon: dict, depth_m: float) -> tuple[list[float], list[float], list[float]]:
+    """Return station/transverse/vertical 3D arrays from one tendon model."""
+    vprof = pd.DataFrame(tendon.get("vertical_profile", []))
+    hprof = pd.DataFrame(tendon.get("horizontal_profile", []))
+    if vprof.empty or hprof.empty or "x_m" not in vprof.columns or "x_m" not in hprof.columns:
+        return [], [], []
+    stations = sorted(set(vprof["x_m"].astype(float).tolist()) | set(hprof["x_m"].astype(float).tolist()))
+    if not stations:
+        return [], [], []
+    vprof = vprof.sort_values("x_m")
+    hprof = hprof.sort_values("x_m")
+    xs = [float(x) for x in stations]
+    dp = pd.Series(np.interp(xs, vprof["x_m"].astype(float), vprof["dp_top_m"].astype(float)))
+    off = pd.Series(np.interp(xs, hprof["x_m"].astype(float), hprof["horiz_off_m"].astype(float)))
+    ys = off.astype(float).tolist()
+    zs = (depth_m - dp.astype(float)).tolist()
+    return xs, ys, zs
+
+
+def _camera_for_preset(preset: str) -> dict:
+    text = str(preset or "Isometric").strip().lower()
+    if text.startswith("top"):
+        return dict(eye=dict(x=0.02, y=0.02, z=2.35), up=dict(x=0, y=1, z=0))
+    if text.startswith("side"):
+        return dict(eye=dict(x=1.65, y=-2.15, z=0.55))
+    if text.startswith("end"):
+        return dict(eye=dict(x=-2.25, y=0.18, z=0.62))
+    if text.startswith("tendon"):
+        return dict(eye=dict(x=1.55, y=-1.30, z=0.82))
+    return dict(eye=dict(x=1.45, y=-1.55, z=0.92))
+
+
+def tendon_3d_review_figure(
+    model: dict,
+    section_coords: pd.DataFrame,
+    section_props: dict,
+    *,
+    family_filter: str | None = None,
+    side_filter: str | None = None,
+    show_outer_shell: bool = True,
+    show_inner_void: bool = True,
+    show_station_markers: bool = True,
+    show_tendon_labels: bool = False,
+    view_preset: str = "Isometric",
+) -> go.Figure:
+    """Build an interactive 3D tendon review viewport.
+
+    The view is intentionally a review model, not a full bridge solid model:
+    translucent section boundary envelopes + tendon polylines from the adopted
+    merged vertical/horizontal profile data.  No calculation logic is changed.
+    """
+    fig = go.Figure()
+    span_m = float(model.get("span_m") or 0.0)
+    if not span_m:
+        # Fall back to max tendon station for partially populated models.
+        for t in model.get("tendons", []):
+            for prof_key in ("vertical_profile", "horizontal_profile"):
+                for p in t.get(prof_key, []) or []:
+                    span_m = max(span_m, float(p.get("x_m") or 0.0))
+    depth_m = float(section_props.get("depth_m") or section_props.get("D_m") or 0.0)
+    bounds = section_props.get("bounds_mm", {}) if section_props else {}
+    width_m = float(section_props.get("width_m") or section_props.get("B_m") or ((float(bounds.get("xmax", 0.0)) - float(bounds.get("xmin", 0.0))) / 1000.0) or 0.0)
+    loops = _loop_groups(section_coords)
+    outer_index = 0
+    void_index = 0
+    for loop_type, loop_name, loop in loops:
+        is_hole = str(loop_type).lower() in {"hole", "opening", "inner", "void"} or "opening" in str(loop_name).lower()
+        if is_hole:
+            void_index += 1
+            if show_inner_void:
+                _add_section_loop_surface_3d(
+                    fig,
+                    loop,
+                    section_props,
+                    span_m=span_m,
+                    name="Inner void envelope" if void_index == 1 else f"Inner void {void_index}",
+                    color="rgba(37,99,235,0.38)",
+                    opacity=0.16,
+                    legendgroup="inner_void",
+                    showlegend=void_index == 1,
+                )
+                _add_section_loop_wireframe_3d(
+                    fig,
+                    loop,
+                    section_props,
+                    span_m=span_m,
+                    name="Inner void frame" if void_index == 1 else f"Inner void frame {void_index}",
+                    color="#2563eb",
+                    dash="dash",
+                    legendgroup="inner_void",
+                    showlegend=False,
+                )
+        else:
+            outer_index += 1
+            if show_outer_shell:
+                _add_section_loop_surface_3d(
+                    fig,
+                    loop,
+                    section_props,
+                    span_m=span_m,
+                    name="Outer shell envelope" if outer_index == 1 else f"Outer shell {outer_index}",
+                    color="rgba(41,72,96,0.42)",
+                    opacity=0.18,
+                    legendgroup="outer_shell",
+                    showlegend=outer_index == 1,
+                )
+                _add_section_loop_wireframe_3d(
+                    fig,
+                    loop,
+                    section_props,
+                    span_m=span_m,
+                    name="Outer shell frame" if outer_index == 1 else f"Outer shell frame {outer_index}",
+                    color="#294860",
+                    dash="solid",
+                    legendgroup="outer_shell",
+                    showlegend=False,
+                )
+
+    tendon_count = 0
+    for t in model.get("tendons", []):
+        if not _tendon_passes_filter(t, family_filter=family_filter, side_filter=side_filter):
+            continue
+        xs, ys, zs = _profile_xyz_for_tendon(t, depth_m)
+        if not xs:
+            continue
+        family = str(t.get("family", ""))
+        side = str(t.get("side", ""))
+        text = [str(t.get("tendon", "")) if show_tendon_labels and (idx in {0, len(xs)-1}) else "" for idx in range(len(xs))]
+        tendon_count += 1
+        fig.add_trace(
+            go.Scatter3d(
+                x=xs,
+                y=ys,
+                z=zs,
+                mode="lines+markers+text" if show_tendon_labels else "lines+markers",
+                name=str(t.get("tendon", "")),
+                legendgroup=family,
+                showlegend=False,
+                text=text,
+                textposition="top center",
+                line=dict(width=6, color=_family_color(family), dash=_side_line_dash(side)),
+                marker=dict(size=4, color=_family_color(family), line=dict(width=0.8, color="#0f172a")),
+                hovertemplate=(
+                    "%{fullData.name}<br>Station x = %{x:.3f} m"
+                    "<br>HorizOff = %{y:.3f} m<br>z from bottom = %{z:.3f} m<extra></extra>"
+                ),
+            )
+        )
+
+    if show_station_markers and span_m:
+        y_half = max(width_m / 2.0, 0.5)
+        for station, label, dash in [(0.0, "Start", "solid"), (0.5 * span_m, "Midspan", "dash"), (span_m, "End", "solid")]:
+            fig.add_trace(
+                go.Scatter3d(
+                    x=[station, station],
+                    y=[-y_half, y_half],
+                    z=[0.0, 0.0],
+                    mode="lines+text",
+                    name=label,
+                    showlegend=False,
+                    text=["", label],
+                    textposition="top center",
+                    line=dict(color="#64748b", width=3, dash=dash),
+                    hovertemplate=f"{label}<br>x = {station:.3f} m<extra></extra>",
+                )
+            )
+
+    # Add family legend placeholders for the custom/Plotly legend without dense tendon names.
+    families = list(dict.fromkeys([str(t.get("family", "")) for t in model.get("tendons", []) if _tendon_passes_filter(t, family_filter=family_filter, side_filter=side_filter) and str(t.get("family", "")).strip()]))
+    for fam in families:
+        fig.add_trace(
+            go.Scatter3d(
+                x=[None], y=[None], z=[None],
+                mode="markers",
+                name=fam,
+                marker=dict(size=7, color=_family_color(fam)),
+                showlegend=True,
+                legendgroup=fam,
+                hoverinfo="skip",
+            )
+        )
+
+    fig.update_layout(
+        height=650,
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        margin=dict(l=0, r=0, t=12, b=0),
+        font=dict(color="#0f172a", size=12, family="Arial, sans-serif"),
+        showlegend=False,
+        scene=dict(
+            xaxis=dict(title="Station x (m)", backgroundcolor="#ffffff", gridcolor="rgba(148,163,184,0.16)", showbackground=True, zerolinecolor="rgba(37,99,235,0.24)"),
+            yaxis=dict(title="HorizOff / section Y (m)", backgroundcolor="#ffffff", gridcolor="rgba(148,163,184,0.14)", showbackground=True, zerolinecolor="rgba(37,99,235,0.24)"),
+            zaxis=dict(title="z from bottom (m)", backgroundcolor="#ffffff", gridcolor="rgba(148,163,184,0.14)", showbackground=True, zerolinecolor="rgba(37,99,235,0.24)"),
+            aspectmode="manual",
+            aspectratio=dict(x=max(span_m / max(width_m, 1.0), 2.4), y=1.0, z=max(depth_m / max(width_m, 1.0), 0.34)),
+            camera=_camera_for_preset(view_preset),
+        ),
+        uirevision="tendon_3d_review",
+    )
+    return fig
 
 
 

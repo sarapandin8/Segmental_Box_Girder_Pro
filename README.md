@@ -1,6 +1,18 @@
-# Segmental Box Girder Pro — COMMERCIAL.M4.1
+# Segmental Box Girder Pro — COMMERCIAL.M4.1A
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
+
+## COMMERCIAL.M4.1A updates
+
+- Adds a new `3D Tendon View` tab immediately after Tendon Plan View in `2.4 Tendon Layout Reference`.
+- Builds an interactive Plotly WebGL 3D review viewport with rotate, pan, zoom, reset, and image export support through the global Interactive review / Report preview figure system.
+- Displays the box-girder outer shell and inner void as transparent section envelopes extruded along the span.
+- Displays external tendon profiles as 3D polylines using merged vertical dp and horizontal offset profile data.
+- Adds view presets: Isometric, Top, Side, End, and Tendon focus.
+- Adds family/side filters, tendon label toggle, shell/void visibility toggles, and station marker toggle.
+- Uses the adopted tendon design-source snapshot when locked; otherwise clearly marks the viewport as working preview only.
+- Preserves all section geometry, tendon import/merge, tendon QA, adopted data, and prestress calculation logic.
+- Schema remains `0.4.20-commercial-bugfix1-section-save-load-persistence`; this milestone adds visualization only.
 
 ## COMMERCIAL.M4.1 updates
 
