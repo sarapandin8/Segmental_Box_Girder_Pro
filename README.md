@@ -1,14 +1,15 @@
-# Segmental Box Girder Pro — COMMERCIAL.M3H.9
+# Segmental Box Girder Pro — COMMERCIAL.M3H.10
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
-## COMMERCIAL.M3H.9 updates
+## COMMERCIAL.M3H.10 updates
 
-- Moves the selected-station label out of the Plotly drawing body into a clear canvas badge above the viewport.
-- Adds a **Dimension mode** control: Clean, Full dimensions, and Hide dimensions. Clean is the default.
-- Replaces the raw section annotation look with an engineering dimension guide layer using offset extension lines, tick marks, muted dimension colors, and lighter grid styling.
+- Hides the Plotly modebar in the normal Tendon Section Overlay canvas so the viewport reads as a report figure rather than a debug chart.
+- Refines B/D/CL/CG dimension labels with stronger white label boxes, cleaner guide offsets, and less intrusive centroid callouts.
+- Further reduces grid/axis dominance with softer grid colors, quieter zero lines, and report-ready canvas background.
+- Preserves the M3H.9 Dimension mode control: Clean, Full dimensions, and Hide dimensions. Clean remains the default.
 - Keeps the existing tendon QA logic unchanged: external tendon points are still checked against the active inner void and section polygon.
-- Schema: `0.4.15-commercial-m3h9-dimension-station-polish`.
+- Schema: `0.4.16-commercial-m3h10-viewport-report-polish`.
 
 ## Retained commercial app foundations
 
@@ -82,3 +83,12 @@ M3H.7.1 fixes the tendon overlay figure call to avoid TypeError when app.py and 
 - Makes Clean mode show only essential B, D, CL, and centroid guides.
 - Makes Full dimensions add y_cg and y_t fiber dimensions without changing tendon QA logic.
 - Reduces raw chart appearance using muted guide colors, external dimension offsets, tick marks, and lighter grid lines.
+
+
+## COMMERCIAL.M3H.10 — Tendon Overlay Viewport and Report Figure Polish
+
+- Hides the Plotly modebar in the normal Section Overlay canvas using a dedicated canvas Plotly config.
+- Polishes B/D/CL/CG dimension labels and offsets so Clean mode reads more like an engineering drawing.
+- Moves the CG callout away from the right plot edge and makes centroid guide lines lighter.
+- Reduces grid and axis visual dominance for a cleaner report-ready viewport.
+- Keeps tendon location QA, selected-station table data, and minimum-clearance logic unchanged.

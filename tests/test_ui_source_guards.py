@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.15-commercial-m3h9-dimension-station-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.16-commercial-m3h10-viewport-report-polish"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -324,3 +324,23 @@ def test_m3h9_tendon_overlay_dimension_mode_and_station_badge_are_present():
     assert "_add_tendon_overlay_dimension_layer" in tendon_fig_src
     assert "clean: B, D, CL, and centroid guides only" in tendon_fig_src
     assert "hide dimensions: no dimension guide layer" in tendon_fig_src
+
+
+
+def test_m3h10_tendon_overlay_viewport_uses_report_canvas_config():
+    src = _src()
+    tendon_fig_src = (APP_SOURCE.resolve().parents[0] / "visualization" / "tendon_figures.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.M3H.10" in readme
+    assert "PLOTLY_TENDON_CANVAS_CONFIG" in src
+    assert '"displayModeBar": False' in tendon_fig_src
+    assert "debug-chart appearance" in src
+    assert "st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CANVAS_CONFIG)" in src
+    assert "rgba(148,163,184,0.09)" in src
+
+def test_m3h10_tendon_dimension_helpers_use_polished_labels():
+    tendon_fig_src = (APP_SOURCE.resolve().parents[0] / "visualization" / "tendon_figures.py").read_text(encoding="utf-8")
+    assert "cg_line_color" in tendon_fig_src
+    assert "rgba(255,255,255,0.96)" in tendon_fig_src
+    assert "cx + 0.070 * width" in tendon_fig_src
+    assert "ymax + 0.085 * depth" in tendon_fig_src

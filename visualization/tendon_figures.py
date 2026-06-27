@@ -37,6 +37,10 @@ PLOTLY_TENDON_CONFIG = {
     "toImageButtonOptions": {"format": "png", "filename": "tendon_layout", "height": 900, "width": 1500, "scale": 2},
 }
 
+# Normal report canvas view should not show the Plotly modebar. Keep the full
+# PLOTLY_TENDON_CONFIG for analysis/debug views such as elevation and plan.
+PLOTLY_TENDON_CANVAS_CONFIG = {**PLOTLY_TENDON_CONFIG, "displayModeBar": False}
+
 
 def _style_layout(fig: go.Figure, title: str, x_title: str, y_title: str) -> go.Figure:
     fig.update_layout(
@@ -139,10 +143,19 @@ def _section_bounds_for_display(section_coords: pd.DataFrame, section_props: dic
 
 
 def _tick_shape(x0: float, y0: float, x1: float, y1: float, color: str) -> dict:
-    return {"type": "line", "x0": x0, "y0": y0, "x1": x1, "y1": y1, "line": {"color": color, "width": 1.2}}
+    return {"type": "line", "x0": x0, "y0": y0, "x1": x1, "y1": y1, "line": {"color": color, "width": 1.35}}
 
 
-def _dimension_label(fig: go.Figure, *, x: float, y: float, text: str, textangle: int = 0, color: str = "#64748b") -> None:
+def _dimension_label(
+    fig: go.Figure,
+    *,
+    x: float,
+    y: float,
+    text: str,
+    textangle: int = 0,
+    color: str = "#64748b",
+    size: int = 12,
+) -> None:
     fig.add_annotation(
         x=x,
         y=y,
@@ -150,11 +163,11 @@ def _dimension_label(fig: go.Figure, *, x: float, y: float, text: str, textangle
         textangle=textangle,
         showarrow=False,
         align="center",
-        bgcolor="rgba(255,255,255,0.90)",
-        bordercolor="rgba(148,163,184,0.65)",
+        bgcolor="rgba(255,255,255,0.96)",
+        bordercolor="rgba(100,116,139,0.50)",
         borderwidth=1,
-        borderpad=3,
-        font={"color": color, "size": 11},
+        borderpad=4,
+        font={"color": color, "size": size},
     )
 
 
@@ -168,13 +181,13 @@ def _add_horizontal_dimension(
     label: str,
     color: str,
 ) -> None:
-    tick = 42.0
-    fig.add_shape(type="line", x0=x0, y0=ext_to_y, x1=x0, y1=y, line={"color": color, "width": 1.1})
-    fig.add_shape(type="line", x0=x1, y0=ext_to_y, x1=x1, y1=y, line={"color": color, "width": 1.1})
-    fig.add_shape(type="line", x0=x0, y0=y, x1=x1, y1=y, line={"color": color, "width": 1.3})
+    tick = 52.0
+    fig.add_shape(type="line", x0=x0, y0=ext_to_y, x1=x0, y1=y, line={"color": color, "width": 1.15})
+    fig.add_shape(type="line", x0=x1, y0=ext_to_y, x1=x1, y1=y, line={"color": color, "width": 1.15})
+    fig.add_shape(type="line", x0=x0, y0=y, x1=x1, y1=y, line={"color": color, "width": 1.45})
     fig.add_shape(**_tick_shape(x0 - tick, y - tick, x0 + tick, y + tick, color))
     fig.add_shape(**_tick_shape(x1 - tick, y - tick, x1 + tick, y + tick, color))
-    _dimension_label(fig, x=0.5 * (x0 + x1), y=y + 72.0, text=label, color=color)
+    _dimension_label(fig, x=0.5 * (x0 + x1), y=y + 88.0, text=label, color=color, size=12)
 
 
 def _add_vertical_dimension(
@@ -188,14 +201,14 @@ def _add_vertical_dimension(
     color: str,
     label_side: str = "left",
 ) -> None:
-    tick = 42.0
-    fig.add_shape(type="line", x0=ext_to_x, y0=y0, x1=x, y1=y0, line={"color": color, "width": 1.1})
-    fig.add_shape(type="line", x0=ext_to_x, y0=y1, x1=x, y1=y1, line={"color": color, "width": 1.1})
-    fig.add_shape(type="line", x0=x, y0=y0, x1=x, y1=y1, line={"color": color, "width": 1.3})
+    tick = 52.0
+    fig.add_shape(type="line", x0=ext_to_x, y0=y0, x1=x, y1=y0, line={"color": color, "width": 1.15})
+    fig.add_shape(type="line", x0=ext_to_x, y0=y1, x1=x, y1=y1, line={"color": color, "width": 1.15})
+    fig.add_shape(type="line", x0=x, y0=y0, x1=x, y1=y1, line={"color": color, "width": 1.45})
     fig.add_shape(**_tick_shape(x - tick, y0 - tick, x + tick, y0 + tick, color))
     fig.add_shape(**_tick_shape(x - tick, y1 - tick, x + tick, y1 + tick, color))
-    dx = -86.0 if label_side == "left" else 86.0
-    _dimension_label(fig, x=x + dx, y=0.5 * (y0 + y1), text=label, textangle=-90, color=color)
+    dx = -112.0 if label_side == "left" else 112.0
+    _dimension_label(fig, x=x + dx, y=0.5 * (y0 + y1), text=label, textangle=-90, color=color, size=12)
 
 
 def _add_tendon_overlay_dimension_layer(
@@ -227,12 +240,13 @@ def _add_tendon_overlay_dimension_layer(
     cx = float(section_props.get("cx_mm", 0.5 * (b["xmin_raw"] + b["xmax_raw"]))) - b["x_shift"]
     cy = float(section_props.get("cy_mm", 0.5 * (ymin + ymax)))
 
-    dim_color = "#7c8da6"
+    dim_color = "#66768c"
     cl_color = "#2563eb"
     cg_color = "#be123c"
-    top_offset = max(240.0, 0.15 * depth)
-    left_offset = max(360.0, 0.055 * width)
-    right_offset = max(360.0, 0.055 * width)
+    cg_line_color = "rgba(190,18,60,0.50)"
+    top_offset = max(360.0, 0.17 * depth)
+    left_offset = max(520.0, 0.075 * width)
+    right_offset = max(520.0, 0.065 * width)
     y_dim = ymax + top_offset
     x_dim_left = xmin - left_offset
     x_dim_right = xmax + right_offset
@@ -242,7 +256,7 @@ def _add_tendon_overlay_dimension_layer(
         x0=xmin,
         x1=xmax,
         y=y_dim,
-        ext_to_y=ymax,
+        ext_to_y=ymax + 0.018 * depth,
         label=f"B = {width:.0f} mm",
         color=dim_color,
     )
@@ -251,7 +265,7 @@ def _add_tendon_overlay_dimension_layer(
         x=x_dim_left,
         y0=ymin,
         y1=ymax,
-        ext_to_x=xmin,
+        ext_to_x=xmin - 0.018 * width,
         label=f"D = {depth:.0f} mm",
         color=dim_color,
         label_side="left",
@@ -259,13 +273,20 @@ def _add_tendon_overlay_dimension_layer(
 
     # Centerline guide is part of the Clean view because the overlay is reviewed by horizontal offset from CL.
     if str(origin_mode).lower().startswith("center"):
-        fig.add_shape(type="line", x0=0, y0=ymin - 0.07 * depth, x1=0, y1=ymax + 0.08 * depth, line={"color": cl_color, "width": 1.1, "dash": "dash"})
-        _dimension_label(fig, x=0, y=ymax + 0.12 * depth, text="CL", color=cl_color)
+        fig.add_shape(
+            type="line",
+            x0=0,
+            y0=ymin - 0.06 * depth,
+            x1=0,
+            y1=ymax + 0.065 * depth,
+            line={"color": "rgba(37,99,235,0.48)", "width": 1.05, "dash": "dash"},
+        )
+        _dimension_label(fig, x=0, y=ymax + 0.085 * depth, text="CL", color=cl_color, size=11)
 
     # Centroid guides are deliberately lighter than the tendon points to avoid visual competition.
-    fig.add_shape(type="line", x0=xmin, y0=cy, x1=xmax, y1=cy, line={"color": cg_color, "width": 1.0, "dash": "dot"})
-    fig.add_shape(type="line", x0=cx, y0=ymin, x1=cx, y1=ymax, line={"color": cg_color, "width": 1.0, "dash": "dot"})
-    _dimension_label(fig, x=xmax + 0.10 * right_offset, y=cy, text="CG", color=cg_color)
+    fig.add_shape(type="line", x0=xmin, y0=cy, x1=xmax, y1=cy, line={"color": cg_line_color, "width": 0.95, "dash": "dot"})
+    fig.add_shape(type="line", x0=cx, y0=ymin, x1=cx, y1=ymax, line={"color": cg_line_color, "width": 0.95, "dash": "dot"})
+    _dimension_label(fig, x=cx + 0.070 * width, y=cy + 0.055 * depth, text="CG", color=cg_color, size=11)
 
     if mode.startswith("full"):
         ycg_mm = float(section_props.get("ycg_from_bottom_m", cy / 1000.0)) * 1000.0
@@ -276,7 +297,7 @@ def _add_tendon_overlay_dimension_layer(
             x=x_fiber,
             y0=ymin,
             y1=cy,
-            ext_to_x=xmax,
+            ext_to_x=xmax + 0.018 * width,
             label=f"y_cg = {ycg_mm:.0f} mm",
             color=dim_color,
             label_side="right",
@@ -286,15 +307,15 @@ def _add_tendon_overlay_dimension_layer(
             x=x_fiber + 0.34 * right_offset,
             y0=cy,
             y1=ymax,
-            ext_to_x=xmax,
+            ext_to_x=xmax + 0.018 * width,
             label=f"y_t = {yt_mm:.0f} mm",
             color=dim_color,
             label_side="right",
         )
 
     # Give the external dimension layer breathing room without making the axes dominate the drawing.
-    fig.update_xaxes(range=[xmin - 1.22 * left_offset, xmax + 1.55 * right_offset])
-    fig.update_yaxes(range=[ymin - 0.16 * depth, ymax + 1.35 * top_offset])
+    fig.update_xaxes(range=[xmin - 1.18 * left_offset, xmax + 1.48 * right_offset])
+    fig.update_yaxes(range=[ymin - 0.14 * depth, ymax + 1.28 * top_offset])
     return fig
 
 
@@ -398,9 +419,24 @@ def tendon_section_overlay_figure(
     fig.update_layout(
         title={"text": "", "x": 0.01, "xanchor": "left"},
         legend=dict(orientation="h", yanchor="bottom", y=1.055, xanchor="center", x=0.5, font=dict(size=11)),
-        plot_bgcolor="#fbfdff",
-        paper_bgcolor="#fbfdff",
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff",
+        font=dict(color="#334155"),
     )
-    fig.update_xaxes(showgrid=True, gridcolor="rgba(148,163,184,0.22)", zeroline=True, zerolinecolor="rgba(37,99,235,0.45)")
-    fig.update_yaxes(showgrid=True, gridcolor="rgba(148,163,184,0.22)", zeroline=True, zerolinecolor="rgba(148,163,184,0.35)")
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor="rgba(148,163,184,0.09)",
+        zeroline=True,
+        zerolinecolor="rgba(37,99,235,0.26)",
+        tickfont=dict(color="#64748b", size=10),
+        title_font=dict(color="#475569", size=11),
+    )
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor="rgba(148,163,184,0.09)",
+        zeroline=True,
+        zerolinecolor="rgba(148,163,184,0.20)",
+        tickfont=dict(color="#64748b", size=10),
+        title_font=dict(color="#475569", size=11),
+    )
     return fig

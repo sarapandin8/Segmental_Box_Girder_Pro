@@ -58,7 +58,7 @@ from core.load_models import (
     wind_vb0_recommended_from_group,
 )
 from visualization.section_figures import PLOTLY_SECTION_CONFIG, section_polygon_figure
-from visualization.tendon_figures import PLOTLY_TENDON_CONFIG, tendon_elevation_figure, tendon_plan_figure, tendon_section_overlay_figure
+from visualization.tendon_figures import PLOTLY_TENDON_CANVAS_CONFIG, PLOTLY_TENDON_CONFIG, tendon_elevation_figure, tendon_plan_figure, tendon_section_overlay_figure
 from visualization.load_figures import (
     PLOTLY_CONFIG,
     rail_horizontal_forces_diagram,
@@ -2387,8 +2387,8 @@ def render_tendon_layout_reference() -> None:
                     unsafe_allow_html=True,
                 )
 
-                # Keep the station badge outside the Plotly body; the figure call remains
-                # backward-compatible except for the optional M3H.9 dimension mode keyword.
+                # Keep the station badge outside the Plotly body; the report canvas
+                # also hides the Plotly modebar to avoid a debug-chart appearance.
                 fig = tendon_section_overlay_figure(
                     coords,
                     props,
@@ -2403,12 +2403,27 @@ def render_tendon_layout_reference() -> None:
                     showlegend=False,
                     height=520,
                     margin=dict(l=50, r=18, t=44, b=52),
-                    plot_bgcolor="#fbfdff",
-                    paper_bgcolor="#fbfdff",
+                    plot_bgcolor="#ffffff",
+                    paper_bgcolor="#ffffff",
+                    font=dict(color="#334155"),
                 )
-                fig.update_xaxes(showgrid=True, gridcolor="#edf3fb", zeroline=True, zerolinecolor="#94a3b8")
-                fig.update_yaxes(showgrid=True, gridcolor="#edf3fb", zeroline=True, zerolinecolor="#94a3b8")
-                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
+                fig.update_xaxes(
+                    showgrid=True,
+                    gridcolor="rgba(148,163,184,0.09)",
+                    zeroline=True,
+                    zerolinecolor="rgba(37,99,235,0.26)",
+                    tickfont=dict(color="#64748b", size=10),
+                    title_font=dict(color="#475569", size=11),
+                )
+                fig.update_yaxes(
+                    showgrid=True,
+                    gridcolor="rgba(148,163,184,0.09)",
+                    zeroline=True,
+                    zerolinecolor="rgba(148,163,184,0.20)",
+                    tickfont=dict(color="#64748b", size=10),
+                    title_font=dict(color="#475569", size=11),
+                )
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CANVAS_CONFIG)
                 st.markdown(
                     f'<div class="canvas-caption"><b>Figure 2.x</b> Tendon section overlay at {station_label} ({station:.3f} m), showing imported external tendon positions within the box-girder void.</div>',
                     unsafe_allow_html=True,
