@@ -1,6 +1,17 @@
-# Segmental Box Girder Pro — COMMERCIAL.M4.1A
+# Segmental Box Girder Pro — COMMERCIAL.M4.1B
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
+
+
+## COMMERCIAL.M4.1B updates
+
+- Adds CAD-style 3D view presets for the `3D Tendon View`: Isometric · Orthographic, Isometric · Perspective, Top, Side elevation, End section, Tendon focus, and Report isometric.
+- Defaults the 3D viewport to Orthographic Isometric so the first view reads more like an engineering/CAD review figure rather than a perspective-only Plotly scene.
+- Adds `Aspect mode`: Presentation scale for readable review/report images and True scale for checking the real span/width/depth proportion.
+- Adds camera projection control so orthographic/report/top/side/end views use orthographic projection while perspective review remains available for interactive exploration.
+- Updates the 3D canvas badge, caption, and footer cards to disclose both view preset and aspect mode.
+- Preserves all tendon geometry, adopted-source behavior, QA, section data, and calculation logic; this milestone is a 3D presentation/camera control improvement only.
+- Schema remains `0.4.20-commercial-bugfix1-section-save-load-persistence`; this milestone adds visualization controls only.
 
 ## COMMERCIAL.M4.1A updates
 
@@ -8,7 +19,7 @@ Commercial report-driven Streamlit workspace for PT segmental box-girder design 
 - Builds an interactive Plotly WebGL 3D review viewport with rotate, pan, zoom, reset, and image export support through the global Interactive review / Report preview figure system.
 - Displays the box-girder outer shell and inner void as transparent section envelopes extruded along the span.
 - Displays external tendon profiles as 3D polylines using merged vertical dp and horizontal offset profile data.
-- Adds view presets: Isometric, Top, Side, End, and Tendon focus.
+- Adds view presets: Isometric, Top, Side, End, and Tendon focus. M4.1B extends these with orthographic/perspective/report isometric controls.
 - Adds family/side filters, tendon label toggle, shell/void visibility toggles, and station marker toggle.
 - Uses the adopted tendon design-source snapshot when locked; otherwise clearly marks the viewport as working preview only.
 - Preserves all section geometry, tendon import/merge, tendon QA, adopted data, and prestress calculation logic.

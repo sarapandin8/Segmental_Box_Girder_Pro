@@ -414,3 +414,18 @@ def test_m41a_interactive_3d_tendon_view_is_present_after_plan_view():
     assert "Show inner void" in src
     assert "Tendon focus" in src
     assert "preview only" in src
+
+
+def test_m41b_3d_view_presets_and_aspect_controls_are_present():
+    src = _src()
+    tendon_src = (APP_SOURCE.resolve().parents[0] / "visualization" / "tendon_figures.py").read_text(encoding="utf-8")
+    assert "COMMERCIAL.M4.1B" in README_SOURCE.read_text(encoding="utf-8") or "Orthographic Isometric" in README_SOURCE.read_text(encoding="utf-8")
+    assert "Isometric · Orthographic" in src
+    assert "Isometric · Perspective" in src
+    assert "Report isometric" in src
+    assert "Aspect mode" in src
+    assert "Presentation scale" in src
+    assert "True scale" in src
+    assert "projection" in tendon_src
+    assert "orthographic" in tendon_src
+    assert "_aspectratio_for_3d" in tendon_src

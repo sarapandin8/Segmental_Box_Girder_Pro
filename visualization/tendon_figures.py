@@ -323,16 +323,52 @@ def _profile_xyz_for_tendon(tendon: dict, depth_m: float) -> tuple[list[float], 
 
 
 def _camera_for_preset(preset: str) -> dict:
-    text = str(preset or "Isometric").strip().lower()
+    """Return stable CAD-style 3D camera presets for tendon review.
+
+    Plotly's default perspective camera is useful while exploring the model, but
+    report figures need an orthographic projection so the image reads more like
+    an engineering/CAD isometric view.  This helper is presentation only; it
+    does not change the tendon geometry.
+    """
+    text = str(preset or "Isometric · Orthographic").strip().lower()
+    projection_type = "orthographic" if any(key in text for key in ("orthographic", "report", "top", "side", "end")) else "perspective"
+
     if text.startswith("top"):
-        return dict(eye=dict(x=0.02, y=0.02, z=2.35), up=dict(x=0, y=1, z=0))
-    if text.startswith("side"):
-        return dict(eye=dict(x=1.65, y=-2.15, z=0.55))
-    if text.startswith("end"):
-        return dict(eye=dict(x=-2.25, y=0.18, z=0.62))
-    if text.startswith("tendon"):
-        return dict(eye=dict(x=1.55, y=-1.30, z=0.82))
-    return dict(eye=dict(x=1.45, y=-1.55, z=0.92))
+        camera = dict(eye=dict(x=0.02, y=0.02, z=2.45), up=dict(x=0, y=1, z=0))
+    elif text.startswith("side"):
+        camera = dict(eye=dict(x=1.90, y=-2.35, z=0.02), up=dict(x=0, y=0, z=1))
+    elif text.startswith("end"):
+        camera = dict(eye=dict(x=-2.45, y=0.02, z=0.58), up=dict(x=0, y=0, z=1))
+    elif text.startswith("tendon"):
+        camera = dict(eye=dict(x=1.48, y=-1.22, z=0.78), up=dict(x=0, y=0, z=1))
+    elif text.startswith("report"):
+        camera = dict(eye=dict(x=1.35, y=-1.35, z=0.82), up=dict(x=0, y=0, z=1))
+    elif "perspective" in text:
+        camera = dict(eye=dict(x=1.45, y=-1.55, z=0.92), up=dict(x=0, y=0, z=1))
+    else:
+        # Default to orthographic isometric for a drawing-like first view.
+        camera = dict(eye=dict(x=1.35, y=-1.35, z=0.82), up=dict(x=0, y=0, z=1))
+
+    camera["projection"] = dict(type=projection_type)
+    return camera
+
+
+def _aspectratio_for_3d(span_m: float, width_m: float, depth_m: float, aspect_mode: str | None = None) -> dict:
+    """Return aspect ratio for true-scale or presentation-scale 3D review.
+
+    True scale preserves the geometric proportion between span, width, and
+    depth. Presentation scale mildly compresses the long span and lifts the
+    vertical scale so tendon paths remain readable in a report-ready viewport.
+    """
+    span = max(float(span_m or 0.0), 1.0)
+    width = max(float(width_m or 0.0), 1.0)
+    depth = max(float(depth_m or 0.0), 0.1)
+    x_true = span / width
+    z_true = depth / width
+    text = str(aspect_mode or "Presentation scale").strip().lower()
+    if text.startswith("true"):
+        return dict(x=max(x_true, 1.0), y=1.0, z=max(z_true, 0.08))
+    return dict(x=min(max(x_true, 2.2), 3.2), y=1.0, z=min(max(z_true * 1.75, 0.38), 0.62))
 
 
 def tendon_3d_review_figure(
@@ -346,7 +382,8 @@ def tendon_3d_review_figure(
     show_inner_void: bool = True,
     show_station_markers: bool = True,
     show_tendon_labels: bool = False,
-    view_preset: str = "Isometric",
+    view_preset: str = "Isometric · Orthographic",
+    aspect_mode: str = "Presentation scale",
 ) -> go.Figure:
     """Build an interactive 3D tendon review viewport.
 
@@ -497,7 +534,7 @@ def tendon_3d_review_figure(
             yaxis=dict(title="HorizOff / section Y (m)", backgroundcolor="#ffffff", gridcolor="rgba(148,163,184,0.14)", showbackground=True, zerolinecolor="rgba(37,99,235,0.24)"),
             zaxis=dict(title="z from bottom (m)", backgroundcolor="#ffffff", gridcolor="rgba(148,163,184,0.14)", showbackground=True, zerolinecolor="rgba(37,99,235,0.24)"),
             aspectmode="manual",
-            aspectratio=dict(x=max(span_m / max(width_m, 1.0), 2.4), y=1.0, z=max(depth_m / max(width_m, 1.0), 0.34)),
+            aspectratio=_aspectratio_for_3d(span_m, width_m, depth_m, aspect_mode),
             camera=_camera_for_preset(view_preset),
         ),
         uirevision="tendon_3d_review",

@@ -139,3 +139,35 @@ def test_tendon_3d_review_filter_can_show_left_side_only():
     tendon_names = {str(tr.name) for tr in fig.data if tr.type == "scatter3d"}
     assert "T1-L" in tendon_names
     assert "T1-R" not in tendon_names
+
+
+def test_tendon_3d_orthographic_isometric_preset_uses_cad_projection():
+    from visualization.tendon_figures import tendon_3d_review_figure
+
+    fig = tendon_3d_review_figure(
+        _model_3d(),
+        _coords(),
+        _props(),
+        view_preset="Isometric · Orthographic",
+        aspect_mode="Presentation scale",
+    )
+    camera = fig.layout.scene.camera
+    assert camera.projection.type == "orthographic"
+    assert fig.layout.scene.aspectratio.x <= 3.2
+    assert fig.layout.scene.aspectratio.z >= 0.38
+
+
+def test_tendon_3d_perspective_and_true_scale_are_available():
+    from visualization.tendon_figures import tendon_3d_review_figure
+
+    fig = tendon_3d_review_figure(
+        _model_3d(),
+        _coords(),
+        _props(),
+        view_preset="Isometric · Perspective",
+        aspect_mode="True scale",
+    )
+    camera = fig.layout.scene.camera
+    assert camera.projection.type == "perspective"
+    assert fig.layout.scene.aspectratio.x > 3.5
+    assert 0.20 < fig.layout.scene.aspectratio.z < 0.25
