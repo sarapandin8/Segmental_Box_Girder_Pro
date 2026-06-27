@@ -290,3 +290,12 @@ def test_m3h7_tendon_overlay_uses_csp_canvas_language():
     assert "Concrete" in tendon_fig_src
     assert "Inner void" in tendon_fig_src
     assert "Station =" in tendon_fig_src
+
+
+def test_m3h7_1_tendon_overlay_call_is_backward_compatible():
+    src = _src()
+    call_block = src.split('fig = tendon_section_overlay_figure(', 1)[1].split('fig.add_annotation(', 1)[0]
+    assert 'station_label=' not in call_block
+    assert 'station_m=' not in call_block
+    assert 'partial repo updates cannot crash' in src
+    assert 'fig.add_annotation(' in src

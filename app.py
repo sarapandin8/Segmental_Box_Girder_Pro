@@ -2321,6 +2321,9 @@ def render_tendon_layout_reference() -> None:
                 unsafe_allow_html=True,
             )
 
+            # Keep this call signature backward-compatible with earlier tendon_figures.py modules.
+            # Station annotation is added here instead of passed as a keyword argument so
+            # partial repo updates cannot crash with "unexpected keyword argument".
             fig = tendon_section_overlay_figure(
                 coords,
                 props,
@@ -2329,8 +2332,20 @@ def render_tendon_layout_reference() -> None:
                 point_label_mode=tl.get("section_overlay_label_mode", "hide"),
                 show_point_numbers=False,
                 origin_mode=tl.get("section_overlay_origin_mode", "centerline"),
-                station_label=station_label,
-                station_m=station,
+            )
+            fig.add_annotation(
+                xref="paper",
+                yref="paper",
+                x=0.01,
+                y=0.985,
+                text=f"Station = {station:.3f} m · {station_label}",
+                showarrow=False,
+                align="left",
+                bgcolor="rgba(255,255,255,0.92)",
+                bordercolor="#bfd4f2",
+                borderwidth=1,
+                borderpad=5,
+                font=dict(color="#092454", size=12),
             )
             fig.update_layout(height=560, margin=dict(l=50, r=18, t=72, b=55))
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
