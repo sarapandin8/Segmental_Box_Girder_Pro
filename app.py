@@ -199,6 +199,7 @@ hr {margin: 1rem 0;}
 .result-card {background:linear-gradient(135deg,#f0fff4 0%,#ffffff 70%); border-color:#b8edd0;}
 .qa-card {background:#fffbeb; border-color:#fed7aa;}
 .table-card {padding:10px 12px 14px 12px;}
+.info-strip {border-left:5px solid #175cd3; background:#eef6ff; border-radius:10px; padding:12px 14px; margin:10px 0 14px 0; color:#0f2f5f;}
 .formula-caption {font-size:0.78rem; color:#667085; margin-top:-0.35rem; margin-bottom:0.55rem;}
 .table-caption {font-size:0.78rem; color:#667085; margin-top:0.35rem;}
 .dataframe th {font-weight:850 !important;}
@@ -1995,6 +1996,9 @@ def _format_tendon_points_table(points: pd.DataFrame) -> pd.DataFrame:
     for col in ["Station (m)", "dp from top (m)", "HorizOff (m)"]:
         if col in out.columns:
             out[col] = [format_engineering_value(v, "m") for v in out[col]]
+    for col in ["Display x (mm)", "Section x (mm)", "Section y (mm)", "section_x_mm", "section_y_mm"]:
+        if col in out.columns:
+            out[col] = [format_engineering_value(v, "mm") for v in out[col]]
     if "Min clearance to inner boundary (mm)" in out.columns:
         out["Min clearance to inner boundary (mm)"] = [format_engineering_value(v, "mm") for v in out["Min clearance to inner boundary (mm)"]]
     return out
@@ -2052,6 +2056,28 @@ def _tendon_section_location_qa(points: pd.DataFrame, section_coords: pd.DataFra
             }
         )
     return pd.DataFrame(rows)
+
+
+
+def _overlay_station_label(station: float, span: float) -> str:
+    """Return a report-style label for a selected tendon overlay station."""
+    if not span:
+        return "Selected station"
+    ratio = float(station) / float(span)
+    candidates = [(0.0, "Start"), (0.25, "0.25L"), (0.5, "Midspan"), (0.75, "0.75L"), (1.0, "End")]
+    best, label = min(candidates, key=lambda item: abs(item[0] - ratio))
+    return label if abs(best - ratio) <= 0.01 else f"{ratio:.3f}L"
+
+
+def _merge_tendon_overlay_points_with_qa(points: pd.DataFrame, qa_points: pd.DataFrame) -> pd.DataFrame:
+    """Merge selected-station tendon coordinate rows and location QA rows for one user-facing table."""
+    if points is None or points.empty:
+        return pd.DataFrame()
+    base = points.copy()
+    if qa_points is not None and not qa_points.empty:
+        qa_keep = qa_points[[c for c in ["Tendon", "Location", "Min clearance to inner boundary (mm)", "Status", "Note"] if c in qa_points.columns]].copy()
+        base = base.merge(qa_keep, on="Tendon", how="left")
+    return base
 
 def _apply_imported_tendon_summary_to_prestress(model: dict[str, Any]) -> None:
     """Adopt imported tendon summary into prestress one-source fields."""
@@ -2198,7 +2224,17 @@ def render_tendon_layout_reference() -> None:
             if station_key not in st.session_state:
                 st.session_state[station_key] = mid_station
 
-            st.markdown("##### Quick station")
+            st.markdown(
+                """
+                <div class="info-strip">
+                <b>Tendon section overlay QA.</b> Review the imported external tendon positions against the active box-girder void at the selected station. 
+                The figure uses the imported vertical layout as <i>d<sub>p</sub></i> from top surface and the imported horizontal layout as offset from section CL.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.markdown("##### Station control · Quick station")
             b1, b2, b3, b4, b5 = st.columns(5)
             if b1.button("Start", use_container_width=True, key="overlay_station_start"):
                 st.session_state[station_key] = 0.0
@@ -2212,7 +2248,9 @@ def render_tendon_layout_reference() -> None:
                 st.session_state[station_key] = max_station
 
             station = st.slider("Station x (m)", min_value=0.0, max_value=max_station, value=float(st.session_state.get(station_key, mid_station)), step=0.01, key=station_key)
-            c1, c2, c3 = st.columns(3)
+            station_label = _overlay_station_label(station, max_station)
+
+            c1, c2, c3, c4 = st.columns([1.1, 1.1, 1.1, 0.8])
             with c1:
                 tl["positive_horiz_offset_direction"] = st.selectbox(
                     "Positive HorizOff direction",
@@ -2232,11 +2270,14 @@ def render_tendon_layout_reference() -> None:
             with c3:
                 tl["section_overlay_label_mode"] = st.selectbox(
                     "Tendon label mode",
-                    ["family", "hide", "all"],
-                    index={"family": 0, "hide": 1, "all": 2}.get(tl.get("section_overlay_label_mode", "family"), 0),
+                    ["hide", "family", "all"],
+                    index={"hide": 0, "family": 1, "all": 2}.get(tl.get("section_overlay_label_mode", "hide"), 0),
                     format_func=lambda x: {"family": "Family labels only", "hide": "Hide labels / hover only", "all": "All tendon labels"}[x],
                     key="tendon_overlay_label_mode",
                 )
+            with c4:
+                min_clearance_req = st.number_input("QA clearance limit (mm)", min_value=0.0, max_value=500.0, value=float(tl.get("section_overlay_clearance_limit_mm", 50.0)), step=10.0, key="tendon_overlay_clearance_limit_mm")
+                tl["section_overlay_clearance_limit_mm"] = float(min_clearance_req)
 
             raw_points = tendon_points_at_station(model, station)
             points = _add_section_coordinates_to_tendon_points(
@@ -2246,41 +2287,62 @@ def render_tendon_layout_reference() -> None:
                 origin_mode=tl.get("section_overlay_origin_mode", "centerline"),
             )
             coords = props.get("coordinates", _section_coordinate_df_from_state())
+            qa_points = _tendon_section_location_qa(points, coords)
+            pass_count = int((qa_points.get("Status", pd.Series(dtype=str)) == "PASS").sum()) if not qa_points.empty else 0
+            fail_count = int((qa_points.get("Status", pd.Series(dtype=str)) == "FAIL").sum()) if not qa_points.empty else 0
+            concrete_count = int((qa_points.get("Location", pd.Series(dtype=str)) == "INSIDE CONCRETE").sum()) if not qa_points.empty else 0
+            outside_count = int((qa_points.get("Location", pd.Series(dtype=str)) == "OUTSIDE SECTION").sum()) if not qa_points.empty else 0
+            min_clearance = None
+            if not qa_points.empty and "Min clearance to inner boundary (mm)" in qa_points.columns:
+                min_clearance = pd.to_numeric(qa_points["Min clearance to inner boundary (mm)"], errors="coerce").min()
+            clearance_status = bool(min_clearance is not None and pd.notna(min_clearance) and float(min_clearance) >= float(min_clearance_req))
+
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            with sc1:
+                card("Selected station", f"{station_label} · {format_engineering_value(station, 'm')}", "section used for tendon overlay", "pass")
+            with sc2:
+                card("Tendon points", f"{pass_count}/{len(points)} in void", f"{concrete_count} concrete · {outside_count} outside", "pass" if fail_count == 0 and pass_count else "warn")
+            with sc3:
+                card("Minimum clearance", format_engineering_value(min_clearance, "mm") if min_clearance is not None and pd.notna(min_clearance) else "—", f"limit ≥ {format_engineering_value(min_clearance_req, 'mm')}", "pass" if clearance_status else "warn")
+            with sc4:
+                origin_text = "CL = 0" if tl.get("section_overlay_origin_mode", "centerline") == "centerline" else "CSiBridge origin"
+                card("Display mode", origin_text, "positive offset: left of CL" if tl.get("positive_horiz_offset_direction", "left") == "left" else "positive offset: right of CL", "")
+
             fig = tendon_section_overlay_figure(
                 coords,
                 props,
                 raw_points,
                 positive_offset_direction=tl.get("positive_horiz_offset_direction", "left"),
-                point_label_mode=tl.get("section_overlay_label_mode", "family"),
+                point_label_mode=tl.get("section_overlay_label_mode", "hide"),
                 show_point_numbers=False,
                 origin_mode=tl.get("section_overlay_origin_mode", "centerline"),
             )
+            fig.update_layout(height=560, margin=dict(l=50, r=18, t=52, b=55))
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
+            st.caption(
+                f"Figure: Tendon section overlay at {station_label} ({station:.3f} m). "
+                "External tendon points are plotted inside the imported box-girder void using CSiBridge vertical and horizontal tendon layouts."
+            )
 
-            qa_points = _tendon_section_location_qa(points, coords)
-            pass_count = int((qa_points.get("Status", pd.Series(dtype=str)) == "PASS").sum()) if not qa_points.empty else 0
-            fail_count = int((qa_points.get("Status", pd.Series(dtype=str)) == "FAIL").sum()) if not qa_points.empty else 0
-            min_clearance = None
-            if not qa_points.empty and "Min clearance to inner boundary (mm)" in qa_points.columns:
-                min_clearance = pd.to_numeric(qa_points["Min clearance to inner boundary (mm)"], errors="coerce").min()
-            qc1, qc2, qc3 = st.columns(3)
-            with qc1:
-                card("Void location check", "PASS" if fail_count == 0 and pass_count else "REVIEW", f"{pass_count} points inside void · {fail_count} review", "pass" if fail_count == 0 and pass_count else "warn")
-            with qc2:
-                card("Minimum clearance", format_engineering_value(min_clearance, "mm") if min_clearance is not None and pd.notna(min_clearance) else "—", "to inner void boundary", "pass" if min_clearance is not None and pd.notna(min_clearance) else "")
-            with qc3:
-                card("Station", format_engineering_value(station, "m"), "selected overlay section", "pass")
-
-            st.markdown("#### Tendon positions at selected station")
-            display_cols = [c for c in ["Tendon", "Family", "Side", "Station (m)", "dp from top (m)", "HorizOff (m)", "section_x_mm", "section_y_mm"] if c in points.columns]
-            display_points = points[display_cols].rename(columns={"section_x_mm": "Section x (mm)", "section_y_mm": "Section y (mm)"})
-            st.dataframe(_format_tendon_points_table(display_points), use_container_width=True, hide_index=True)
-
-            st.markdown("#### Tendon location QA")
-            if not qa_points.empty:
-                st.dataframe(_format_tendon_points_table(qa_points), use_container_width=True, hide_index=True)
+            st.markdown("#### Selected-station tendon QA table")
+            overlay_table = _merge_tendon_overlay_points_with_qa(points, qa_points)
+            if not overlay_table.empty:
+                table_cols = [
+                    c for c in [
+                        "Tendon", "Family", "Side", "Station (m)", "dp from top (m)", "HorizOff (m)",
+                        "display_x_mm", "section_y_mm", "Location", "Min clearance to inner boundary (mm)", "Status",
+                    ] if c in overlay_table.columns
+                ]
+                table = overlay_table[table_cols].rename(columns={"display_x_mm": "Display x (mm)", "section_y_mm": "Section y (mm)"})
+                st.dataframe(_format_tendon_points_table(table), use_container_width=True, hide_index=True)
             else:
-                st.info("No tendon QA rows available at this station.")
+                st.info("No tendon positions are available at this station.")
+
+            with st.expander("Tendon location QA · detailed notes", expanded=False):
+                if not qa_points.empty:
+                    st.dataframe(_format_tendon_points_table(qa_points), use_container_width=True, hide_index=True)
+                else:
+                    st.info("No tendon QA rows available at this station.")
         elif not props.get("valid"):
             st.warning("Import valid section coordinates first to overlay tendon points on the box-girder section.")
         else:

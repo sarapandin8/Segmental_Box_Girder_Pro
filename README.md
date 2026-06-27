@@ -1,14 +1,14 @@
-# Segmental Box Girder Pro — COMMERCIAL.M3H.4
+# Segmental Box Girder Pro — COMMERCIAL.M3H.6
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
-## COMMERCIAL.M3H.4 updates
+## COMMERCIAL.M3H.6 updates
 
 - Replaces incomplete raw Vertical/Horizontal tendon table previews with a complete **Adopted Tendon Layout Table**: one row per tendon, including tendon/family/side, BridgeObj, material, strand label, Aps per tendon, fpu, jacking stress, jacking force, JackFrom, end/midspan dp, end/midspan horizontal offset, profile point count, and status.
 - Adds a **Merged Tendon Profile Table** that combines CSiBridge Vertical and Horizontal layout rows into one control-point table with x, dp from top, and HorizOff in the same row.
 - Moves raw General/Vertical/Horizontal import rows into a collapsed **Raw import data / QA only** expander.
 - Adds per-tendon vertical/horizontal station matching QA and a merged profile row-count check.
-- Schema: `0.4.10-commercial-m3h5-tendon-overlay-polish`.
+- Schema: `0.4.11-commercial-m3h6-overlay-grade9`.
 
 ## Retained commercial app foundations
 
@@ -50,5 +50,5 @@ python -m pytest -q
 - Full station-by-station FEA import remains pending.
 - Coordinate-driven section properties use Structural Polygon 1 and Opening Polygon 1 from CSiBridge exports.
 
-## COMMERCIAL.M3H.5
+## COMMERCIAL.M3H.6
 - Polishes Tendon Section Overlay with centerline-origin display, quick station buttons, family/all/hidden label modes, family-colored tendon markers, inside-void QA, minimum clearance to inner-boundary reporting, formatted selected-station tables, and hover details.
