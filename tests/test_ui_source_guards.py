@@ -444,3 +444,21 @@ def test_m41c_3d_half_shell_and_tendon_isolation_controls_are_present():
     assert "shell_display_mode" in tendon_src
     assert "_clip_yz_polygon_to_half_plane" in tendon_src
     assert "tendon_filter" in tendon_src
+
+
+def test_m41d_3d_inspection_presets_and_focus_controls_are_present():
+    src = _src()
+    tendon_src = (Path(__file__).resolve().parents[1] / "visualization" / "tendon_figures.py").read_text(encoding="utf-8")
+    assert "COMMERCIAL.M4.1D" in README_SOURCE.read_text(encoding="utf-8")
+    assert "Inspection preset" in src
+    assert "Left inspection" in src
+    assert "Right inspection" in src
+    assert "Single tendon focus" in src
+    assert "Report clean" in src
+    assert "Focus tendon" in src
+    assert "Fade non-focused tendons" in src
+    assert "Tendon line thickness" in src
+    assert "Station markers" in src
+    assert "focus_tendon" in tendon_src
+    assert "fade_unfocused_tendons" in tendon_src
+    assert "station_marker_mode" in tendon_src

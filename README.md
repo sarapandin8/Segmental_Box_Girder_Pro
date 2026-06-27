@@ -1,7 +1,17 @@
-# Segmental Box Girder Pro — COMMERCIAL.M4.1C
+# Segmental Box Girder Pro — COMMERCIAL.M4.1D
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
+
+## COMMERCIAL.M4.1D updates
+
+- Adds 3D inspection presets for `3D Tendon View`: Custom, Overview, Left inspection, Right inspection, Single tendon focus, and Report clean.
+- Auto-matches left/right inspection presets with the corresponding half-shell display and tendon side filter so the model opens as a true inspection view instead of a dense overview.
+- Adds `Focus tendon` plus `Fade non-focused tendons` so a selected tendon can remain high-contrast while surrounding tendons stay as faint context.
+- Adds `Tendon line thickness` and `Station markers` modes (`Key only`, `All stations`, `Off`) for clearer review/report snapshots.
+- Keeps all 3D controls inside the UI.2 canvas standard and preserves adopted-source warning/gate behavior.
+- Preserves all tendon geometry, section geometry, adopted-source behavior, QA, save/load persistence, and calculation logic; this milestone changes 3D inspection presentation only.
+- Schema remains `0.4.20-commercial-bugfix1-section-save-load-persistence`; this milestone adds 3D inspection presets and focus controls only.
 
 ## COMMERCIAL.M4.1C updates
 

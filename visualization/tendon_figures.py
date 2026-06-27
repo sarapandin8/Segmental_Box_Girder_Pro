@@ -481,6 +481,10 @@ def tendon_3d_review_figure(
     shell_display_mode: str = "Full shell",
     outer_shell_opacity: float = 0.18,
     inner_void_opacity: float = 0.16,
+    focus_tendon: str | None = None,
+    fade_unfocused_tendons: bool = False,
+    tendon_line_width: float = 6.0,
+    station_marker_mode: str | None = None,
 ) -> go.Figure:
     """Build an interactive 3D tendon review viewport.
 
@@ -568,6 +572,10 @@ def tendon_3d_review_figure(
                     clip_side=clip_side,
                 )
 
+    base_line_width = min(max(float(tendon_line_width or 6.0), 2.0), 14.0)
+    focus_name = str(focus_tendon or "").strip()
+    if focus_name in {"None", "No focus", "All tendons"}:
+        focus_name = ""
     tendon_count = 0
     for t in model.get("tendons", []):
         if not _tendon_passes_filter(t, family_filter=family_filter, side_filter=side_filter, tendon_filter=tendon_filter):
@@ -577,7 +585,14 @@ def tendon_3d_review_figure(
             continue
         family = str(t.get("family", ""))
         side = str(t.get("side", ""))
-        text = [str(t.get("tendon", "")) if show_tendon_labels and (idx in {0, len(xs)-1}) else "" for idx in range(len(xs))]
+        tendon_name = str(t.get("tendon", ""))
+        is_focused = bool(focus_name) and tendon_name == focus_name
+        is_unfocused = bool(focus_name) and not is_focused
+        color = _family_color(family)
+        opacity = 0.18 if (fade_unfocused_tendons and is_unfocused) else 1.0
+        line_width = max(base_line_width * 0.45, 2.0) if (fade_unfocused_tendons and is_unfocused) else (base_line_width * 1.35 if is_focused else base_line_width)
+        marker_size = 2.5 if (fade_unfocused_tendons and is_unfocused) else (6 if is_focused else 4)
+        text = [tendon_name if show_tendon_labels and (idx in {0, len(xs)-1}) and not (fade_unfocused_tendons and is_unfocused) else "" for idx in range(len(xs))]
         tendon_count += 1
         fig.add_trace(
             go.Scatter3d(
@@ -585,13 +600,14 @@ def tendon_3d_review_figure(
                 y=ys,
                 z=zs,
                 mode="lines+markers+text" if show_tendon_labels else "lines+markers",
-                name=str(t.get("tendon", "")),
+                name=tendon_name,
                 legendgroup=family,
                 showlegend=False,
                 text=text,
                 textposition="top center",
-                line=dict(width=6, color=_family_color(family), dash=_side_line_dash(side)),
-                marker=dict(size=4, color=_family_color(family), line=dict(width=0.8, color="#0f172a")),
+                opacity=opacity,
+                line=dict(width=line_width, color=color, dash=_side_line_dash(side)),
+                marker=dict(size=marker_size, color=color, line=dict(width=1.2 if is_focused else 0.8, color="#0f172a")),
                 hovertemplate=(
                     "%{fullData.name}<br>Station x = %{x:.3f} m"
                     "<br>HorizOff = %{y:.3f} m<br>z from bottom = %{z:.3f} m<extra></extra>"
@@ -599,9 +615,22 @@ def tendon_3d_review_figure(
             )
         )
 
-    if show_station_markers and span_m:
+    marker_mode = str(station_marker_mode or ("Key only" if show_station_markers else "Off")).strip().lower()
+    if not show_station_markers:
+        marker_mode = "off"
+    if marker_mode not in {"off", "none"} and span_m:
         y_half = max(width_m / 2.0, 0.5)
-        for station, label, dash in [(0.0, "Start", "solid"), (0.5 * span_m, "Midspan", "dash"), (span_m, "End", "solid")]:
+        if marker_mode.startswith("all"):
+            station_items = [
+                (0.0, "Start", "solid"),
+                (0.25 * span_m, "0.25L", "dot"),
+                (0.50 * span_m, "Midspan", "dash"),
+                (0.75 * span_m, "0.75L", "dot"),
+                (span_m, "End", "solid"),
+            ]
+        else:
+            station_items = [(0.0, "Start", "solid"), (0.5 * span_m, "Midspan", "dash"), (span_m, "End", "solid")]
+        for station, label, dash in station_items:
             fig.add_trace(
                 go.Scatter3d(
                     x=[station, station],

@@ -220,3 +220,52 @@ def test_tendon_3d_no_shell_mode_hides_all_meshes():
         show_station_markers=False,
     )
     assert "mesh3d" not in {tr.type for tr in fig.data}
+
+
+def test_tendon_3d_focus_mode_fades_unfocused_context_tendons():
+    from visualization.tendon_figures import tendon_3d_review_figure
+
+    fig = tendon_3d_review_figure(
+        _model_3d(),
+        _coords(),
+        _props(),
+        focus_tendon="T1-L",
+        fade_unfocused_tendons=True,
+        show_outer_shell=False,
+        show_inner_void=False,
+        show_station_markers=False,
+        tendon_line_width=8.0,
+    )
+    tendon_traces = {str(tr.name): tr for tr in fig.data if tr.type == "scatter3d"}
+    assert "T1-L" in tendon_traces
+    assert "T1-R" in tendon_traces
+    assert float(tendon_traces["T1-R"].opacity) < 0.5
+    assert tendon_traces["T1-L"].line.width > tendon_traces["T1-R"].line.width
+
+
+def test_tendon_3d_station_marker_modes_change_marker_count():
+    from visualization.tendon_figures import tendon_3d_review_figure
+
+    fig_all = tendon_3d_review_figure(
+        _model_3d(),
+        _coords(),
+        _props(),
+        show_outer_shell=False,
+        show_inner_void=False,
+        show_station_markers=True,
+        station_marker_mode="All stations",
+    )
+    fig_key = tendon_3d_review_figure(
+        _model_3d(),
+        _coords(),
+        _props(),
+        show_outer_shell=False,
+        show_inner_void=False,
+        show_station_markers=True,
+        station_marker_mode="Key only",
+    )
+    all_marker_names = {str(tr.name) for tr in fig_all.data if str(tr.name) in {"Start", "0.25L", "Midspan", "0.75L", "End"}}
+    key_marker_names = {str(tr.name) for tr in fig_key.data if str(tr.name) in {"Start", "0.25L", "Midspan", "0.75L", "End"}}
+    assert {"0.25L", "0.75L"}.issubset(all_marker_names)
+    assert "0.25L" not in key_marker_names
+    assert "0.75L" not in key_marker_names

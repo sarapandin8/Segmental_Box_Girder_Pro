@@ -2638,6 +2638,8 @@ def render_tendon_layout_reference() -> None:
 
         if display_model.get("valid") and props.get("valid"):
             families = list(dict.fromkeys([str(t.get("family", "")) for t in display_model.get("tendons", []) if str(t.get("family", "")).strip()]))
+            tendon_names_3d = [str(t.get("tendon", "")) for t in display_model.get("tendons", []) if str(t.get("tendon", "")).strip()]
+            tendon_side_by_name = {str(t.get("tendon", "")): str(t.get("side", "")) for t in display_model.get("tendons", [])}
             view_preset_options = [
                 "Isometric · Orthographic",
                 "Isometric · Perspective",
@@ -2647,45 +2649,93 @@ def render_tendon_layout_reference() -> None:
                 "Tendon focus",
                 "Report isometric",
             ]
-            c1, c2, c3, c4 = st.columns([1.20, 1.00, 1.10, 1.00])
+            preset_options = ["Custom", "Overview", "Left inspection", "Right inspection", "Single tendon focus", "Report clean"]
+            c1, c2, c3, c4, c5 = st.columns([1.15, 1.20, 1.00, 1.10, 1.00])
             with c1:
-                view_preset = st.selectbox("3D view preset", view_preset_options, index=0, key="tendon_3d_view_preset")
+                inspection_preset = st.selectbox("Inspection preset", preset_options, index=0, key="tendon_3d_inspection_preset")
             with c2:
-                aspect_mode = st.selectbox("Aspect mode", ["Presentation scale", "True scale"], index=0, key="tendon_3d_aspect_mode")
+                view_preset = st.selectbox("3D view preset", view_preset_options, index=0, key="tendon_3d_view_preset")
             with c3:
+                aspect_mode = st.selectbox("Aspect mode", ["Presentation scale", "True scale"], index=0, key="tendon_3d_aspect_mode")
+            with c4:
                 shell_display_mode = st.selectbox("Shell display", ["Full shell", "Left half shell", "Right half shell", "No shell", "Inner void only"], index=0, key="tendon_3d_shell_display")
                 # Legacy explicit checkbox labels retained for regression trace: "Show outer shell" / "Show inner void".
-            with c4:
+            with c5:
                 tendon3d_side_filter = st.selectbox("Tendon side", ["Both sides", "Left only", "Right only"], index=0, key="tendon_3d_side_filter")
 
-            e1, e2, e3, e4 = st.columns([1.0, 1.15, 1.0, 1.0])
-            tendon_names_3d = [str(t.get("tendon", "")) for t in display_model.get("tendons", []) if str(t.get("tendon", "")).strip()]
+            e1, e2, e3, e4 = st.columns([1.0, 1.10, 1.05, 1.05])
             with e1:
                 tendon3d_family_filter = st.selectbox("Family filter", ["All families"] + families, index=0, key="tendon_3d_family_filter")
             with e2:
                 tendon3d_tendon_filter = st.selectbox("Tendon isolate", ["All tendons"] + tendon_names_3d, index=0, key="tendon_3d_tendon_filter")
             with e3:
-                outer_shell_opacity = st.slider("Outer shell opacity", 0.0, 0.60, 0.18, 0.02, key="tendon_3d_outer_opacity")
+                focus_tendon = st.selectbox("Focus tendon", ["None"] + tendon_names_3d, index=0, key="tendon_3d_focus_tendon")
             with e4:
+                station_marker_mode = st.selectbox("Station markers", ["Key only", "All stations", "Off"], index=0, key="tendon_3d_station_marker_mode")
+
+            f1, f2, f3 = st.columns([1.0, 1.0, 1.0])
+            with f1:
+                outer_shell_opacity = st.slider("Outer shell opacity", 0.0, 0.60, 0.18, 0.02, key="tendon_3d_outer_opacity")
+            with f2:
                 inner_void_opacity = st.slider("Inner void opacity", 0.0, 0.60, 0.16, 0.02, key="tendon_3d_inner_opacity")
+            with f3:
+                tendon_line_width = st.slider("Tendon line thickness", 2.0, 12.0, 6.0, 0.5, key="tendon_3d_line_thickness")
 
             d1, d2 = st.columns([1.0, 1.0])
             with d1:
                 show_tendon_labels_3d = st.checkbox("Show tendon labels", value=False, key="tendon_3d_labels")
             with d2:
-                show_station_markers = st.checkbox("Show station markers", value=True, key="tendon_3d_station_markers")
+                fade_unfocused_tendons = st.checkbox("Fade non-focused tendons", value=True, key="tendon_3d_fade_unfocused")
 
+            effective_view_preset = view_preset
+            effective_shell_display_mode = shell_display_mode
+            effective_side_filter = tendon3d_side_filter
+            effective_tendon_filter = tendon3d_tendon_filter
+            effective_focus_tendon = "" if focus_tendon == "None" else focus_tendon
+            effective_station_marker_mode = station_marker_mode
+            if inspection_preset == "Overview":
+                effective_shell_display_mode = "Full shell"
+                effective_side_filter = "Both sides"
+                effective_tendon_filter = "All tendons"
+                effective_focus_tendon = ""
+                effective_station_marker_mode = "Key only"
+            elif inspection_preset == "Left inspection":
+                effective_shell_display_mode = "Left half shell"
+                effective_side_filter = "Left only"
+                effective_tendon_filter = "All tendons"
+                effective_focus_tendon = ""
+                effective_station_marker_mode = "Key only"
+            elif inspection_preset == "Right inspection":
+                effective_shell_display_mode = "Right half shell"
+                effective_side_filter = "Right only"
+                effective_tendon_filter = "All tendons"
+                effective_focus_tendon = ""
+                effective_station_marker_mode = "Key only"
+            elif inspection_preset == "Single tendon focus":
+                if effective_focus_tendon:
+                    side_text = tendon_side_by_name.get(effective_focus_tendon, "")
+                    effective_side_filter = "Left only" if side_text == "L" else ("Right only" if side_text == "R" else "Both sides")
+                    effective_shell_display_mode = "Left half shell" if side_text == "L" else ("Right half shell" if side_text == "R" else shell_display_mode)
+                    effective_tendon_filter = "All tendons"
+                effective_view_preset = "Tendon focus"
+                effective_station_marker_mode = "Key only"
+            elif inspection_preset == "Report clean":
+                effective_view_preset = "Report isometric"
+                effective_station_marker_mode = "Key only"
+                show_tendon_labels_3d = False
+
+            show_station_markers = effective_station_marker_mode != "Off"
             selected_families = families if tendon3d_family_filter == "All families" else [tendon3d_family_filter]
             visible_tendons = [
                 t for t in display_model.get("tendons", [])
                 if (tendon3d_family_filter == "All families" or str(t.get("family", "")) == tendon3d_family_filter)
-                and (tendon3d_side_filter == "Both sides" or (tendon3d_side_filter == "Left only" and str(t.get("side", "")) == "L") or (tendon3d_side_filter == "Right only" and str(t.get("side", "")) == "R"))
-                and (tendon3d_tendon_filter == "All tendons" or str(t.get("tendon", "")) == tendon3d_tendon_filter)
+                and (effective_side_filter == "Both sides" or (effective_side_filter == "Left only" and str(t.get("side", "")) == "L") or (effective_side_filter == "Right only" and str(t.get("side", "")) == "R"))
+                and (effective_tendon_filter == "All tendons" or str(t.get("tendon", "")) == effective_tendon_filter)
             ]
             view_mode_text, view_mode_note = _figure_view_texts()
             shell_legend_items = []
-            if shell_display_mode != "No shell":
-                if shell_display_mode != "Inner void only":
+            if effective_shell_display_mode != "No shell":
+                if effective_shell_display_mode != "Inner void only":
                     shell_legend_items.append({"label": "Outer shell", "kind": "line", "color": "#294860"})
                 shell_legend_items.append({"label": "Inner void", "kind": "dash", "color": "#2563eb"})
             if not adopted_model:
@@ -2711,8 +2761,9 @@ def render_tendon_layout_reference() -> None:
                       <div class="canvas-station-badge"><span>Design source</span><strong>{source_label}</strong></div>
                       <div class="canvas-meta-right">
                         <div class="canvas-view-badge">{view_mode_text} · {view_mode_note}</div>
-                        <div class="canvas-dim-badge">View: {view_preset}</div>
-                        <div class="canvas-dim-badge">Shell: {shell_display_mode}</div>
+                        <div class="canvas-dim-badge">Preset: {inspection_preset}</div>
+                        <div class="canvas-dim-badge">View: {effective_view_preset}</div>
+                        <div class="canvas-dim-badge">Shell: {effective_shell_display_mode}</div>
                         <div class="canvas-dim-badge">Aspect: {aspect_mode}</div>
                       </div>
                     </div>
@@ -2725,27 +2776,32 @@ def render_tendon_layout_reference() -> None:
                     section_coords,
                     props,
                     family_filter=tendon3d_family_filter,
-                    side_filter=tendon3d_side_filter,
-                    tendon_filter=tendon3d_tendon_filter,
-                    shell_display_mode=shell_display_mode,
+                    side_filter=effective_side_filter,
+                    tendon_filter=effective_tendon_filter,
+                    shell_display_mode=effective_shell_display_mode,
                     outer_shell_opacity=outer_shell_opacity,
                     inner_void_opacity=inner_void_opacity,
                     show_station_markers=show_station_markers,
                     show_tendon_labels=show_tendon_labels_3d,
-                    view_preset=view_preset,
+                    view_preset=effective_view_preset,
                     aspect_mode=aspect_mode,
+                    focus_tendon=effective_focus_tendon,
+                    fade_unfocused_tendons=fade_unfocused_tendons,
+                    tendon_line_width=tendon_line_width,
+                    station_marker_mode=effective_station_marker_mode,
                 )
                 st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
                 st.markdown(
-                    f'<div class="canvas-caption"><b>Figure 2.x</b> Interactive 3D tendon review model showing external tendon profiles within the transparent box-girder section envelope ({view_preset}, {shell_display_mode}, {aspect_mode}).</div>',
+                    f'<div class="canvas-caption"><b>Figure 2.x</b> Interactive 3D tendon review model showing external tendon profiles within the transparent box-girder section envelope ({effective_view_preset}, {effective_shell_display_mode}, {aspect_mode}).</div>',
                     unsafe_allow_html=True,
                 )
                 footer_html = (
                     '<div class="canvas-footer-grid">'
                     + _canvas_footer_card_html("Source", "ADOPTED" if adopted_model else "WORKING", "design-source snapshot" if adopted_model else "preview only", source_mode)
-                    + _canvas_footer_card_html("Visible tendons", str(len(visible_tendons)), f"{tendon3d_family_filter} · {tendon3d_side_filter} · {tendon3d_tendon_filter}", "pass" if visible_tendons else "warn")
-                    + _canvas_footer_card_html("Shell display", shell_display_mode, f"outer {outer_shell_opacity:.2f} · inner {inner_void_opacity:.2f}", "neutral")
-                    + _canvas_footer_card_html("View", view_preset.replace(" · ", " / "), aspect_mode, "neutral")
+                    + _canvas_footer_card_html("Visible tendons", str(len(visible_tendons)), f"{tendon3d_family_filter} · {effective_side_filter} · {effective_tendon_filter}", "pass" if visible_tendons else "warn")
+                    + _canvas_footer_card_html("Shell display", effective_shell_display_mode, f"outer {outer_shell_opacity:.2f} · inner {inner_void_opacity:.2f}", "neutral")
+                    + _canvas_footer_card_html("View", effective_view_preset.replace(" · ", " / "), f"{aspect_mode} · {effective_station_marker_mode}", "neutral")
+                    + _canvas_footer_card_html("Focus", effective_focus_tendon or "None", "faded context" if effective_focus_tendon and fade_unfocused_tendons else "standard display", "neutral")
                     + _canvas_footer_card_html("Interaction", "Rotate / pan / zoom", "Plotly WebGL 3D viewport", "neutral")
                     + '</div>'
                 )
