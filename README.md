@@ -1,8 +1,17 @@
-# Segmental Box Girder Pro — COMMERCIAL.UI.1
+# Segmental Box Girder Pro — COMMERCIAL.UI.2
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
-## COMMERCIAL.UI.1 updates
+## COMMERCIAL.UI.2 updates
+
+- Applies the canvas figure system to Section Properties Preview, Tendon Elevation, and Tendon Plan so the module no longer feels like separate Plotly prototypes.
+- Adds Clean / Full dimensions / Hide dimensions mode to Section Properties Preview using the same B/D/CL/CG dimension grammar as the Tendon Section Overlay.
+- Wraps Section Properties Preview, Tendon Elevation, and Tendon Plan in the same CANVAS header, info strip, meta badge, custom legend strip, report caption, and footer-card pattern.
+- Replaces dense Plotly legends on Tendon Elevation and Tendon Plan with compact custom legend strips and adds family/side filters for clearer engineering review.
+- Keeps the global Interactive review / Report preview toolbar behavior from the sidebar and preserves all calculation, geometry, tendon import, and QA logic.
+- Schema: `0.4.18-commercial-ui2-canvas-figure-normalization`.
+
+## Retained COMMERCIAL.UI.1 updates
 
 
 - Adds a global engineering Plotly figure system so all app graphs share one visual language.

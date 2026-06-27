@@ -377,6 +377,50 @@ def _tendon_canvas_legend_html(families: list[str], *, show_centroid: bool = Tru
         items.append(f'<span class="canvas-legend-item"><span class="legend-dot" style="background:{color};"></span>{fam}</span>')
     return '<div class="canvas-legend-strip">' + "".join(items) + '</div>'
 
+
+
+def _engineering_canvas_legend_html(items: list[dict[str, str]]) -> str:
+    """Shared custom legend strip for UI.2 canvas figures.
+
+    Use this instead of Plotly's dense legend where the figure needs to feel like
+    a report-ready engineering canvas. Item types: line, void, centroid, dot, dash.
+    """
+    html_items: list[str] = []
+    for item in items:
+        label = str(item.get("label", ""))
+        kind = str(item.get("kind", "line"))
+        color = str(item.get("color", "#294860"))
+        if kind == "centroid":
+            swatch = f'<span class="legend-centroid" style="color:{color};">✚</span>'
+        elif kind == "dot":
+            swatch = f'<span class="legend-dot" style="background:{color};"></span>'
+        elif kind == "dash":
+            swatch = f'<span class="legend-line" style="border-top-style:dashed;border-color:{color};"></span>'
+        elif kind == "void":
+            swatch = f'<span class="legend-line void" style="border-color:{color};"></span>'
+        else:
+            swatch = f'<span class="legend-line" style="border-color:{color};"></span>'
+        html_items.append(f'<span class="canvas-legend-item">{swatch}{label}</span>')
+    return '<div class="canvas-legend-strip">' + "".join(html_items) + '</div>'
+
+
+def _tendon_family_legend_items(families: list[str]) -> list[dict[str, str]]:
+    colors = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#dc2626"]
+    items = [{"label": "L side", "kind": "line", "color": "#475569"}, {"label": "R side", "kind": "dash", "color": "#475569"}]
+    for i, fam in enumerate(families):
+        items.append({"label": fam, "kind": "dot", "color": colors[i % len(colors)]})
+    return items
+
+
+def _dimension_mode_text(mode: str) -> str:
+    return {"clean": "Clean", "full": "Full dimensions", "hide": "Hide dimensions"}.get(str(mode), "Clean")
+
+
+def _figure_view_texts() -> tuple[str, str]:
+    view_mode_text = "Interactive review" if current_figure_view_mode() == "Interactive review" else "Report preview"
+    view_mode_note = "toolbar on" if current_figure_view_mode() == "Interactive review" else "toolbar hidden"
+    return view_mode_text, view_mode_note
+
 def code_basis_card(title: str, code_basis: str, note: str = "") -> None:
     st.markdown(
         f"""
@@ -1715,20 +1759,81 @@ def render_section_properties() -> None:
     with tabs[1]:
         c1, c2, c3 = st.columns([1.0, 1.0, 1.0])
         with c1:
-            point_mode = st.selectbox("Point labels", ["major", "all", "hide"], format_func=lambda x: {"major": "Major points only", "all": "All point numbers", "hide": "Hide point numbers"}[x], index=0, key="section_point_label_mode")
+            point_mode = st.selectbox(
+                "Point labels",
+                ["hide", "major", "all"],
+                format_func=lambda x: {"major": "Major points only", "all": "All point numbers", "hide": "Hide point numbers"}[x],
+                index=0,
+                key="section_point_label_mode",
+            )
         with c2:
-            show_dims = st.checkbox("Show dimension guides / centroid fibers", value=True, key="section_show_dimensions")
+            section_dim_mode = st.selectbox(
+                "Dimension mode",
+                ["clean", "full", "hide"],
+                format_func=lambda x: {"clean": "Clean", "full": "Full dimensions", "hide": "Hide dimensions"}[x],
+                index=0,
+                key="section_preview_dimension_mode",
+            )
         with c3:
             origin_mode = st.selectbox("Coordinate display mode", ["csibridge", "centerline"], format_func=lambda x: {"csibridge": "CSiBridge origin", "centerline": "Centerline origin (CL = 0)"}[x], index=0, key="section_origin_display_mode")
+        # Legacy key string retained for migration/testing trace: section_show_dimensions.
         if props.get("valid"):
-            fig = section_polygon_figure(coords, props, point_label_mode=point_mode, show_dimensions=show_dims, origin_mode=origin_mode)
-            st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
-            c1, c2, c3, c4, c5 = st.columns(5)
-            with c1: card("Area", format_engineering_value(props["A_m2"], "m²"), "Calculated from loops", "pass")
-            with c2: card("Centroid X", format_engineering_value(props["xcg_from_left_m"], "m"), "from left fiber", "pass")
-            with c3: card("Centroid Y", format_engineering_value(props["ycg_from_bottom_m"], "m"), "from bottom fiber", "pass")
-            with c4: card("I33", format_engineering_value(props["I33_m4"], "m⁴"), "about horizontal centroidal axis", "pass")
-            with c5: card("I22", format_engineering_value(props["I22_m4"], "m⁴"), "about vertical centroidal axis", "pass")
+            view_mode_text, view_mode_note = _figure_view_texts()
+            origin_text = "CL = 0" if origin_mode == "centerline" else "CSiBridge origin"
+            label_text = {"major": "Major points", "all": "All points", "hide": "Labels hidden"}.get(point_mode, "Labels hidden")
+            with st.container(border=True):
+                st.markdown(
+                    f"""
+                    <div class="canvas-kicker">CANVAS</div>
+                    <div class="canvas-head">
+                      <div>
+                        <div class="canvas-title">Live Section Property Preview</div>
+                        <div class="small-muted">Coordinate-driven BG40 box-girder section used for A, centroid, I33/I22 and S-value QA.</div>
+                      </div>
+                      <div class="canvas-pill">Section geometry QA</div>
+                    </div>
+                    <div class="canvas-note">
+                      The preview is calculated from imported Structural Polygon and Opening Polygon loops. Adopted design properties remain controlled by the <b>Adopted Properties for Design</b> tab.
+                    </div>
+                    <div class="canvas-meta-strip">
+                      <div class="canvas-station-badge"><span>Coordinate mode</span><strong>{origin_text}</strong></div>
+                      <div class="canvas-meta-right">
+                        <div class="canvas-view-badge">{view_mode_text} · {view_mode_note}</div>
+                        <div class="canvas-dim-badge">Dimension mode: {_dimension_mode_text(section_dim_mode)}</div>
+                        <div class="canvas-dim-badge">Point labels: {label_text}</div>
+                      </div>
+                    </div>
+                    {_engineering_canvas_legend_html([
+                        {"label": "Structural polygon", "kind": "line", "color": "#294860"},
+                        {"label": "Opening polygon", "kind": "void", "color": "#294860"},
+                        {"label": "Centroid", "kind": "centroid", "color": "#be123c"},
+                    ])}
+                    """,
+                    unsafe_allow_html=True,
+                )
+                fig = section_polygon_figure(
+                    coords,
+                    props,
+                    point_label_mode=point_mode,
+                    show_dimensions=section_dim_mode != "hide",
+                    origin_mode=origin_mode,
+                    dimension_mode=section_dim_mode,
+                )
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
+                st.markdown(
+                    '<div class="canvas-caption"><b>Figure 2.x</b> Box-girder section preview from imported coordinate loops, showing the calculated centroid and selected engineering dimension guides.</div>',
+                    unsafe_allow_html=True,
+                )
+                footer_html = (
+                    '<div class="canvas-footer-grid">'
+                    + _canvas_footer_card_html("Area", format_engineering_value(props["A_m2"], "m²"), "calculated from loops", "pass")
+                    + _canvas_footer_card_html("Centroid X", format_engineering_value(props["xcg_from_left_m"], "m"), "from left fiber", "pass")
+                    + _canvas_footer_card_html("Centroid Y", format_engineering_value(props["ycg_from_bottom_m"], "m"), "from bottom fiber", "pass")
+                    + _canvas_footer_card_html("I33 / I22", f'{format_engineering_value(props["I33_m4"], "m⁴")} / {format_engineering_value(props["I22_m4"], "m⁴")}', "m⁴ · centroidal axes", "pass")
+                    + '</div>'
+                )
+                st.markdown(footer_html, unsafe_allow_html=True)
         else:
             st.warning("Section preview requires valid coordinate loops.")
             for err in props.get("errors", []):
@@ -2284,23 +2389,126 @@ def render_tendon_layout_reference() -> None:
     with tabs[1]:
         subsection_title("Tendon side elevation")
         if model.get("valid"):
-            show_labels = st.checkbox("Show tendon labels", value=False, key="tendon_elev_labels")
-            fig = tendon_elevation_figure(model, show_labels=show_labels)
-            st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
-            c1, c2, c3, c4 = st.columns(4)
-            with c1: card("Tendons", str(len(model.get("tendons", []))), "Imported tendon objects", "pass")
-            with c2: card("dp avg end", format_engineering_value(model.get("dp_avg_end_m") or 0.0, "m"), "Weighted by tendon area", "pass")
-            with c3: card("dp avg midspan", format_engineering_value(model.get("dp_avg_midspan_m") or 0.0, "m"), "Weighted by tendon area", "pass")
-            with c4: card("e midspan", format_engineering_value(model.get("eccentricity_midspan_m") or 0.0, "m"), "dp_avg - y_t", "pass")
+            families = list(dict.fromkeys([str(t.get("family", "")) for t in model.get("tendons", []) if str(t.get("family", "")).strip()]))
+            c1, c2, c3 = st.columns([1.0, 1.0, 1.0])
+            with c1:
+                elev_family_filter = st.selectbox("Family filter", ["All families"] + families, index=0, key="tendon_elev_family_filter")
+            with c2:
+                elev_side_filter = st.selectbox("Side filter", ["Both sides", "Left only", "Right only"], index=0, key="tendon_elev_side_filter")
+            with c3:
+                show_labels = st.checkbox("Show tendon labels", value=False, key="tendon_elev_labels")
+            selected_families = families if elev_family_filter == "All families" else [elev_family_filter]
+            view_mode_text, view_mode_note = _figure_view_texts()
+            with st.container(border=True):
+                st.markdown(
+                    f"""
+                    <div class="canvas-kicker">CANVAS</div>
+                    <div class="canvas-head">
+                      <div>
+                        <div class="canvas-title">Tendon Side Elevation</div>
+                        <div class="small-muted">Vertical tendon profile where <i>d<sub>p</sub></i> is measured from the top surface.</div>
+                      </div>
+                      <div class="canvas-pill">External tendon profile</div>
+                    </div>
+                    <div class="canvas-note">
+                      The figure uses the adopted merged tendon model. Start, Midspan and End references are drawn from the same span stations used by the Section Overlay page.
+                    </div>
+                    <div class="canvas-meta-strip">
+                      <div class="canvas-station-badge"><span>Display filter</span><strong>{elev_family_filter} · {elev_side_filter}</strong></div>
+                      <div class="canvas-meta-right">
+                        <div class="canvas-view-badge">{view_mode_text} · {view_mode_note}</div>
+                        <div class="canvas-dim-badge">Labels: {'On' if show_labels else 'Off'}</div>
+                      </div>
+                    </div>
+                    {_engineering_canvas_legend_html(_tendon_family_legend_items(selected_families))}
+                    """,
+                    unsafe_allow_html=True,
+                )
+                fig = tendon_elevation_figure(
+                    model,
+                    show_labels=show_labels,
+                    family_filter=elev_family_filter,
+                    side_filter=elev_side_filter,
+                    showlegend=False,
+                )
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
+                st.markdown(
+                    '<div class="canvas-caption"><b>Figure 2.x</b> Tendon side elevation showing imported external tendon vertical profiles measured as dp from the top surface.</div>',
+                    unsafe_allow_html=True,
+                )
+                footer_html = (
+                    '<div class="canvas-footer-grid">'
+                    + _canvas_footer_card_html("Tendons", str(len(model.get("tendons", []))), "imported tendon objects", "pass")
+                    + _canvas_footer_card_html("dp avg end", format_engineering_value(model.get("dp_avg_end_m") or 0.0, "m"), "weighted by tendon area", "pass")
+                    + _canvas_footer_card_html("dp avg midspan", format_engineering_value(model.get("dp_avg_midspan_m") or 0.0, "m"), "weighted by tendon area", "pass")
+                    + _canvas_footer_card_html("e midspan", format_engineering_value(model.get("eccentricity_midspan_m") or 0.0, "m"), "dp_avg - y_t", "pass")
+                    + '</div>'
+                )
+                st.markdown(footer_html, unsafe_allow_html=True)
         else:
             st.info("Build a valid tendon model to show side elevation.")
 
     with tabs[2]:
         subsection_title("Tendon plan / horizontal layout")
         if model.get("valid"):
-            show_labels = st.checkbox("Show tendon labels", value=False, key="tendon_plan_labels")
-            fig = tendon_plan_figure(model, show_labels=show_labels)
-            st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
+            families = list(dict.fromkeys([str(t.get("family", "")) for t in model.get("tendons", []) if str(t.get("family", "")).strip()]))
+            c1, c2, c3 = st.columns([1.0, 1.0, 1.0])
+            with c1:
+                plan_family_filter = st.selectbox("Family filter", ["All families"] + families, index=0, key="tendon_plan_family_filter")
+            with c2:
+                plan_side_filter = st.selectbox("Side filter", ["Both sides", "Left only", "Right only"], index=0, key="tendon_plan_side_filter")
+            with c3:
+                show_labels = st.checkbox("Show tendon labels", value=False, key="tendon_plan_labels")
+            selected_families = families if plan_family_filter == "All families" else [plan_family_filter]
+            view_mode_text, view_mode_note = _figure_view_texts()
+            with st.container(border=True):
+                st.markdown(
+                    f"""
+                    <div class="canvas-kicker">CANVAS</div>
+                    <div class="canvas-head">
+                      <div>
+                        <div class="canvas-title">Tendon Plan View</div>
+                        <div class="small-muted">Horizontal tendon offset from section centerline. Positive/negative values follow the imported CSiBridge convention.</div>
+                      </div>
+                      <div class="canvas-pill">Horizontal layout QA</div>
+                    </div>
+                    <div class="canvas-note">
+                      The plan view uses the adopted merged tendon model and keeps CL as the horizontal reference line for symmetry and family grouping review.
+                    </div>
+                    <div class="canvas-meta-strip">
+                      <div class="canvas-station-badge"><span>Display filter</span><strong>{plan_family_filter} · {plan_side_filter}</strong></div>
+                      <div class="canvas-meta-right">
+                        <div class="canvas-view-badge">{view_mode_text} · {view_mode_note}</div>
+                        <div class="canvas-dim-badge">Labels: {'On' if show_labels else 'Off'}</div>
+                      </div>
+                    </div>
+                    {_engineering_canvas_legend_html(_tendon_family_legend_items(selected_families) + [{"label": "CL", "kind": "dash", "color": "#475569"}])}
+                    """,
+                    unsafe_allow_html=True,
+                )
+                fig = tendon_plan_figure(
+                    model,
+                    show_labels=show_labels,
+                    family_filter=plan_family_filter,
+                    side_filter=plan_side_filter,
+                    showlegend=False,
+                )
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
+                st.markdown(
+                    '<div class="canvas-caption"><b>Figure 2.x</b> Tendon plan view showing imported external tendon horizontal offsets from the section centerline.</div>',
+                    unsafe_allow_html=True,
+                )
+                footer_html = (
+                    '<div class="canvas-footer-grid">'
+                    + _canvas_footer_card_html("Tendons", str(len(model.get("tendons", []))), "imported tendon objects", "pass")
+                    + _canvas_footer_card_html("Families", str(len(families)), "color grouped by T-family", "pass")
+                    + _canvas_footer_card_html("Side display", plan_side_filter, "L solid · R dashed", "neutral")
+                    + _canvas_footer_card_html("Reference", "CL = 0", "horizontal offset basis", "neutral")
+                    + '</div>'
+                )
+                st.markdown(footer_html, unsafe_allow_html=True)
         else:
             st.info("Build a valid tendon model to show plan view.")
 

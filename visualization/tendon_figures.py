@@ -47,36 +47,67 @@ PLOTLY_TENDON_REPORT_CONFIG = ENGINEERING_REPORT_CONFIG
 PLOTLY_TENDON_CANVAS_CONFIG = PLOTLY_TENDON_REPORT_CONFIG
 
 
-def _style_layout(fig: go.Figure, title: str, x_title: str, y_title: str) -> go.Figure:
+
+def _style_layout(fig: go.Figure, title: str, x_title: str, y_title: str, *, showlegend: bool = True) -> go.Figure:
     return apply_engineering_figure_layout(
         fig,
         title=title,
         x_title=x_title,
         y_title=y_title,
         height=520,
-        showlegend=True,
-        margin=dict(l=56, r=26, t=62, b=54),
+        showlegend=showlegend,
+        margin=dict(l=56, r=26, t=56 if title else 34, b=54),
     )
 
 
-def tendon_elevation_figure(model: dict, *, show_labels: bool = False) -> go.Figure:
+def _tendon_passes_filter(tendon: dict, *, family_filter: str | None = None, side_filter: str | None = None) -> bool:
+    fam = str(tendon.get("family") or tendon.get("Family") or "")
+    side = str(tendon.get("side") or tendon.get("Side") or "")
+    family_text = str(family_filter or "All families")
+    side_text = str(side_filter or "Both sides")
+    if family_text != "All families" and fam != family_text:
+        return False
+    if side_text in {"Left only", "L"} and side != "L":
+        return False
+    if side_text in {"Right only", "R"} and side != "R":
+        return False
+    return True
+
+
+def _side_line_dash(side: str) -> str:
+    return "solid" if str(side).upper() != "R" else "dot"
+
+
+def tendon_elevation_figure(
+    model: dict,
+    *,
+    show_labels: bool = False,
+    family_filter: str | None = None,
+    side_filter: str | None = None,
+    showlegend: bool = False,
+) -> go.Figure:
     fig = go.Figure()
     for t in model.get("tendons", []):
+        if not _tendon_passes_filter(t, family_filter=family_filter, side_filter=side_filter):
+            continue
         prof = pd.DataFrame(t.get("vertical_profile", []))
         if prof.empty:
             continue
         text = [t.get("tendon", "") if show_labels else "" for _ in range(len(prof))]
+        family = str(t.get("family", ""))
+        side = str(t.get("side", ""))
         fig.add_trace(
             go.Scatter(
                 x=prof["x_m"],
                 y=prof["dp_top_m"],
                 mode="lines+markers+text" if show_labels else "lines+markers",
                 name=t.get("tendon", ""),
+                legendgroup=family,
                 text=text,
                 textposition="top center",
                 hovertemplate="%{fullData.name}<br>x = %{x:.3f} m<br>dp = %{y:.3f} m<extra></extra>",
-                line=dict(width=2),
-                marker=dict(size=6),
+                line=dict(width=2.2, color=_family_color(family), dash=_side_line_dash(side)),
+                marker=dict(size=6, color=_family_color(family), line=dict(width=0.8, color="#0f172a")),
             )
         )
     span = float(model.get("span_m") or 0.0)
@@ -85,29 +116,43 @@ def tendon_elevation_figure(model: dict, *, show_labels: bool = False) -> go.Fig
         fig.add_vline(x=0, line_dash="dot", line_color="#64748b", annotation_text="Start")
         fig.add_vline(x=mid, line_dash="dash", line_color="#dc2626", annotation_text="Midspan")
         fig.add_vline(x=span, line_dash="dot", line_color="#64748b", annotation_text="End")
-    _style_layout(fig, "Tendon side elevation — dp measured from top surface", "Station x (m)", "dp from top (m)")
-    fig.update_yaxes(autorange="reversed")
+        fig.update_xaxes(range=[-0.02 * span, span * 1.02], autorange=False)
+    _style_layout(fig, "", "Station x (m)", "dp from top (m)", showlegend=showlegend)
+    fig.update_yaxes(autorange="reversed", gridcolor="rgba(148,163,184,0.09)")
+    fig.update_xaxes(gridcolor="rgba(148,163,184,0.09)")
     return fig
 
 
-def tendon_plan_figure(model: dict, *, show_labels: bool = False) -> go.Figure:
+def tendon_plan_figure(
+    model: dict,
+    *,
+    show_labels: bool = False,
+    family_filter: str | None = None,
+    side_filter: str | None = None,
+    showlegend: bool = False,
+) -> go.Figure:
     fig = go.Figure()
     for t in model.get("tendons", []):
+        if not _tendon_passes_filter(t, family_filter=family_filter, side_filter=side_filter):
+            continue
         prof = pd.DataFrame(t.get("horizontal_profile", []))
         if prof.empty:
             continue
         text = [t.get("tendon", "") if show_labels else "" for _ in range(len(prof))]
+        family = str(t.get("family", ""))
+        side = str(t.get("side", ""))
         fig.add_trace(
             go.Scatter(
                 x=prof["x_m"],
                 y=prof["horiz_off_m"],
                 mode="lines+markers+text" if show_labels else "lines+markers",
                 name=t.get("tendon", ""),
+                legendgroup=family,
                 text=text,
                 textposition="top center",
                 hovertemplate="%{fullData.name}<br>x = %{x:.3f} m<br>HorizOff = %{y:.3f} m<extra></extra>",
-                line=dict(width=2),
-                marker=dict(size=6),
+                line=dict(width=2.2, color=_family_color(family), dash=_side_line_dash(side)),
+                marker=dict(size=6, color=_family_color(family), line=dict(width=0.8, color="#0f172a")),
             )
         )
     span = float(model.get("span_m") or 0.0)
@@ -116,8 +161,11 @@ def tendon_plan_figure(model: dict, *, show_labels: bool = False) -> go.Figure:
         fig.add_vline(x=0, line_dash="dot", line_color="#64748b", annotation_text="Start")
         fig.add_vline(x=mid, line_dash="dash", line_color="#dc2626", annotation_text="Midspan")
         fig.add_vline(x=span, line_dash="dot", line_color="#64748b", annotation_text="End")
+        fig.update_xaxes(range=[-0.02 * span, span * 1.02], autorange=False)
     fig.add_hline(y=0, line_dash="dash", line_color="#475569", annotation_text="CL")
-    _style_layout(fig, "Tendon plan view — horizontal offset from CL", "Station x (m)", "HorizOff from CL (m)")
+    _style_layout(fig, "", "Station x (m)", "HorizOff from CL (m)", showlegend=showlegend)
+    fig.update_xaxes(gridcolor="rgba(148,163,184,0.09)")
+    fig.update_yaxes(gridcolor="rgba(148,163,184,0.09)")
     return fig
 
 
