@@ -3,7 +3,9 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 
-PLOTLY_SECTION_CONFIG = {"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
+from visualization.figure_system import ENGINEERING_REVIEW_CONFIG, apply_engineering_figure_layout
+
+PLOTLY_SECTION_CONFIG = ENGINEERING_REVIEW_CONFIG
 
 
 def _closed_xy(g: pd.DataFrame, *, x_shift: float = 0.0) -> tuple[list[float], list[float]]:
@@ -41,7 +43,7 @@ def section_polygon_figure(
 ) -> go.Figure:
     fig = go.Figure()
     if coords is None or coords.empty:
-        fig.update_layout(title="No section coordinates loaded")
+        apply_engineering_figure_layout(fig, title="No section coordinates loaded", height=520, showlegend=False)
         return fig
 
     bounds = props.get("bounds_mm", {}) if props else {}
@@ -125,13 +127,15 @@ def section_polygon_figure(
                 fig.add_shape(type="line", x0=0, y0=ymin, x1=0, y1=ymax, line=dict(color="#2563eb", width=1, dash="dash"))
                 fig.add_annotation(x=0, y=ymax + 0.5 * (y_dim - ymax), text="CL", showarrow=False, font=dict(color="#2563eb", size=12))
 
-    fig.update_layout(
+    apply_engineering_figure_layout(
+        fig,
+        title="",
+        x_title=x_title,
+        y_title="y (mm)",
         height=540,
-        margin=dict(l=10, r=10, t=40, b=10),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        xaxis=dict(title=x_title, showgrid=True, gridcolor="#e5e7eb", zeroline=True, zerolinecolor="#94a3b8"),
-        yaxis=dict(title="y (mm)", showgrid=True, gridcolor="#e5e7eb", zeroline=True, zerolinecolor="#94a3b8", scaleanchor="x", scaleratio=1),
+        showlegend=True,
+        equal_axis=True,
+        margin=dict(l=48, r=18, t=38, b=48),
     )
+    fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.03, xanchor="left", x=0.0))
     return fig

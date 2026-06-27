@@ -1,15 +1,24 @@
-# Segmental Box Girder Pro — COMMERCIAL.M3H.10
+# Segmental Box Girder Pro — COMMERCIAL.UI.1
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
-## COMMERCIAL.M3H.10 updates
+## COMMERCIAL.UI.1 updates
 
+
+- Adds a global engineering Plotly figure system so all app graphs share one visual language.
+- Adds one-source sidebar Figure view mode for every Plotly figure: Interactive review or Report preview.
+- Interactive review shows zoom/pan/reset/camera tools across all figures; Report preview hides the toolbar for clean report screenshots.
+- Centralizes Plotly layout/configuration in `visualization/figure_system.py` for consistent axes, grid, margins, typography, background, modebar behavior, and export options.
+- Applies the shared figure system to load diagrams, response spectrum plots, section-property preview, tendon elevation, tendon plan, and tendon section overlay.
+- Preserves existing calculation logic and tendon QA logic; this milestone is a presentation/system refactor only.
+- Schema: `0.4.17-commercial-ui1-global-figure-system`.
+
+## Retained COMMERCIAL.M3H.10 / M3H.11 updates
 - Hides the Plotly modebar in the normal Tendon Section Overlay canvas so the viewport reads as a report figure rather than a debug chart.
 - Refines B/D/CL/CG dimension labels with stronger white label boxes, cleaner guide offsets, and less intrusive centroid callouts.
 - Further reduces grid/axis dominance with softer grid colors, quieter zero lines, and report-ready canvas background.
 - Preserves the M3H.9 Dimension mode control: Clean, Full dimensions, and Hide dimensions. Clean remains the default.
 - Keeps the existing tendon QA logic unchanged: external tendon points are still checked against the active inner void and section polygon.
-- Schema: `0.4.16-commercial-m3h10-viewport-report-polish`.
 
 ## Retained commercial app foundations
 
@@ -100,3 +109,13 @@ M3H.7.1 fixes the tendon overlay figure call to avoid TypeError when app.py and 
 - Report preview hides the Plotly modebar so the same canvas remains clean for report-ready figures.
 - Tightens the default overlay viewport so the box-girder section opens larger and does not waste the canvas with excessive left/right/top/bottom blank space.
 - Keeps tendon location QA, selected-station table data, minimum-clearance logic, and adopted tendon data unchanged.
+
+
+## COMMERCIAL.UI.1 — Global Engineering Figure System
+
+- Creates `visualization/figure_system.py` as the shared Plotly presentation layer for the whole app.
+- Adds one global sidebar Figure view mode so all Plotly figures behave consistently instead of each page controlling toolbar behavior independently.
+- Standardizes axes, grid intensity, font, margins, legend placement, background, hover behavior, and export configuration across load diagrams, spectrum plots, section drawings, and tendon figures.
+- Section Overlay now reads the same global Figure view mode badge while preserving its Section Overlay-specific Dimension mode.
+- Replaces local tendon-overlay-only modebar control with a one-source global figure setting.
+- Keeps engineering calculations, tendon position transformation, tendon QA, clearance checks, and adopted data untouched.

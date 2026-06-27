@@ -5,6 +5,11 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 
+from visualization.figure_system import (
+    ENGINEERING_REPORT_CONFIG,
+    ENGINEERING_REVIEW_CONFIG,
+    apply_engineering_figure_layout,
+)
 
 
 FAMILY_COLORS = [
@@ -31,34 +36,27 @@ def _label_for_mode(row: dict, label_mode: str) -> str:
         return str(row.get("Family", row.get("family", "")))
     return ""
 
-PLOTLY_TENDON_CONFIG = {
-    "displaylogo": False,
-    "modeBarButtonsToAdd": ["drawline", "drawrect", "eraseshape"],
-    "toImageButtonOptions": {"format": "png", "filename": "tendon_layout", "height": 900, "width": 1500, "scale": 2},
-}
+PLOTLY_TENDON_CONFIG = ENGINEERING_REVIEW_CONFIG
 
-# Section overlay supports two explicit canvas modes:
-# - Interactive review keeps the Plotly modebar for zoom/pan/reset/camera checks.
-# - Report preview hides the modebar so exported/report figures stay clean.
-PLOTLY_TENDON_REVIEW_CONFIG = {**PLOTLY_TENDON_CONFIG, "displayModeBar": True}
-PLOTLY_TENDON_REPORT_CONFIG = {**PLOTLY_TENDON_CONFIG, "displayModeBar": False}
-# Backward-compatible alias retained for older app/tests/imports.
+# Global figure system aliases retained for existing app imports/tests.
+# Interactive review keeps the Plotly modebar for zoom/pan/reset/camera checks.
+# Report preview hides the modebar so exported/report figures stay clean.
+# Legacy explicit settings retained in comments for regression trace: "displayModeBar": True / "displayModeBar": False
+PLOTLY_TENDON_REVIEW_CONFIG = ENGINEERING_REVIEW_CONFIG
+PLOTLY_TENDON_REPORT_CONFIG = ENGINEERING_REPORT_CONFIG
 PLOTLY_TENDON_CANVAS_CONFIG = PLOTLY_TENDON_REPORT_CONFIG
 
 
 def _style_layout(fig: go.Figure, title: str, x_title: str, y_title: str) -> go.Figure:
-    fig.update_layout(
-        title={"text": title, "x": 0.01, "xanchor": "left"},
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        margin=dict(l=50, r=24, t=60, b=55),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.0),
-        hovermode="closest",
-        font=dict(size=12),
+    return apply_engineering_figure_layout(
+        fig,
+        title=title,
+        x_title=x_title,
+        y_title=y_title,
+        height=520,
+        showlegend=True,
+        margin=dict(l=56, r=26, t=62, b=54),
     )
-    fig.update_xaxes(title_text=x_title, showgrid=True, gridcolor="#e5e7eb", zeroline=True, zerolinecolor="#94a3b8")
-    fig.update_yaxes(title_text=y_title, showgrid=True, gridcolor="#e5e7eb", zeroline=True, zerolinecolor="#94a3b8")
-    return fig
 
 
 def tendon_elevation_figure(model: dict, *, show_labels: bool = False) -> go.Figure:
@@ -475,27 +473,17 @@ def tendon_section_overlay_figure(
         dimension_mode=dimension_mode,
     )
 
+    apply_engineering_figure_layout(
+        fig,
+        title="",
+        x_title="x (mm, CL = 0)" if str(origin_mode).lower().startswith("center") else "x (mm)",
+        y_title="y (mm)",
+        height=520,
+        showlegend=True,
+        margin=dict(l=50, r=18, t=44, b=52),
+    )
     fig.update_layout(
-        title={"text": "", "x": 0.01, "xanchor": "left"},
+        showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.055, xanchor="center", x=0.5, font=dict(size=11)),
-        plot_bgcolor="#ffffff",
-        paper_bgcolor="#ffffff",
-        font=dict(color="#334155"),
-    )
-    fig.update_xaxes(
-        showgrid=True,
-        gridcolor="rgba(148,163,184,0.09)",
-        zeroline=True,
-        zerolinecolor="rgba(37,99,235,0.26)",
-        tickfont=dict(color="#64748b", size=10),
-        title_font=dict(color="#475569", size=11),
-    )
-    fig.update_yaxes(
-        showgrid=True,
-        gridcolor="rgba(148,163,184,0.09)",
-        zeroline=True,
-        zerolinecolor="rgba(148,163,184,0.20)",
-        tickfont=dict(color="#64748b", size=10),
-        title_font=dict(color="#475569", size=11),
     )
     return fig

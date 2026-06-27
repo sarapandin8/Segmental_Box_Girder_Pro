@@ -57,6 +57,7 @@ from core.load_models import (
     wind_reference_group_options,
     wind_vb0_recommended_from_group,
 )
+from visualization.figure_system import figure_view_badge_text, plotly_config_for_view_mode
 from visualization.section_figures import PLOTLY_SECTION_CONFIG, section_polygon_figure
 from visualization.tendon_figures import (
     PLOTLY_TENDON_CONFIG,
@@ -388,8 +389,22 @@ def code_basis_card(title: str, code_basis: str, note: str = "") -> None:
     )
 
 
+FIGURE_VIEW_OPTIONS = ["Interactive review", "Report preview"]
+
+
+# Legacy local key `tendon_overlay_view_mode` was replaced by global_figure_view_mode in COMMERCIAL.UI.1.
+def current_figure_view_mode() -> str:
+    """One-source UI mode applied to every Plotly figure in the app."""
+    mode = st.session_state.get("global_figure_view_mode", FIGURE_VIEW_OPTIONS[0])
+    return mode if mode in FIGURE_VIEW_OPTIONS else FIGURE_VIEW_OPTIONS[0]
+
+
+def current_plotly_config() -> dict:
+    return plotly_config_for_view_mode(current_figure_view_mode())
+
+
 def show_plotly(fig) -> None:
-    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+    st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
 
 
 def small_context(title: str, value: str, note: str = "") -> None:
@@ -715,6 +730,17 @@ def render_sidebar() -> None:
         st.info(f"ULS Flexure max DCR: {snap['flexure_max_dcr']:.3f}")
         st.info(f"Shear/Torsion D/C: {snap['transverse_check']['DCR_governing']:.3f}")
         st.info(f"Schema {PROJECT_SCHEMA_VERSION}")
+        st.markdown("---")
+        st.markdown("**FIGURE SYSTEM**")
+        if "global_figure_view_mode" not in st.session_state or st.session_state.global_figure_view_mode not in FIGURE_VIEW_OPTIONS:
+            st.session_state.global_figure_view_mode = FIGURE_VIEW_OPTIONS[0]
+        st.radio(
+            "Figure view mode",
+            FIGURE_VIEW_OPTIONS,
+            key="global_figure_view_mode",
+            help="One-source display mode applied to every Plotly figure: load diagrams, spectra, section drawings, tendon views, and future analysis plots.",
+        )
+        st.caption(figure_view_badge_text(st.session_state.global_figure_view_mode))
         st.markdown("---")
         st.markdown("**ACTIVE CONTEXT**")
         st.markdown(
@@ -1696,7 +1722,7 @@ def render_section_properties() -> None:
             origin_mode = st.selectbox("Coordinate display mode", ["csibridge", "centerline"], format_func=lambda x: {"csibridge": "CSiBridge origin", "centerline": "Centerline origin (CL = 0)"}[x], index=0, key="section_origin_display_mode")
         if props.get("valid"):
             fig = section_polygon_figure(coords, props, point_label_mode=point_mode, show_dimensions=show_dims, origin_mode=origin_mode)
-            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_SECTION_CONFIG)
+            st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
             c1, c2, c3, c4, c5 = st.columns(5)
             with c1: card("Area", format_engineering_value(props["A_m2"], "m²"), "Calculated from loops", "pass")
             with c2: card("Centroid X", format_engineering_value(props["xcg_from_left_m"], "m"), "from left fiber", "pass")
@@ -2260,7 +2286,7 @@ def render_tendon_layout_reference() -> None:
         if model.get("valid"):
             show_labels = st.checkbox("Show tendon labels", value=False, key="tendon_elev_labels")
             fig = tendon_elevation_figure(model, show_labels=show_labels)
-            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
+            st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
             c1, c2, c3, c4 = st.columns(4)
             with c1: card("Tendons", str(len(model.get("tendons", []))), "Imported tendon objects", "pass")
             with c2: card("dp avg end", format_engineering_value(model.get("dp_avg_end_m") or 0.0, "m"), "Weighted by tendon area", "pass")
@@ -2274,7 +2300,7 @@ def render_tendon_layout_reference() -> None:
         if model.get("valid"):
             show_labels = st.checkbox("Show tendon labels", value=False, key="tendon_plan_labels")
             fig = tendon_plan_figure(model, show_labels=show_labels)
-            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
+            st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
         else:
             st.info("Build a valid tendon model to show plan view.")
 
@@ -2338,12 +2364,9 @@ def render_tendon_layout_reference() -> None:
                     key="tendon_overlay_dimension_mode",
                 )
             with c5:
-                tl["section_overlay_view_mode"] = st.selectbox(
-                    "Figure view mode",
-                    ["interactive", "report"],
-                    index={"interactive": 0, "report": 1}.get(tl.get("section_overlay_view_mode", "interactive"), 0),
-                    format_func=lambda x: {"interactive": "Interactive review", "report": "Report preview"}[x],
-                    key="tendon_overlay_view_mode",
+                st.markdown(
+                    f'<div class="small-muted"><b>Figure view mode</b><br>{figure_view_badge_text(current_figure_view_mode())}<br><span style="font-size:0.72rem;">Global setting in sidebar</span></div>',
+                    unsafe_allow_html=True,
                 )
             with c6:
                 min_clearance_req = st.number_input("QA clearance limit (mm)", min_value=0.0, max_value=500.0, value=float(tl.get("section_overlay_clearance_limit_mm", 50.0)), step=10.0, key="tendon_overlay_clearance_limit_mm")
@@ -2376,10 +2399,9 @@ def render_tendon_layout_reference() -> None:
             qa_note = f"{concrete_count} concrete · {outside_count} outside"
             dimension_mode = tl.get("section_overlay_dimension_mode", "clean")
             dimension_mode_text = {"clean": "Clean", "full": "Full dimensions", "hide": "Hide dimensions"}.get(dimension_mode, "Clean")
-            view_mode = tl.get("section_overlay_view_mode", "interactive")
-            view_mode_text = {"interactive": "Interactive review", "report": "Report preview"}.get(view_mode, "Interactive review")
-            view_mode_note = "toolbar on" if view_mode == "interactive" else "toolbar hidden"
-            tendon_canvas_config = PLOTLY_TENDON_REVIEW_CONFIG if view_mode == "interactive" else PLOTLY_TENDON_REPORT_CONFIG
+            view_mode_text = "Interactive review" if current_figure_view_mode() == "Interactive review" else "Report preview"
+            view_mode_note = "toolbar on" if current_figure_view_mode() == "Interactive review" else "toolbar hidden"
+            tendon_canvas_config = current_plotly_config()
 
             family_order = list(dict.fromkeys([str(t.get("family") or t.get("Family") or "") for t in model.get("tendons", []) if str(t.get("family") or t.get("Family") or "").strip()]))
             clearance_value_text = f"{clearance_text} mm" if clearance_text != "—" else "—"

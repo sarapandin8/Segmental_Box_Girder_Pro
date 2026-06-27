@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.16-commercial-m3h10-viewport-report-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.17-commercial-ui1-global-figure-system"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -102,6 +102,21 @@ def test_m3a_load_figures_and_plotly_modebar_are_present():
     assert "wind_bridge_direction_diagram" in src
     assert "response_spectrum_figure" in src
     assert "PLOTLY_CONFIG" in src
+
+def test_ui1_global_engineering_figure_system_is_present():
+    src = _src()
+    figure_src = (APP_SOURCE.resolve().parents[0] / "visualization" / "figure_system.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.UI.1" in readme
+    assert "visualization/figure_system.py" in readme
+    assert "global_figure_view_mode" in src
+    assert "One-source UI mode applied to every Plotly figure" in src
+    assert "current_plotly_config" in src
+    assert "plotly_config_for_view_mode" in src
+    assert "Figure view mode" in src
+    assert "ENGINEERING_REVIEW_CONFIG" in figure_src
+    assert "ENGINEERING_REPORT_CONFIG" in figure_src
+    assert "apply_engineering_figure_layout" in figure_src
 
 
 def test_m3a_no_duplicate_sdl_summary_input_pattern():
