@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.12-commercial-m3h7-overlay-canvas"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.14-commercial-m3h8-canvas-card-layout"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -299,3 +299,13 @@ def test_m3h7_1_tendon_overlay_call_is_backward_compatible():
     assert 'station_m=' not in call_block
     assert 'partial repo updates cannot crash' in src
     assert 'fig.add_annotation(' in src
+
+
+def test_m3h8_tendon_overlay_uses_card_contained_canvas_layout():
+    src = _src()
+    assert "COMMERCIAL.M3H.8" in README_SOURCE.read_text(encoding="utf-8")
+    assert "st.container(border=True)" in src
+    assert "canvas-legend-strip" in src
+    assert "canvas-footer-grid" in src
+    assert "showlegend=False" in src
+    assert "Live Tendon Section Preview" in src

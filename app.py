@@ -202,11 +202,28 @@ hr {margin: 1rem 0;}
 .info-strip {border-left:5px solid #175cd3; background:#eef6ff; border-radius:10px; padding:12px 14px; margin:10px 0 14px 0; color:#0f2f5f;}
 .canvas-panel {border:1px solid #c7d9f2; border-radius:16px; background:#ffffff; padding:14px 16px 12px 16px; margin:14px 0 10px 0; box-shadow:0 6px 20px rgba(15,23,42,0.045);}
 .canvas-kicker {font-size:0.72rem; letter-spacing:0.10em; color:#667085; font-weight:900; text-transform:uppercase; margin-bottom:4px;}
-.canvas-head {display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:6px;}
+.canvas-head {display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:8px;}
 .canvas-title {font-size:1.18rem; font-weight:950; color:#092454; line-height:1.15;}
-.canvas-note {border-left:4px solid #175cd3; background:#f3f8ff; color:#29435f; border-radius:10px; padding:9px 11px; font-size:0.86rem; margin:8px 0 8px 0;}
+.canvas-note {border-left:4px solid #175cd3; background:#f3f8ff; color:#29435f; border-radius:10px; padding:9px 11px; font-size:0.86rem; margin:8px 0 10px 0;}
 .canvas-pill {border:1px solid #bcd3f5; color:#0b3b91; background:#ffffff; border-radius:999px; padding:6px 10px; font-size:0.76rem; font-weight:850; white-space:nowrap;}
-.canvas-caption {font-size:0.82rem; color:#667085; margin:0.20rem 0 0.60rem 0;}
+.canvas-caption {font-size:0.82rem; color:#667085; margin:0.45rem 0 0.60rem 0;}
+.canvas-legend-strip {border:1px solid #d5e6ff; background:#fbfdff; border-radius:12px; padding:8px 10px; display:flex; justify-content:center; align-items:center; gap:18px; flex-wrap:wrap; margin:8px 0 8px 0;}
+.canvas-legend-item {display:inline-flex; align-items:center; gap:6px; color:#092454; font-size:0.78rem; font-weight:750; white-space:nowrap;}
+.legend-line {display:inline-block; width:36px; height:0; border-top:4px solid #334e68;}
+.legend-line.void {border-top:3px solid #334e68;}
+.legend-dot {display:inline-block; width:10px; height:10px; border-radius:999px; background:#2563eb; border:1px solid #0f172a;}
+.legend-centroid {display:inline-block; font-size:1.12rem; color:#c9184a; font-weight:900; line-height:0;}
+.canvas-footer-grid {display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:10px;}
+.canvas-footer-card {border:1px solid #b8edd0; border-radius:14px; background:linear-gradient(135deg,#ecfff5 0%,#ffffff 82%); padding:13px 14px; min-height:82px;}
+.canvas-footer-card.neutral {border-color:#c7d9f2; background:linear-gradient(135deg,#ffffff 0%,#f8fbff 100%);}
+.canvas-footer-card.warn {border-color:#fed7aa; background:linear-gradient(135deg,#fffbeb 0%,#ffffff 82%);}
+.canvas-footer-kicker {font-size:0.70rem; letter-spacing:0.12em; text-transform:uppercase; color:#0b3b91; font-weight:900; margin-bottom:8px;}
+.canvas-footer-value {font-size:1.15rem; color:#092454; font-weight:950; line-height:1.15;}
+.canvas-footer-note {font-size:0.80rem; color:#667085; margin-top:8px;}
+[data-testid="stVerticalBlockBorderWrapper"] {border:1px solid #c7d9f2; border-radius:16px; background:#ffffff; box-shadow:0 10px 26px rgba(15,23,42,0.055); padding:10px 14px 14px 14px;}
+[data-testid="stVerticalBlockBorderWrapper"] .js-plotly-plot {border:1px solid #d5e6ff; border-radius:14px; background:#fbfdff; padding:4px;}
+@media (max-width: 1000px) {.canvas-footer-grid {grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width: 640px) {.canvas-footer-grid {grid-template-columns:1fr;}}
 .formula-caption {font-size:0.78rem; color:#667085; margin-top:-0.35rem; margin-bottom:0.55rem;}
 .table-caption {font-size:0.78rem; color:#667085; margin-top:0.35rem;}
 .dataframe th {font-weight:850 !important;}
@@ -318,6 +335,31 @@ def card(title: str, value: str, note: str = "", mode: str = "") -> None:
         unsafe_allow_html=True,
     )
 
+
+
+
+def _canvas_footer_card_html(title: str, value: str, note: str = "", mode: str = "") -> str:
+    cls = "warn" if str(mode).lower() == "warn" else ("neutral" if str(mode).lower() in {"", "neutral"} else "")
+    return (
+        f'<div class="canvas-footer-card {cls}">'
+        f'<div class="canvas-footer-kicker">{title}</div>'
+        f'<div class="canvas-footer-value">{value}</div>'
+        f'<div class="canvas-footer-note">{note}</div>'
+        f'</div>'
+    )
+
+
+def _tendon_canvas_legend_html(families: list[str]) -> str:
+    colors = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#dc2626"]
+    items = [
+        '<span class="canvas-legend-item"><span class="legend-line"></span>Concrete</span>',
+        '<span class="canvas-legend-item"><span class="legend-line void"></span>Inner void</span>',
+        '<span class="canvas-legend-item"><span class="legend-centroid">✚</span>Centroid</span>',
+    ]
+    for i, fam in enumerate(families):
+        color = colors[i % len(colors)]
+        items.append(f'<span class="canvas-legend-item"><span class="legend-dot" style="background:{color};"></span>{fam}</span>')
+    return '<div class="canvas-legend-strip">' + "".join(items) + '</div>'
 
 def code_basis_card(title: str, code_basis: str, note: str = "") -> None:
     st.markdown(
@@ -2302,67 +2344,78 @@ def render_tendon_layout_reference() -> None:
             points_text = f"{pass_count}/{len(points)} in void"
             qa_note = f"{concrete_count} concrete · {outside_count} outside"
 
-            st.markdown(
-                f"""
-                <div class="canvas-panel">
-                  <div class="canvas-kicker">CANVAS</div>
-                  <div class="canvas-head">
-                    <div>
-                      <div class="canvas-title">Live Tendon Section Preview</div>
-                      <div class="small-muted">Imported external tendon positions overlaid on the active BG40 box-girder section.</div>
+            family_order = list(dict.fromkeys([str(t.get("family") or t.get("Family") or "") for t in model.get("tendons", []) if str(t.get("family") or t.get("Family") or "").strip()]))
+            clearance_value_text = f"{clearance_text} mm" if clearance_text != "—" else "—"
+            clearance_note_text = f"{'PASS · ' if clearance_status else 'REVIEW · '}limit ≥ {clearance_limit_text} mm"
+
+            with st.container(border=True):
+                st.markdown(
+                    f"""
+                    <div class="canvas-kicker">CANVAS</div>
+                    <div class="canvas-head">
+                      <div>
+                        <div class="canvas-title">Live Tendon Section Preview</div>
+                        <div class="small-muted">Imported external tendon positions overlaid on the active BG40 box-girder section.</div>
+                      </div>
+                      <div class="canvas-pill">External tendon QA</div>
                     </div>
-                    <div class="canvas-pill">External tendon QA</div>
-                  </div>
-                  <div class="canvas-note">
-                    The preview uses CSiBridge vertical layout as <i>d<sub>p</sub></i> from the top surface and horizontal layout as offset from section CL. Concrete/rebar graphics remain controlled by their own pages.
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                    <div class="canvas-note">
+                      The preview uses CSiBridge vertical layout as <i>d<sub>p</sub></i> from the top surface and horizontal layout as offset from section CL. Concrete/rebar graphics remain controlled by their own pages.
+                    </div>
+                    {_tendon_canvas_legend_html(family_order)}
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-            # Keep this call signature backward-compatible with earlier tendon_figures.py modules.
-            # Station annotation is added here instead of passed as a keyword argument so
-            # partial repo updates cannot crash with "unexpected keyword argument".
-            fig = tendon_section_overlay_figure(
-                coords,
-                props,
-                raw_points,
-                positive_offset_direction=tl.get("positive_horiz_offset_direction", "left"),
-                point_label_mode=tl.get("section_overlay_label_mode", "hide"),
-                show_point_numbers=False,
-                origin_mode=tl.get("section_overlay_origin_mode", "centerline"),
-            )
-            fig.add_annotation(
-                xref="paper",
-                yref="paper",
-                x=0.01,
-                y=0.985,
-                text=f"Station = {station:.3f} m · {station_label}",
-                showarrow=False,
-                align="left",
-                bgcolor="rgba(255,255,255,0.92)",
-                bordercolor="#bfd4f2",
-                borderwidth=1,
-                borderpad=5,
-                font=dict(color="#092454", size=12),
-            )
-            fig.update_layout(height=560, margin=dict(l=50, r=18, t=72, b=55))
-            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
-            st.markdown(
-                f'<div class="canvas-caption"><b>Figure 2.x</b> Tendon section overlay at {station_label} ({station:.3f} m), showing imported external tendon positions within the box-girder void.</div>',
-                unsafe_allow_html=True,
-            )
-
-            sc1, sc2, sc3, sc4 = st.columns(4)
-            with sc1:
-                card("Geometry", "Ready", "active box-girder polygon", "pass")
-            with sc2:
-                card("Tendon QA", points_text, qa_note, "pass" if fail_count == 0 and pass_count else "warn")
-            with sc3:
-                card("Minimum clearance", clearance_text, f"limit ≥ {clearance_limit_text}", "pass" if clearance_status else "warn")
-            with sc4:
-                card("Display", origin_text, positive_offset_text, "")
+                # Keep this call signature backward-compatible with earlier tendon_figures.py modules.
+                # Station annotation is added here instead of passed as a keyword argument so
+                # partial repo updates cannot crash with "unexpected keyword argument".
+                fig = tendon_section_overlay_figure(
+                    coords,
+                    props,
+                    raw_points,
+                    positive_offset_direction=tl.get("positive_horiz_offset_direction", "left"),
+                    point_label_mode=tl.get("section_overlay_label_mode", "hide"),
+                    show_point_numbers=False,
+                    origin_mode=tl.get("section_overlay_origin_mode", "centerline"),
+                )
+                fig.add_annotation(
+                    xref="paper",
+                    yref="paper",
+                    x=0.01,
+                    y=0.985,
+                    text=f"Station = {station:.3f} m · {station_label}",
+                    showarrow=False,
+                    align="left",
+                    bgcolor="rgba(255,255,255,0.92)",
+                    bordercolor="#bfd4f2",
+                    borderwidth=1,
+                    borderpad=5,
+                    font=dict(color="#092454", size=12),
+                )
+                fig.update_layout(
+                    showlegend=False,
+                    height=520,
+                    margin=dict(l=50, r=18, t=44, b=52),
+                    plot_bgcolor="#fbfdff",
+                    paper_bgcolor="#fbfdff",
+                )
+                fig.update_xaxes(showgrid=True, gridcolor="#edf3fb", zeroline=True, zerolinecolor="#94a3b8")
+                fig.update_yaxes(showgrid=True, gridcolor="#edf3fb", zeroline=True, zerolinecolor="#94a3b8")
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CONFIG)
+                st.markdown(
+                    f'<div class="canvas-caption"><b>Figure 2.x</b> Tendon section overlay at {station_label} ({station:.3f} m), showing imported external tendon positions within the box-girder void.</div>',
+                    unsafe_allow_html=True,
+                )
+                footer_html = (
+                    '<div class="canvas-footer-grid">'
+                    + _canvas_footer_card_html("Geometry", "Ready", "active box-girder polygon", "pass")
+                    + _canvas_footer_card_html("Tendon QA", points_text, qa_note, "pass" if fail_count == 0 and pass_count else "warn")
+                    + _canvas_footer_card_html("Minimum clearance", clearance_value_text, clearance_note_text, "pass" if clearance_status else "warn")
+                    + _canvas_footer_card_html("Display", origin_text, positive_offset_text, "neutral")
+                    + '</div>'
+                )
+                st.markdown(footer_html, unsafe_allow_html=True)
 
             st.markdown("#### Selected-station tendon QA table")
             overlay_table = _merge_tendon_overlay_points_with_qa(points, qa_points)

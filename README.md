@@ -1,14 +1,14 @@
-# Segmental Box Girder Pro — COMMERCIAL.M3H.6
+# Segmental Box Girder Pro — COMMERCIAL.M3H.8
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
-## COMMERCIAL.M3H.6 updates
+## COMMERCIAL.M3H.8 updates
 
 - Replaces incomplete raw Vertical/Horizontal tendon table previews with a complete **Adopted Tendon Layout Table**: one row per tendon, including tendon/family/side, BridgeObj, material, strand label, Aps per tendon, fpu, jacking stress, jacking force, JackFrom, end/midspan dp, end/midspan horizontal offset, profile point count, and status.
 - Adds a **Merged Tendon Profile Table** that combines CSiBridge Vertical and Horizontal layout rows into one control-point table with x, dp from top, and HorizOff in the same row.
 - Moves raw General/Vertical/Horizontal import rows into a collapsed **Raw import data / QA only** expander.
 - Adds per-tendon vertical/horizontal station matching QA and a merged profile row-count check.
-- Schema: `0.4.13-commercial-m3h7-1-overlay-call-fix`.
+- Schema: `0.4.14-commercial-m3h8-canvas-card-layout`.
 
 ## Retained commercial app foundations
 
@@ -64,3 +64,12 @@ python -m pytest -q
 
 
 M3H.7.1 fixes the tendon overlay figure call to avoid TypeError when app.py and visualization/tendon_figures.py are updated out of sync.
+
+
+## COMMERCIAL.M3H.8 — Tendon Canvas Card Layout Alignment
+
+- Reworks the Tendon Section Overlay into a Concrete Section Pro-style contained canvas card.
+- Wraps CANVAS header, note, custom legend strip, Plotly drawing viewport, caption, and QA summary cards in one bordered card container.
+- Hides the default Plotly legend and replaces it with a compact report-style legend strip for Concrete, Inner void, Centroid, and T1–T8 tendon families.
+- Converts the lower overlay summary into a canvas footer grid and adds explicit mm units / PASS wording to the clearance status.
+- Keeps the existing engineering QA logic unchanged: tendon points are still checked against the active inner void and section polygon.
