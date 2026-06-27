@@ -37,7 +37,7 @@ from core.aashto_seismic import (
     substructure_options,
 )
 from core.formatting import format_engineering_table, format_engineering_value
-from core.project_io import ProjectJsonLoadError, load_project_json_bytes, project_json_fingerprint, project_load_summary
+from core.project_io import ProjectJsonLoadError, load_project_json_bytes, project_json_fingerprint, project_load_summary, section_persistence_summary, serialize_project_json_bytes
 from core.section_geometry import calculate_section_properties, classify_point_in_section_void, default_coordinate_template, estimate_thin_walled_closed_box_j, normalize_coordinate_rows, read_coordinate_table
 from core.tendon_adoption import (
     adopt_tendon_model,
@@ -263,6 +263,65 @@ SECTION_TEMPLATE_CSV = "loop_name,point_no,x_mm,y_mm\nStructural Polygon 1,1,0,0
 # -----------------------------------------------------------------------------
 # Session state
 # -----------------------------------------------------------------------------
+_PROJECT_LOAD_WIDGET_PREFIXES_TO_CLEAR = (
+    "section_coordinate_editor",
+    "section_coordinate_file_upload",
+)
+_PROJECT_LOAD_WIDGET_KEYS_TO_CLEAR = {
+    "section_j_source_method",
+    "section_j_pending_override_value",
+    "section_j_pending_override_note",
+    "section_point_label_mode",
+    "section_preview_dimension_mode",
+    "section_origin_display_mode",
+}
+
+
+def _bump_project_widget_epoch_and_clear_stale_editors() -> None:
+    """Prevent old widget cache from overwriting newly loaded project JSON.
+
+    Data editors keep their own widget state.  After loading a saved project, an
+    old empty coordinate editor must not be allowed to write back into
+    ``section.coordinate_rows`` on the next rerun.
+    """
+    st.session_state.project_widget_epoch = int(st.session_state.get("project_widget_epoch", 0)) + 1
+    for key in list(st.session_state.keys()):
+        if key in _PROJECT_LOAD_WIDGET_KEYS_TO_CLEAR or any(str(key).startswith(prefix) for prefix in _PROJECT_LOAD_WIDGET_PREFIXES_TO_CLEAR):
+            try:
+                del st.session_state[key]
+            except Exception:
+                pass
+
+
+def _project_widget_epoch() -> int:
+    return int(st.session_state.get("project_widget_epoch", 0))
+
+
+def _project_save_payload() -> bytes:
+    """Single save path for the sidebar project JSON download button."""
+    return serialize_project_json_bytes(st.session_state.project)
+
+
+def _section_data_gate_html(project: dict[str, Any]) -> str:
+    summary = section_persistence_summary(project)
+    coord_ok = summary["coordinate_rows"] > 0
+    comp_ok = summary["computed_section_available"]
+    adopted_ok = summary["adopted_properties_available"]
+    def pill(label: str, ok: bool, value: str) -> str:
+        cls = "pass" if ok else "warn"
+        status = "READY" if ok else "MISSING"
+        return f'<span class="badge {cls}">{label}: {status} · {value}</span>'
+    return (
+        '<div class="note-box"><b>Section Data Gate:</b> '
+        + pill("Coordinate rows", coord_ok, str(summary["coordinate_rows"]))
+        + " "
+        + pill("Computed section", comp_ok, "available" if comp_ok else "not saved yet")
+        + " "
+        + pill("Adopted properties", adopted_ok, "available" if adopted_ok else "missing")
+        + '<br><span class="small-muted">Project Save/Load preserves imported coordinate rows, computed preview data, and adopted section properties as separate traceable records.</span></div>'
+    )
+
+
 def _apply_pending_project_json_load() -> None:
     """Apply a loaded project before any widget-bound session keys are instantiated.
 
@@ -278,6 +337,7 @@ def _apply_pending_project_json_load() -> None:
     loaded_project = pending.get("project")
     if isinstance(loaded_project, dict):
         st.session_state.project = ensure_project_schema(loaded_project)
+        _bump_project_widget_epoch_and_clear_stale_editors()
     target_workspace = pending.get("workspace", WORKSPACE_LABELS[0])
     if target_workspace not in WORKSPACE_LABELS:
         target_workspace = WORKSPACE_LABELS[0]
@@ -809,13 +869,6 @@ def render_sidebar() -> None:
             unsafe_allow_html=True,
         )
         st.markdown("---")
-        st.download_button(
-            "Save Project JSON",
-            json.dumps(D, indent=2).encode("utf-8"),
-            file_name="segmental_box_girder_project.json",
-            mime="application/json",
-            use_container_width=True,
-        )
         uploaded = st.file_uploader("Load Project JSON", type=["json"], key="project_json_upload")
         if uploaded is not None:
             raw_project_json = uploaded.getvalue()
@@ -1723,6 +1776,7 @@ def render_section_properties() -> None:
         '<b>Adopted Section Properties for Design</b> is the single source used by downstream checks; J is entered/selected there so it is not hidden in a separate torsion page.</div>',
         unsafe_allow_html=True,
     )
+    st.markdown(_section_data_gate_html(D), unsafe_allow_html=True)
     s = D["section"]
     tabs = st.tabs(["Coordinate Input", "Section Preview", "Adopted Properties for Design", "QA / Comparison"])
 
@@ -1751,7 +1805,7 @@ def render_section_properties() -> None:
             editor_df,
             num_rows="dynamic",
             use_container_width=True,
-            key="section_coordinate_editor",
+            key=f"section_coordinate_editor_{_project_widget_epoch()}",
             column_config={
                 "loop_name": st.column_config.SelectboxColumn("Loop", options=["Structural Polygon 1", "Opening Polygon 1"], required=True),
                 "point_no": st.column_config.NumberColumn("Point", min_value=1, step=1, required=True),
@@ -3160,6 +3214,31 @@ def page_report_qa(sub: str) -> None:
 
 
 # -----------------------------------------------------------------------------
+# Project save panel
+# -----------------------------------------------------------------------------
+def render_project_save_panel() -> None:
+    """Render project Save after the active page has synced editors to D."""
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("**PROJECT FILE**")
+        section_summary = section_persistence_summary(st.session_state.project)
+        st.caption(
+            f"Save includes section rows: {section_summary['coordinate_rows']} · "
+            f"computed: {'yes' if section_summary['computed_section_available'] else 'no'} · "
+            f"adopted: {'yes' if section_summary['adopted_properties_available'] else 'no'}"
+        )
+        st.download_button(
+            "Save Project JSON",
+            _project_save_payload(),
+            file_name="segmental_box_girder_project.json",
+            mime="application/json",
+            use_container_width=True,
+            key="project_json_save_download_button",
+            help="Save is rendered after the active page syncs editable tables, so section coordinate rows are not dumped from stale sidebar state.",
+        )
+
+
+# -----------------------------------------------------------------------------
 # Router
 # -----------------------------------------------------------------------------
 render_sidebar()
@@ -3190,3 +3269,6 @@ elif workspace["id"] == "deflection":
     page_deflection(subpage)
 elif workspace["id"] == "report_qa":
     page_report_qa(subpage)
+
+
+render_project_save_panel()

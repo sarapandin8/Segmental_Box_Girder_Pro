@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.19-commercial-m4-1-tendon-adopted-qa-lockdown"
+PROJECT_SCHEMA_VERSION = "0.4.20-commercial-bugfix1-section-save-load-persistence"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 
@@ -17,6 +17,73 @@ class ValidationIssue:
     code_basis: str = ""
     recommendation: str = ""
 
+
+
+_SECTION_COORDINATE_LEGACY_KEYS = (
+    "coordinate_rows",
+    "coordinates",
+    "section_coordinates",
+    "section_coordinate_rows",
+    "csibridge_coordinate_rows",
+    "coordinate_table",
+)
+
+
+def _normalize_section_coordinate_records(value) -> list[dict] | None:
+    """Return canonical coordinate records from legacy saved-project shapes.
+
+    The project JSON schema must be non-destructive: if a user saved imported
+    CSiBridge section coordinates in an older key, migration should preserve the
+    geometry instead of replacing it with the BG40 default empty table.
+    """
+    if not value:
+        return None
+    try:
+        from core.section_geometry import normalize_coordinate_rows
+
+        rows = normalize_coordinate_rows(value)
+    except Exception:
+        return None
+    if rows.empty:
+        return None
+    return rows[["loop_name", "point_no", "x_mm", "y_mm"]].to_dict("records")
+
+
+def _migrate_section_coordinate_rows(data: Dict) -> None:
+    """Migrate section coordinate rows before default schema fill.
+
+    Old project files and intermediate development builds may store section
+    coordinates under a different key.  This function searches known legacy
+    locations and writes only the canonical ``section.coordinate_rows`` key.
+    Existing non-empty canonical rows always win.
+    """
+    if not isinstance(data, dict):
+        return
+    section = data.setdefault("section", {})
+    if not isinstance(section, dict):
+        data["section"] = {}
+        section = data["section"]
+
+    current = _normalize_section_coordinate_records(section.get("coordinate_rows"))
+    if current:
+        section["coordinate_rows"] = current
+        return
+
+    for key in _SECTION_COORDINATE_LEGACY_KEYS:
+        if key == "coordinate_rows":
+            continue
+        migrated = _normalize_section_coordinate_records(section.get(key))
+        if migrated:
+            section["coordinate_rows"] = migrated
+            section.setdefault("coordinate_source", f"Migrated from legacy section.{key} during project JSON load.")
+            return
+
+    for key in ("section_coordinate_rows", "section_coordinates", "csibridge_section_coordinates"):
+        migrated = _normalize_section_coordinate_records(data.get(key))
+        if migrated:
+            section["coordinate_rows"] = migrated
+            section.setdefault("coordinate_source", f"Migrated from legacy project.{key} during project JSON load.")
+            return
 
 
 def _deep_fill_missing(target: Dict, defaults: Dict) -> Dict:
@@ -36,7 +103,9 @@ def ensure_project_schema(project: Dict) -> Dict:
     from core.bg40_defaults import BG40_DEFAULT
 
     data = deepcopy(project)
+    _migrate_section_coordinate_rows(data)
     data = _deep_fill_missing(data, BG40_DEFAULT)
+    _migrate_section_coordinate_rows(data)
     meta = data.setdefault("meta", {})
     # Always promote the schema marker to the active app schema while preserving user-entered engineering data.
     meta["schema_version"] = PROJECT_SCHEMA_VERSION

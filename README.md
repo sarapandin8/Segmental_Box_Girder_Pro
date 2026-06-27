@@ -139,3 +139,19 @@ M3H.7.1 fixes the tendon overlay figure call to avoid TypeError when app.py and 
 - Section Overlay now reads the same global Figure view mode badge while preserving its Section Overlay-specific Dimension mode.
 - Replaces local tendon-overlay-only modebar control with a one-source global figure setting.
 - Keeps engineering calculations, tendon position transformation, tendon QA, clearance checks, and adopted data untouched.
+
+## COMMERCIAL.UI.2 — Canvas Figure Normalization
+
+- Normalizes Section Properties Preview, Tendon Elevation, and Tendon Plan into the shared commercial canvas figure-card system.
+- Keeps all future graphs tied to the common engineering figure standard: canvas card, global Interactive review / Report preview behavior, custom legends, captions, and footer cards.
+- Preserves calculation logic and adopted data while improving visual consistency across the tendon/section module.
+
+## COMMERCIAL.BUGFIX.1 — Project Save/Load Section Data Persistence
+
+- Fixes the blocker where previously saved project JSON files could reopen with missing section coordinate table, missing Section Preview, and adopted section properties reverting/appearing lost.
+- Adds section coordinate migration for legacy saved-project locations into the canonical `section.coordinate_rows` source.
+- Adds a single `serialize_project_json_bytes()` save path that runs schema migration before JSON export and records a section persistence summary in project metadata.
+- Moves the sidebar Save Project JSON control so it is rendered after the active page has synced editable tables, preventing stale sidebar state from being downloaded.
+- Bumps a project widget epoch and clears stale section editor/file-upload widget cache after JSON load so old empty data-editor state cannot overwrite newly loaded `section.coordinate_rows`.
+- Adds a Section Data Gate on the Section Properties page showing coordinate rows, computed section availability, and adopted properties availability.
+- Adds regression tests for save/load preservation, legacy coordinate migration, widget-cache reset, save ordering, and the Section Data Gate.

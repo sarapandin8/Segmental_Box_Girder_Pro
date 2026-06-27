@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.19-commercial-m4-1-tendon-adopted-qa-lockdown"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.20-commercial-bugfix1-section-save-load-persistence"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -376,3 +376,28 @@ def test_m3h10_tendon_dimension_helpers_use_polished_labels():
     assert "rgba(255,255,255,0.96)" in tendon_fig_src
     assert "cx + 0.070 * width" in tendon_fig_src
     assert "ymax + 0.085 * depth" in tendon_fig_src
+
+
+
+def test_bugfix1_project_load_clears_section_editor_widget_cache_and_versions_editor_key():
+    src = _src()
+    assert "_bump_project_widget_epoch_and_clear_stale_editors" in src
+    assert "project_widget_epoch" in src
+    assert "section_coordinate_editor_{_project_widget_epoch()}" in src
+    assert "section_coordinate_file_upload" in src
+
+
+def test_bugfix1_project_save_is_rendered_after_active_page_syncs_editors():
+    src = _src()
+    assert "serialize_project_json_bytes" in src
+    assert "def render_project_save_panel" in src
+    assert "Save is rendered after the active page syncs editable tables" in src
+    assert src.rfind("render_project_save_panel()") > src.rfind("page_report_qa(subpage)")
+
+
+def test_bugfix1_section_data_gate_is_present():
+    src = _src()
+    assert "Section Data Gate" in src
+    assert "Coordinate rows" in src
+    assert "Computed section" in src
+    assert "Adopted properties" in src
