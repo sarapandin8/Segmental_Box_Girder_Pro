@@ -37,9 +37,13 @@ PLOTLY_TENDON_CONFIG = {
     "toImageButtonOptions": {"format": "png", "filename": "tendon_layout", "height": 900, "width": 1500, "scale": 2},
 }
 
-# Normal report canvas view should not show the Plotly modebar. Keep the full
-# PLOTLY_TENDON_CONFIG for analysis/debug views such as elevation and plan.
-PLOTLY_TENDON_CANVAS_CONFIG = {**PLOTLY_TENDON_CONFIG, "displayModeBar": False}
+# Section overlay supports two explicit canvas modes:
+# - Interactive review keeps the Plotly modebar for zoom/pan/reset/camera checks.
+# - Report preview hides the modebar so exported/report figures stay clean.
+PLOTLY_TENDON_REVIEW_CONFIG = {**PLOTLY_TENDON_CONFIG, "displayModeBar": True}
+PLOTLY_TENDON_REPORT_CONFIG = {**PLOTLY_TENDON_CONFIG, "displayModeBar": False}
+# Backward-compatible alias retained for older app/tests/imports.
+PLOTLY_TENDON_CANVAS_CONFIG = PLOTLY_TENDON_REPORT_CONFIG
 
 
 def _style_layout(fig: go.Figure, title: str, x_title: str, y_title: str) -> go.Figure:
@@ -211,6 +215,49 @@ def _add_vertical_dimension(
     _dimension_label(fig, x=x + dx, y=0.5 * (y0 + y1), text=label, textangle=-90, color=color, size=12)
 
 
+def _apply_tendon_overlay_viewport(
+    fig: go.Figure,
+    section_coords: pd.DataFrame,
+    section_props: dict,
+    *,
+    origin_mode: str,
+    include_dimensions: bool,
+    full_dimensions: bool = False,
+) -> go.Figure:
+    """Apply a compact default viewport so the section opens large enough for review.
+
+    The base section figure uses equal-axis scaling for geometric drawings.  In a
+    very wide Streamlit canvas that can make the box girder look small.  The
+    tendon overlay is a review/report viewport, so it uses an explicit compact
+    range with fixed autorange disabled while preserving an approximately true
+    engineering proportion.
+    """
+    if not section_props.get("valid"):
+        return fig
+    b = _section_bounds_for_display(section_coords, section_props, origin_mode)
+    xmin = b["xmin"]
+    xmax = b["xmax"]
+    ymin = b["ymin"]
+    ymax = b["ymax"]
+    width = max(float(b["width"]), 1.0)
+    depth = max(float(b["depth"]), 1.0)
+
+    if include_dimensions:
+        left_pad = max(620.0, 0.090 * width)
+        right_pad = max(620.0, 0.090 * width) * (1.34 if full_dimensions else 1.08)
+        top_pad = max(580.0, 0.245 * depth)
+        bottom_pad = max(230.0, 0.090 * depth)
+    else:
+        left_pad = max(360.0, 0.050 * width)
+        right_pad = max(360.0, 0.050 * width)
+        top_pad = max(300.0, 0.130 * depth)
+        bottom_pad = max(170.0, 0.070 * depth)
+
+    fig.update_xaxes(range=[xmin - left_pad, xmax + right_pad], autorange=False)
+    fig.update_yaxes(range=[ymin - bottom_pad, ymax + top_pad], autorange=False, scaleanchor=None, scaleratio=None)
+    return fig
+
+
 def _add_tendon_overlay_dimension_layer(
     fig: go.Figure,
     section_coords: pd.DataFrame,
@@ -228,7 +275,13 @@ def _add_tendon_overlay_dimension_layer(
     """
     mode = str(dimension_mode or "clean").strip().lower()
     if mode.startswith("hide") or not section_props.get("valid"):
-        return fig
+        return _apply_tendon_overlay_viewport(
+            fig,
+            section_coords,
+            section_props,
+            origin_mode=origin_mode,
+            include_dimensions=False,
+        )
 
     b = _section_bounds_for_display(section_coords, section_props, origin_mode)
     xmin = b["xmin"]
@@ -313,10 +366,16 @@ def _add_tendon_overlay_dimension_layer(
             label_side="right",
         )
 
-    # Give the external dimension layer breathing room without making the axes dominate the drawing.
-    fig.update_xaxes(range=[xmin - 1.18 * left_offset, xmax + 1.48 * right_offset])
-    fig.update_yaxes(range=[ymin - 0.14 * depth, ymax + 1.28 * top_offset])
-    return fig
+    # Give the external dimension layer breathing room, but keep the section large
+    # enough for review when the canvas first opens.
+    return _apply_tendon_overlay_viewport(
+        fig,
+        section_coords,
+        section_props,
+        origin_mode=origin_mode,
+        include_dimensions=True,
+        full_dimensions=mode.startswith("full"),
+    )
 
 
 def tendon_section_overlay_figure(

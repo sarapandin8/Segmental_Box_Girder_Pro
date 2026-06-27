@@ -332,11 +332,28 @@ def test_m3h10_tendon_overlay_viewport_uses_report_canvas_config():
     tendon_fig_src = (APP_SOURCE.resolve().parents[0] / "visualization" / "tendon_figures.py").read_text(encoding="utf-8")
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.M3H.10" in readme
-    assert "PLOTLY_TENDON_CANVAS_CONFIG" in src
+    assert "PLOTLY_TENDON_REPORT_CONFIG" in src
     assert '"displayModeBar": False' in tendon_fig_src
-    assert "debug-chart appearance" in src
-    assert "st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CANVAS_CONFIG)" in src
+    assert "report preview" in tendon_fig_src.lower()
     assert "rgba(148,163,184,0.09)" in src
+
+
+def test_m3h11_tendon_overlay_has_interactive_and_report_view_modes():
+    src = _src()
+    tendon_fig_src = (APP_SOURCE.resolve().parents[0] / "visualization" / "tendon_figures.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.M3H.11" in readme
+    assert "Figure view mode" in src
+    assert "tendon_overlay_view_mode" in src
+    assert "Interactive review" in src
+    assert "Report preview" in src
+    assert "canvas-view-badge" in src
+    assert "PLOTLY_TENDON_REVIEW_CONFIG" in src
+    assert "PLOTLY_TENDON_REPORT_CONFIG" in src
+    assert "tendon_canvas_config" in src
+    assert "st.plotly_chart(fig, use_container_width=True, config=tendon_canvas_config)" in src
+    assert '"displayModeBar": True' in tendon_fig_src
+    assert "_apply_tendon_overlay_viewport" in tendon_fig_src
 
 def test_m3h10_tendon_dimension_helpers_use_polished_labels():
     tendon_fig_src = (APP_SOURCE.resolve().parents[0] / "visualization" / "tendon_figures.py").read_text(encoding="utf-8")

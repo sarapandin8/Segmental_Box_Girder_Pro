@@ -92,3 +92,11 @@ M3H.7.1 fixes the tendon overlay figure call to avoid TypeError when app.py and 
 - Moves the CG callout away from the right plot edge and makes centroid guide lines lighter.
 - Reduces grid and axis visual dominance for a cleaner report-ready viewport.
 - Keeps tendon location QA, selected-station table data, and minimum-clearance logic unchanged.
+
+## COMMERCIAL.M3H.11 — Interactive Review / Report View Mode
+
+- Adds an explicit Figure view mode to the Tendon Section Overlay: Interactive review and Report preview.
+- Interactive review shows the Plotly modebar so users can zoom, pan, reset, and export while checking tendon/void/clearance details.
+- Report preview hides the Plotly modebar so the same canvas remains clean for report-ready figures.
+- Tightens the default overlay viewport so the box-girder section opens larger and does not waste the canvas with excessive left/right/top/bottom blank space.
+- Keeps tendon location QA, selected-station table data, minimum-clearance logic, and adopted tendon data unchanged.

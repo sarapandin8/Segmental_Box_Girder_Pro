@@ -67,3 +67,14 @@ def test_tendon_overlay_full_and_hide_dimension_modes_are_distinct():
     hidden_texts = _annotation_texts(hidden)
     assert not any(t.startswith("B =") or t.startswith("D =") or t in {"CL", "CG"} for t in hidden_texts)
     assert "Centroid" not in {str(getattr(trace, "name", "")) for trace in hidden.data}
+
+
+def test_tendon_overlay_viewport_opens_compact_without_scaleanchor_expansion():
+    fig = tendon_section_overlay_figure(_coords(), _props(), _points(), origin_mode="centerline", dimension_mode="clean")
+    x_range = list(fig.layout.xaxis.range)
+    y_range = list(fig.layout.yaxis.range)
+    assert x_range[0] > -7000
+    assert x_range[1] < 7200
+    assert y_range[0] > -350
+    assert y_range[1] < 3300
+    assert fig.layout.yaxis.autorange is False

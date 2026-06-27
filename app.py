@@ -58,7 +58,14 @@ from core.load_models import (
     wind_vb0_recommended_from_group,
 )
 from visualization.section_figures import PLOTLY_SECTION_CONFIG, section_polygon_figure
-from visualization.tendon_figures import PLOTLY_TENDON_CANVAS_CONFIG, PLOTLY_TENDON_CONFIG, tendon_elevation_figure, tendon_plan_figure, tendon_section_overlay_figure
+from visualization.tendon_figures import (
+    PLOTLY_TENDON_CONFIG,
+    PLOTLY_TENDON_REPORT_CONFIG,
+    PLOTLY_TENDON_REVIEW_CONFIG,
+    tendon_elevation_figure,
+    tendon_plan_figure,
+    tendon_section_overlay_figure,
+)
 from visualization.load_figures import (
     PLOTLY_CONFIG,
     rail_horizontal_forces_diagram,
@@ -210,6 +217,8 @@ hr {margin: 1rem 0;}
 .canvas-station-badge {display:inline-flex; align-items:center; gap:9px; color:#092454; font-size:0.86rem; font-weight:900;}
 .canvas-station-badge span {letter-spacing:0.10em; text-transform:uppercase; color:#667085; font-size:0.70rem; font-weight:900;}
 .canvas-station-badge strong {border:1px solid #bcd3f5; border-radius:999px; background:#eef6ff; color:#0b3b91; padding:5px 10px;}
+.canvas-meta-right {display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;}
+.canvas-view-badge {border:1px solid #bcd3f5; border-radius:999px; background:#ffffff; color:#0b3b91; padding:5px 10px; font-size:0.76rem; font-weight:900;}
 .canvas-dim-badge {font-size:0.76rem; color:#334155; font-weight:800;}
 .canvas-caption {font-size:0.82rem; color:#667085; margin:0.45rem 0 0.60rem 0;}
 .canvas-legend-strip {border:1px solid #d5e6ff; background:#fbfdff; border-radius:12px; padding:8px 10px; display:flex; justify-content:center; align-items:center; gap:18px; flex-wrap:wrap; margin:8px 0 8px 0;}
@@ -2295,7 +2304,7 @@ def render_tendon_layout_reference() -> None:
             station = st.slider("Station x (m)", min_value=0.0, max_value=max_station, value=float(st.session_state.get(station_key, mid_station)), step=0.01, key=station_key)
             station_label = _overlay_station_label(station, max_station)
 
-            c1, c2, c3, c4, c5 = st.columns([1.05, 1.05, 1.0, 1.0, 0.82])
+            c1, c2, c3, c4, c5, c6 = st.columns([1.05, 1.05, 1.0, 1.0, 1.0, 0.82])
             with c1:
                 tl["positive_horiz_offset_direction"] = st.selectbox(
                     "Positive HorizOff direction",
@@ -2329,6 +2338,14 @@ def render_tendon_layout_reference() -> None:
                     key="tendon_overlay_dimension_mode",
                 )
             with c5:
+                tl["section_overlay_view_mode"] = st.selectbox(
+                    "Figure view mode",
+                    ["interactive", "report"],
+                    index={"interactive": 0, "report": 1}.get(tl.get("section_overlay_view_mode", "interactive"), 0),
+                    format_func=lambda x: {"interactive": "Interactive review", "report": "Report preview"}[x],
+                    key="tendon_overlay_view_mode",
+                )
+            with c6:
                 min_clearance_req = st.number_input("QA clearance limit (mm)", min_value=0.0, max_value=500.0, value=float(tl.get("section_overlay_clearance_limit_mm", 50.0)), step=10.0, key="tendon_overlay_clearance_limit_mm")
                 tl["section_overlay_clearance_limit_mm"] = float(min_clearance_req)
 
@@ -2359,6 +2376,10 @@ def render_tendon_layout_reference() -> None:
             qa_note = f"{concrete_count} concrete · {outside_count} outside"
             dimension_mode = tl.get("section_overlay_dimension_mode", "clean")
             dimension_mode_text = {"clean": "Clean", "full": "Full dimensions", "hide": "Hide dimensions"}.get(dimension_mode, "Clean")
+            view_mode = tl.get("section_overlay_view_mode", "interactive")
+            view_mode_text = {"interactive": "Interactive review", "report": "Report preview"}.get(view_mode, "Interactive review")
+            view_mode_note = "toolbar on" if view_mode == "interactive" else "toolbar hidden"
+            tendon_canvas_config = PLOTLY_TENDON_REVIEW_CONFIG if view_mode == "interactive" else PLOTLY_TENDON_REPORT_CONFIG
 
             family_order = list(dict.fromkeys([str(t.get("family") or t.get("Family") or "") for t in model.get("tendons", []) if str(t.get("family") or t.get("Family") or "").strip()]))
             clearance_value_text = f"{clearance_text} mm" if clearance_text != "—" else "—"
@@ -2380,15 +2401,19 @@ def render_tendon_layout_reference() -> None:
                     </div>
                     <div class="canvas-meta-strip">
                       <div class="canvas-station-badge"><span>Selected station</span><strong>{station_text}</strong></div>
-                      <div class="canvas-dim-badge">Dimension mode: {dimension_mode_text}</div>
+                      <div class="canvas-meta-right">
+                        <div class="canvas-view-badge">{view_mode_text} · {view_mode_note}</div>
+                        <div class="canvas-dim-badge">Dimension mode: {dimension_mode_text}</div>
+                      </div>
                     </div>
                     {_tendon_canvas_legend_html(family_order, show_centroid=dimension_mode != "hide")}
                     """,
                     unsafe_allow_html=True,
                 )
 
-                # Keep the station badge outside the Plotly body; the report canvas
-                # also hides the Plotly modebar to avoid a debug-chart appearance.
+                # Keep the station badge outside the Plotly body. The explicit
+                # figure view mode controls whether the Plotly modebar is shown
+                # for engineering review or hidden for report preview.
                 fig = tendon_section_overlay_figure(
                     coords,
                     props,
@@ -2423,7 +2448,7 @@ def render_tendon_layout_reference() -> None:
                     tickfont=dict(color="#64748b", size=10),
                     title_font=dict(color="#475569", size=11),
                 )
-                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_TENDON_CANVAS_CONFIG)
+                st.plotly_chart(fig, use_container_width=True, config=tendon_canvas_config)
                 st.markdown(
                     f'<div class="canvas-caption"><b>Figure 2.x</b> Tendon section overlay at {station_label} ({station:.3f} m), showing imported external tendon positions within the box-girder void.</div>',
                     unsafe_allow_html=True,
