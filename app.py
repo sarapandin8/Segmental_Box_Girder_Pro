@@ -206,6 +206,11 @@ hr {margin: 1rem 0;}
 .canvas-title {font-size:1.18rem; font-weight:950; color:#092454; line-height:1.15;}
 .canvas-note {border-left:4px solid #175cd3; background:#f3f8ff; color:#29435f; border-radius:10px; padding:9px 11px; font-size:0.86rem; margin:8px 0 10px 0;}
 .canvas-pill {border:1px solid #bcd3f5; color:#0b3b91; background:#ffffff; border-radius:999px; padding:6px 10px; font-size:0.76rem; font-weight:850; white-space:nowrap;}
+.canvas-meta-strip {border:1px solid #d5e6ff; background:linear-gradient(135deg,#ffffff 0%,#f8fbff 100%); border-radius:14px; padding:9px 11px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin:8px 0 8px 0;}
+.canvas-station-badge {display:inline-flex; align-items:center; gap:9px; color:#092454; font-size:0.86rem; font-weight:900;}
+.canvas-station-badge span {letter-spacing:0.10em; text-transform:uppercase; color:#667085; font-size:0.70rem; font-weight:900;}
+.canvas-station-badge strong {border:1px solid #bcd3f5; border-radius:999px; background:#eef6ff; color:#0b3b91; padding:5px 10px;}
+.canvas-dim-badge {font-size:0.76rem; color:#334155; font-weight:800;}
 .canvas-caption {font-size:0.82rem; color:#667085; margin:0.45rem 0 0.60rem 0;}
 .canvas-legend-strip {border:1px solid #d5e6ff; background:#fbfdff; border-radius:12px; padding:8px 10px; display:flex; justify-content:center; align-items:center; gap:18px; flex-wrap:wrap; margin:8px 0 8px 0;}
 .canvas-legend-item {display:inline-flex; align-items:center; gap:6px; color:#092454; font-size:0.78rem; font-weight:750; white-space:nowrap;}
@@ -349,13 +354,14 @@ def _canvas_footer_card_html(title: str, value: str, note: str = "", mode: str =
     )
 
 
-def _tendon_canvas_legend_html(families: list[str]) -> str:
+def _tendon_canvas_legend_html(families: list[str], *, show_centroid: bool = True) -> str:
     colors = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#dc2626"]
     items = [
         '<span class="canvas-legend-item"><span class="legend-line"></span>Concrete</span>',
         '<span class="canvas-legend-item"><span class="legend-line void"></span>Inner void</span>',
-        '<span class="canvas-legend-item"><span class="legend-centroid">✚</span>Centroid</span>',
     ]
+    if show_centroid:
+        items.append('<span class="canvas-legend-item"><span class="legend-centroid">✚</span>Centroid</span>')
     for i, fam in enumerate(families):
         color = colors[i % len(colors)]
         items.append(f'<span class="canvas-legend-item"><span class="legend-dot" style="background:{color};"></span>{fam}</span>')
@@ -2289,7 +2295,7 @@ def render_tendon_layout_reference() -> None:
             station = st.slider("Station x (m)", min_value=0.0, max_value=max_station, value=float(st.session_state.get(station_key, mid_station)), step=0.01, key=station_key)
             station_label = _overlay_station_label(station, max_station)
 
-            c1, c2, c3, c4 = st.columns([1.1, 1.1, 1.1, 0.8])
+            c1, c2, c3, c4, c5 = st.columns([1.05, 1.05, 1.0, 1.0, 0.82])
             with c1:
                 tl["positive_horiz_offset_direction"] = st.selectbox(
                     "Positive HorizOff direction",
@@ -2315,6 +2321,14 @@ def render_tendon_layout_reference() -> None:
                     key="tendon_overlay_label_mode",
                 )
             with c4:
+                tl["section_overlay_dimension_mode"] = st.selectbox(
+                    "Dimension mode",
+                    ["clean", "full", "hide"],
+                    index={"clean": 0, "full": 1, "hide": 2}.get(tl.get("section_overlay_dimension_mode", "clean"), 0),
+                    format_func=lambda x: {"clean": "Clean", "full": "Full dimensions", "hide": "Hide dimensions"}[x],
+                    key="tendon_overlay_dimension_mode",
+                )
+            with c5:
                 min_clearance_req = st.number_input("QA clearance limit (mm)", min_value=0.0, max_value=500.0, value=float(tl.get("section_overlay_clearance_limit_mm", 50.0)), step=10.0, key="tendon_overlay_clearance_limit_mm")
                 tl["section_overlay_clearance_limit_mm"] = float(min_clearance_req)
 
@@ -2340,9 +2354,11 @@ def render_tendon_layout_reference() -> None:
             positive_offset_text = "positive offset: left of CL" if tl.get("positive_horiz_offset_direction", "left") == "left" else "positive offset: right of CL"
             clearance_text = format_engineering_value(min_clearance, "mm") if min_clearance is not None and pd.notna(min_clearance) else "—"
             clearance_limit_text = format_engineering_value(min_clearance_req, "mm")
-            station_text = f"{station_label} · {format_engineering_value(station, 'm')}"
+            station_text = f"{station_label} · x = {format_engineering_value(station, 'm')} m"
             points_text = f"{pass_count}/{len(points)} in void"
             qa_note = f"{concrete_count} concrete · {outside_count} outside"
+            dimension_mode = tl.get("section_overlay_dimension_mode", "clean")
+            dimension_mode_text = {"clean": "Clean", "full": "Full dimensions", "hide": "Hide dimensions"}.get(dimension_mode, "Clean")
 
             family_order = list(dict.fromkeys([str(t.get("family") or t.get("Family") or "") for t in model.get("tendons", []) if str(t.get("family") or t.get("Family") or "").strip()]))
             clearance_value_text = f"{clearance_text} mm" if clearance_text != "—" else "—"
@@ -2362,14 +2378,17 @@ def render_tendon_layout_reference() -> None:
                     <div class="canvas-note">
                       The preview uses CSiBridge vertical layout as <i>d<sub>p</sub></i> from the top surface and horizontal layout as offset from section CL. Concrete/rebar graphics remain controlled by their own pages.
                     </div>
-                    {_tendon_canvas_legend_html(family_order)}
+                    <div class="canvas-meta-strip">
+                      <div class="canvas-station-badge"><span>Selected station</span><strong>{station_text}</strong></div>
+                      <div class="canvas-dim-badge">Dimension mode: {dimension_mode_text}</div>
+                    </div>
+                    {_tendon_canvas_legend_html(family_order, show_centroid=dimension_mode != "hide")}
                     """,
                     unsafe_allow_html=True,
                 )
 
-                # Keep this call signature backward-compatible with earlier tendon_figures.py modules.
-                # Station annotation is added here instead of passed as a keyword argument so
-                # partial repo updates cannot crash with "unexpected keyword argument".
+                # Keep the station badge outside the Plotly body; the figure call remains
+                # backward-compatible except for the optional M3H.9 dimension mode keyword.
                 fig = tendon_section_overlay_figure(
                     coords,
                     props,
@@ -2378,20 +2397,7 @@ def render_tendon_layout_reference() -> None:
                     point_label_mode=tl.get("section_overlay_label_mode", "hide"),
                     show_point_numbers=False,
                     origin_mode=tl.get("section_overlay_origin_mode", "centerline"),
-                )
-                fig.add_annotation(
-                    xref="paper",
-                    yref="paper",
-                    x=0.01,
-                    y=0.985,
-                    text=f"Station = {station:.3f} m · {station_label}",
-                    showarrow=False,
-                    align="left",
-                    bgcolor="rgba(255,255,255,0.92)",
-                    bordercolor="#bfd4f2",
-                    borderwidth=1,
-                    borderpad=5,
-                    font=dict(color="#092454", size=12),
+                    dimension_mode=tl.get("section_overlay_dimension_mode", "clean"),
                 )
                 fig.update_layout(
                     showlegend=False,

@@ -211,6 +211,7 @@ BG40_DEFAULT = {
         "active_bridge_object": "B2_SPAN1",
         "map_bridge_objects_to_active": True,
         "positive_horiz_offset_direction": "left",
+        "section_overlay_dimension_mode": "clean",
         "general_rows": [],
         "vertical_rows": [],
         "horizontal_rows": [],

@@ -1,14 +1,14 @@
-# Segmental Box Girder Pro — COMMERCIAL.M3H.8
+# Segmental Box Girder Pro — COMMERCIAL.M3H.9
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
-## COMMERCIAL.M3H.8 updates
+## COMMERCIAL.M3H.9 updates
 
-- Replaces incomplete raw Vertical/Horizontal tendon table previews with a complete **Adopted Tendon Layout Table**: one row per tendon, including tendon/family/side, BridgeObj, material, strand label, Aps per tendon, fpu, jacking stress, jacking force, JackFrom, end/midspan dp, end/midspan horizontal offset, profile point count, and status.
-- Adds a **Merged Tendon Profile Table** that combines CSiBridge Vertical and Horizontal layout rows into one control-point table with x, dp from top, and HorizOff in the same row.
-- Moves raw General/Vertical/Horizontal import rows into a collapsed **Raw import data / QA only** expander.
-- Adds per-tendon vertical/horizontal station matching QA and a merged profile row-count check.
-- Schema: `0.4.14-commercial-m3h8-canvas-card-layout`.
+- Moves the selected-station label out of the Plotly drawing body into a clear canvas badge above the viewport.
+- Adds a **Dimension mode** control: Clean, Full dimensions, and Hide dimensions. Clean is the default.
+- Replaces the raw section annotation look with an engineering dimension guide layer using offset extension lines, tick marks, muted dimension colors, and lighter grid styling.
+- Keeps the existing tendon QA logic unchanged: external tendon points are still checked against the active inner void and section polygon.
+- Schema: `0.4.15-commercial-m3h9-dimension-station-polish`.
 
 ## Retained commercial app foundations
 
@@ -73,3 +73,12 @@ M3H.7.1 fixes the tendon overlay figure call to avoid TypeError when app.py and 
 - Hides the default Plotly legend and replaces it with a compact report-style legend strip for Concrete, Inner void, Centroid, and T1–T8 tendon families.
 - Converts the lower overlay summary into a canvas footer grid and adds explicit mm units / PASS wording to the clearance status.
 - Keeps the existing engineering QA logic unchanged: tendon points are still checked against the active inner void and section polygon.
+
+
+## COMMERCIAL.M3H.9 — Engineering Dimension Guide and Station Badge Polish
+
+- Moves the selected-station text out of the section plot and into a dedicated canvas badge.
+- Adds Dimension mode options: Clean, Full dimensions, and Hide dimensions.
+- Makes Clean mode show only essential B, D, CL, and centroid guides.
+- Makes Full dimensions add y_cg and y_t fiber dimensions without changing tendon QA logic.
+- Reduces raw chart appearance using muted guide colors, external dimension offsets, tick marks, and lighter grid lines.

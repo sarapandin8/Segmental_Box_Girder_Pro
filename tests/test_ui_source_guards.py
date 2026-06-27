@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.14-commercial-m3h8-canvas-card-layout"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.15-commercial-m3h9-dimension-station-polish"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -292,13 +292,14 @@ def test_m3h7_tendon_overlay_uses_csp_canvas_language():
     assert "Station =" in tendon_fig_src
 
 
-def test_m3h7_1_tendon_overlay_call_is_backward_compatible():
+def test_m3h7_1_tendon_overlay_call_keeps_station_outside_plot_body():
     src = _src()
-    call_block = src.split('fig = tendon_section_overlay_figure(', 1)[1].split('fig.add_annotation(', 1)[0]
+    call_block = src.split('fig = tendon_section_overlay_figure(', 1)[1].split('fig.update_layout(', 1)[0]
     assert 'station_label=' not in call_block
     assert 'station_m=' not in call_block
-    assert 'partial repo updates cannot crash' in src
-    assert 'fig.add_annotation(' in src
+    assert 'canvas-station-badge' in src
+    assert 'Selected station' in src
+    assert 'fig.add_annotation(' not in call_block
 
 
 def test_m3h8_tendon_overlay_uses_card_contained_canvas_layout():
@@ -309,3 +310,17 @@ def test_m3h8_tendon_overlay_uses_card_contained_canvas_layout():
     assert "canvas-footer-grid" in src
     assert "showlegend=False" in src
     assert "Live Tendon Section Preview" in src
+
+
+def test_m3h9_tendon_overlay_dimension_mode_and_station_badge_are_present():
+    src = _src()
+    tendon_fig_src = (APP_SOURCE.resolve().parents[0] / "visualization" / "tendon_figures.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.M3H.9" in readme
+    assert "Dimension mode" in src
+    assert "tendon_overlay_dimension_mode" in src
+    assert "canvas-station-badge" in src
+    assert "canvas-meta-strip" in src
+    assert "_add_tendon_overlay_dimension_layer" in tendon_fig_src
+    assert "clean: B, D, CL, and centroid guides only" in tendon_fig_src
+    assert "hide dimensions: no dimension guide layer" in tendon_fig_src
