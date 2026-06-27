@@ -429,3 +429,18 @@ def test_m41b_3d_view_presets_and_aspect_controls_are_present():
     assert "projection" in tendon_src
     assert "orthographic" in tendon_src
     assert "_aspectratio_for_3d" in tendon_src
+
+
+def test_m41c_3d_half_shell_and_tendon_isolation_controls_are_present():
+    src = _src()
+    tendon_src = (Path(__file__).resolve().parents[1] / "visualization" / "tendon_figures.py").read_text(encoding="utf-8")
+    assert "COMMERCIAL.M4.1C" in README_SOURCE.read_text(encoding="utf-8")
+    assert "Shell display" in src
+    assert "Left half shell" in src
+    assert "Right half shell" in src
+    assert "Tendon isolate" in src
+    assert "Outer shell opacity" in src
+    assert "Inner void opacity" in src
+    assert "shell_display_mode" in tendon_src
+    assert "_clip_yz_polygon_to_half_plane" in tendon_src
+    assert "tendon_filter" in tendon_src

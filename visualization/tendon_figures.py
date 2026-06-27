@@ -61,16 +61,26 @@ def _style_layout(fig: go.Figure, title: str, x_title: str, y_title: str, *, sho
     )
 
 
-def _tendon_passes_filter(tendon: dict, *, family_filter: str | None = None, side_filter: str | None = None) -> bool:
+def _tendon_passes_filter(
+    tendon: dict,
+    *,
+    family_filter: str | None = None,
+    side_filter: str | None = None,
+    tendon_filter: str | None = None,
+) -> bool:
     fam = str(tendon.get("family") or tendon.get("Family") or "")
     side = str(tendon.get("side") or tendon.get("Side") or "")
+    tendon_name = str(tendon.get("tendon") or tendon.get("Tendon") or "")
     family_text = str(family_filter or "All families")
     side_text = str(side_filter or "Both sides")
+    tendon_text = str(tendon_filter or "All tendons")
     if family_text != "All families" and fam != family_text:
         return False
     if side_text in {"Left only", "L"} and side != "L":
         return False
     if side_text in {"Right only", "R"} and side != "R":
+        return False
+    if tendon_text not in {"All tendons", "", "None"} and tendon_name != tendon_text:
         return False
     return True
 
@@ -204,6 +214,83 @@ def _section_loop_to_yz_m(loop_df: pd.DataFrame, section_props: dict) -> tuple[l
     return y_m, z_m
 
 
+
+def _clip_yz_polygon_to_half_plane(
+    y: list[float],
+    z: list[float],
+    *,
+    keep: str,
+) -> tuple[list[float], list[float]]:
+    """Clip a closed Y/Z section loop to one side of the centerline.
+
+    keep = "left" keeps Y >= 0.0; keep = "right" keeps Y <= 0.0.
+    The helper is used only for the 3D review viewport half-shell display. It
+    does not modify stored section coordinates or any engineering calculation.
+    """
+    mode = str(keep or "full").lower()
+    if mode not in {"left", "right"} or len(y) < 3:
+        return y, z
+
+    points = list(zip([float(v) for v in y], [float(v) for v in z]))
+    eps = 1e-9
+
+    def inside(pt: tuple[float, float]) -> bool:
+        yy, _ = pt
+        return yy >= -eps if mode == "left" else yy <= eps
+
+    def intersect(p1: tuple[float, float], p2: tuple[float, float]) -> tuple[float, float]:
+        y1, z1 = p1
+        y2, z2 = p2
+        denom = y2 - y1
+        if abs(denom) < eps:
+            return (0.0, z1)
+        t = (0.0 - y1) / denom
+        return (0.0, z1 + t * (z2 - z1))
+
+    clipped: list[tuple[float, float]] = []
+    prev = points[-1]
+    prev_inside = inside(prev)
+    for curr in points:
+        curr_inside = inside(curr)
+        if curr_inside:
+            if not prev_inside:
+                clipped.append(intersect(prev, curr))
+            clipped.append(curr)
+        elif prev_inside:
+            clipped.append(intersect(prev, curr))
+        prev, prev_inside = curr, curr_inside
+
+    # Remove near-duplicate consecutive points introduced by clipping.
+    cleaned: list[tuple[float, float]] = []
+    for pt in clipped:
+        if not cleaned or abs(pt[0] - cleaned[-1][0]) > 1e-8 or abs(pt[1] - cleaned[-1][1]) > 1e-8:
+            cleaned.append(pt)
+    if len(cleaned) > 1 and abs(cleaned[0][0] - cleaned[-1][0]) < 1e-8 and abs(cleaned[0][1] - cleaned[-1][1]) < 1e-8:
+        cleaned.pop()
+    if len(cleaned) < 3:
+        return [], []
+    return [pt[0] for pt in cleaned], [pt[1] for pt in cleaned]
+
+
+def _shell_clip_side(shell_display_mode: str | None) -> str | None:
+    """Return clipping side for 3D shell display mode."""
+    text = str(shell_display_mode or "Full shell").strip().lower()
+    if text.startswith("left"):
+        return "left"
+    if text.startswith("right"):
+        return "right"
+    return None
+
+
+def _shell_visibility(shell_display_mode: str | None) -> tuple[bool, bool]:
+    """Return outer/inner visibility for 3D shell display mode."""
+    text = str(shell_display_mode or "Full shell").strip().lower()
+    if text.startswith("no shell"):
+        return False, False
+    if text.startswith("inner void"):
+        return False, True
+    return True, True
+
 def _add_section_loop_surface_3d(
     fig: go.Figure,
     loop_df: pd.DataFrame,
@@ -215,9 +302,12 @@ def _add_section_loop_surface_3d(
     opacity: float,
     legendgroup: str,
     showlegend: bool,
+    clip_side: str | None = None,
 ) -> None:
     """Add translucent extruded boundary surfaces for a section loop."""
     y, z = _section_loop_to_yz_m(loop_df, section_props)
+    if clip_side:
+        y, z = _clip_yz_polygon_to_half_plane(y, z, keep=clip_side)
     if len(y) < 2 or span_m <= 0:
         return
     xs: list[float] = []
@@ -266,9 +356,12 @@ def _add_section_loop_wireframe_3d(
     dash: str = "solid",
     legendgroup: str = "section",
     showlegend: bool = False,
+    clip_side: str | None = None,
 ) -> None:
     """Add start/end section frames and longitudinal edge lines."""
     y, z = _section_loop_to_yz_m(loop_df, section_props)
+    if clip_side:
+        y, z = _clip_yz_polygon_to_half_plane(y, z, keep=clip_side)
     if len(y) < 2:
         return
     y_closed = y + [y[0]]
@@ -378,12 +471,16 @@ def tendon_3d_review_figure(
     *,
     family_filter: str | None = None,
     side_filter: str | None = None,
-    show_outer_shell: bool = True,
-    show_inner_void: bool = True,
+    tendon_filter: str | None = None,
+    show_outer_shell: bool | None = None,
+    show_inner_void: bool | None = None,
     show_station_markers: bool = True,
     show_tendon_labels: bool = False,
     view_preset: str = "Isometric · Orthographic",
     aspect_mode: str = "Presentation scale",
+    shell_display_mode: str = "Full shell",
+    outer_shell_opacity: float = 0.18,
+    inner_void_opacity: float = 0.16,
 ) -> go.Figure:
     """Build an interactive 3D tendon review viewport.
 
@@ -402,6 +499,15 @@ def tendon_3d_review_figure(
     depth_m = float(section_props.get("depth_m") or section_props.get("D_m") or 0.0)
     bounds = section_props.get("bounds_mm", {}) if section_props else {}
     width_m = float(section_props.get("width_m") or section_props.get("B_m") or ((float(bounds.get("xmax", 0.0)) - float(bounds.get("xmin", 0.0))) / 1000.0) or 0.0)
+    if show_outer_shell is None and show_inner_void is None:
+        show_outer_shell, show_inner_void = _shell_visibility(shell_display_mode)
+    elif show_outer_shell is None:
+        show_outer_shell = _shell_visibility(shell_display_mode)[0]
+    elif show_inner_void is None:
+        show_inner_void = _shell_visibility(shell_display_mode)[1]
+    clip_side = _shell_clip_side(shell_display_mode)
+    outer_opacity = min(max(float(outer_shell_opacity or 0.0), 0.0), 0.8)
+    inner_opacity = min(max(float(inner_void_opacity or 0.0), 0.0), 0.8)
     loops = _loop_groups(section_coords)
     outer_index = 0
     void_index = 0
@@ -417,9 +523,10 @@ def tendon_3d_review_figure(
                     span_m=span_m,
                     name="Inner void envelope" if void_index == 1 else f"Inner void {void_index}",
                     color="rgba(37,99,235,0.38)",
-                    opacity=0.16,
+                    opacity=inner_opacity,
                     legendgroup="inner_void",
                     showlegend=void_index == 1,
+                    clip_side=clip_side,
                 )
                 _add_section_loop_wireframe_3d(
                     fig,
@@ -431,6 +538,7 @@ def tendon_3d_review_figure(
                     dash="dash",
                     legendgroup="inner_void",
                     showlegend=False,
+                    clip_side=clip_side,
                 )
         else:
             outer_index += 1
@@ -442,9 +550,10 @@ def tendon_3d_review_figure(
                     span_m=span_m,
                     name="Outer shell envelope" if outer_index == 1 else f"Outer shell {outer_index}",
                     color="rgba(41,72,96,0.42)",
-                    opacity=0.18,
+                    opacity=outer_opacity,
                     legendgroup="outer_shell",
                     showlegend=outer_index == 1,
+                    clip_side=clip_side,
                 )
                 _add_section_loop_wireframe_3d(
                     fig,
@@ -456,11 +565,12 @@ def tendon_3d_review_figure(
                     dash="solid",
                     legendgroup="outer_shell",
                     showlegend=False,
+                    clip_side=clip_side,
                 )
 
     tendon_count = 0
     for t in model.get("tendons", []):
-        if not _tendon_passes_filter(t, family_filter=family_filter, side_filter=side_filter):
+        if not _tendon_passes_filter(t, family_filter=family_filter, side_filter=side_filter, tendon_filter=tendon_filter):
             continue
         xs, ys, zs = _profile_xyz_for_tendon(t, depth_m)
         if not xs:
@@ -508,7 +618,7 @@ def tendon_3d_review_figure(
             )
 
     # Add family legend placeholders for the custom/Plotly legend without dense tendon names.
-    families = list(dict.fromkeys([str(t.get("family", "")) for t in model.get("tendons", []) if _tendon_passes_filter(t, family_filter=family_filter, side_filter=side_filter) and str(t.get("family", "")).strip()]))
+    families = list(dict.fromkeys([str(t.get("family", "")) for t in model.get("tendons", []) if _tendon_passes_filter(t, family_filter=family_filter, side_filter=side_filter, tendon_filter=tendon_filter) and str(t.get("family", "")).strip()]))
     for fam in families:
         fig.add_trace(
             go.Scatter3d(

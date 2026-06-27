@@ -2647,24 +2647,32 @@ def render_tendon_layout_reference() -> None:
                 "Tendon focus",
                 "Report isometric",
             ]
-            c1, c2, c3, c4 = st.columns([1.25, 1.05, 1.0, 1.0])
+            c1, c2, c3, c4 = st.columns([1.20, 1.00, 1.10, 1.00])
             with c1:
                 view_preset = st.selectbox("3D view preset", view_preset_options, index=0, key="tendon_3d_view_preset")
             with c2:
                 aspect_mode = st.selectbox("Aspect mode", ["Presentation scale", "True scale"], index=0, key="tendon_3d_aspect_mode")
             with c3:
-                tendon3d_family_filter = st.selectbox("Family filter", ["All families"] + families, index=0, key="tendon_3d_family_filter")
+                shell_display_mode = st.selectbox("Shell display", ["Full shell", "Left half shell", "Right half shell", "No shell", "Inner void only"], index=0, key="tendon_3d_shell_display")
+                # Legacy explicit checkbox labels retained for regression trace: "Show outer shell" / "Show inner void".
             with c4:
-                tendon3d_side_filter = st.selectbox("Side filter", ["Both sides", "Left only", "Right only"], index=0, key="tendon_3d_side_filter")
+                tendon3d_side_filter = st.selectbox("Tendon side", ["Both sides", "Left only", "Right only"], index=0, key="tendon_3d_side_filter")
 
-            d1, d2, d3, d4 = st.columns([1.0, 1.0, 1.0, 1.0])
+            e1, e2, e3, e4 = st.columns([1.0, 1.15, 1.0, 1.0])
+            tendon_names_3d = [str(t.get("tendon", "")) for t in display_model.get("tendons", []) if str(t.get("tendon", "")).strip()]
+            with e1:
+                tendon3d_family_filter = st.selectbox("Family filter", ["All families"] + families, index=0, key="tendon_3d_family_filter")
+            with e2:
+                tendon3d_tendon_filter = st.selectbox("Tendon isolate", ["All tendons"] + tendon_names_3d, index=0, key="tendon_3d_tendon_filter")
+            with e3:
+                outer_shell_opacity = st.slider("Outer shell opacity", 0.0, 0.60, 0.18, 0.02, key="tendon_3d_outer_opacity")
+            with e4:
+                inner_void_opacity = st.slider("Inner void opacity", 0.0, 0.60, 0.16, 0.02, key="tendon_3d_inner_opacity")
+
+            d1, d2 = st.columns([1.0, 1.0])
             with d1:
                 show_tendon_labels_3d = st.checkbox("Show tendon labels", value=False, key="tendon_3d_labels")
             with d2:
-                show_outer_shell = st.checkbox("Show outer shell", value=True, key="tendon_3d_outer_shell")
-            with d3:
-                show_inner_void = st.checkbox("Show inner void", value=True, key="tendon_3d_inner_void")
-            with d4:
                 show_station_markers = st.checkbox("Show station markers", value=True, key="tendon_3d_station_markers")
 
             selected_families = families if tendon3d_family_filter == "All families" else [tendon3d_family_filter]
@@ -2672,8 +2680,14 @@ def render_tendon_layout_reference() -> None:
                 t for t in display_model.get("tendons", [])
                 if (tendon3d_family_filter == "All families" or str(t.get("family", "")) == tendon3d_family_filter)
                 and (tendon3d_side_filter == "Both sides" or (tendon3d_side_filter == "Left only" and str(t.get("side", "")) == "L") or (tendon3d_side_filter == "Right only" and str(t.get("side", "")) == "R"))
+                and (tendon3d_tendon_filter == "All tendons" or str(t.get("tendon", "")) == tendon3d_tendon_filter)
             ]
             view_mode_text, view_mode_note = _figure_view_texts()
+            shell_legend_items = []
+            if shell_display_mode != "No shell":
+                if shell_display_mode != "Inner void only":
+                    shell_legend_items.append({"label": "Outer shell", "kind": "line", "color": "#294860"})
+                shell_legend_items.append({"label": "Inner void", "kind": "dash", "color": "#2563eb"})
             if not adopted_model:
                 st.markdown(
                     '<div class="warn-box"><b>3D preview source is not locked:</b> this viewport is using the current working tendon model. Adopt/Re-adopt the tendon model before downstream prestress or report use.</div>',
@@ -2698,10 +2712,11 @@ def render_tendon_layout_reference() -> None:
                       <div class="canvas-meta-right">
                         <div class="canvas-view-badge">{view_mode_text} · {view_mode_note}</div>
                         <div class="canvas-dim-badge">View: {view_preset}</div>
+                        <div class="canvas-dim-badge">Shell: {shell_display_mode}</div>
                         <div class="canvas-dim-badge">Aspect: {aspect_mode}</div>
                       </div>
                     </div>
-                    {_engineering_canvas_legend_html([{"label": "Outer shell", "kind": "line", "color": "#294860"}, {"label": "Inner void", "kind": "dash", "color": "#2563eb"}] + _tendon_family_legend_items(selected_families))}
+                    {_engineering_canvas_legend_html(shell_legend_items + _tendon_family_legend_items(selected_families))}
                     """,
                     unsafe_allow_html=True,
                 )
@@ -2711,8 +2726,10 @@ def render_tendon_layout_reference() -> None:
                     props,
                     family_filter=tendon3d_family_filter,
                     side_filter=tendon3d_side_filter,
-                    show_outer_shell=show_outer_shell,
-                    show_inner_void=show_inner_void,
+                    tendon_filter=tendon3d_tendon_filter,
+                    shell_display_mode=shell_display_mode,
+                    outer_shell_opacity=outer_shell_opacity,
+                    inner_void_opacity=inner_void_opacity,
                     show_station_markers=show_station_markers,
                     show_tendon_labels=show_tendon_labels_3d,
                     view_preset=view_preset,
@@ -2720,14 +2737,14 @@ def render_tendon_layout_reference() -> None:
                 )
                 st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
                 st.markdown(
-                    f'<div class="canvas-caption"><b>Figure 2.x</b> Interactive 3D tendon review model showing external tendon profiles within the transparent box-girder section envelope ({view_preset}, {aspect_mode}).</div>',
+                    f'<div class="canvas-caption"><b>Figure 2.x</b> Interactive 3D tendon review model showing external tendon profiles within the transparent box-girder section envelope ({view_preset}, {shell_display_mode}, {aspect_mode}).</div>',
                     unsafe_allow_html=True,
                 )
                 footer_html = (
                     '<div class="canvas-footer-grid">'
                     + _canvas_footer_card_html("Source", "ADOPTED" if adopted_model else "WORKING", "design-source snapshot" if adopted_model else "preview only", source_mode)
-                    + _canvas_footer_card_html("Visible tendons", str(len(visible_tendons)), f"{tendon3d_family_filter} · {tendon3d_side_filter}", "pass" if visible_tendons else "warn")
-                    + _canvas_footer_card_html("Envelope", "On" if show_outer_shell or show_inner_void else "Hidden", "outer shell / inner void", "neutral")
+                    + _canvas_footer_card_html("Visible tendons", str(len(visible_tendons)), f"{tendon3d_family_filter} · {tendon3d_side_filter} · {tendon3d_tendon_filter}", "pass" if visible_tendons else "warn")
+                    + _canvas_footer_card_html("Shell display", shell_display_mode, f"outer {outer_shell_opacity:.2f} · inner {inner_void_opacity:.2f}", "neutral")
                     + _canvas_footer_card_html("View", view_preset.replace(" · ", " / "), aspect_mode, "neutral")
                     + _canvas_footer_card_html("Interaction", "Rotate / pan / zoom", "Plotly WebGL 3D viewport", "neutral")
                     + '</div>'

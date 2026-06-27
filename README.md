@@ -1,7 +1,17 @@
-# Segmental Box Girder Pro — COMMERCIAL.M4.1B
+# Segmental Box Girder Pro — COMMERCIAL.M4.1C
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
+
+## COMMERCIAL.M4.1C updates
+
+- Adds 3D shell display modes for `3D Tendon View`: Full shell, Left half shell, Right half shell, No shell, and Inner void only.
+- Adds tendon isolation controls: family filter, side filter, and single-tendon isolate selector so dense 16-tendon views can be reduced to a readable inspection model.
+- Adds independent outer shell and inner void opacity sliders for clearer review of tendon paths inside the transparent envelope.
+- Clips section-envelope display at the centerline for left/right half-shell review without changing stored section coordinates, tendon geometry, or calculations.
+- Keeps the UI.2 canvas figure standard, global Interactive review / Report preview behavior, CAD-style 3D view presets, and adopted-source warning/gate from previous milestones.
+- Preserves all tendon geometry, adopted-source behavior, QA, section data, save/load persistence, and calculation logic.
+- Schema remains `0.4.20-commercial-bugfix1-section-save-load-persistence`; this milestone adds 3D inspection controls only.
 
 ## COMMERCIAL.M4.1B updates
 

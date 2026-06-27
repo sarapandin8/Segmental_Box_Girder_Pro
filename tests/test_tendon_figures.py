@@ -171,3 +171,52 @@ def test_tendon_3d_perspective_and_true_scale_are_available():
     assert camera.projection.type == "perspective"
     assert fig.layout.scene.aspectratio.x > 3.5
     assert 0.20 < fig.layout.scene.aspectratio.z < 0.25
+
+
+def test_tendon_3d_half_shell_clips_section_envelope_to_left_side():
+    from visualization.tendon_figures import tendon_3d_review_figure
+
+    fig = tendon_3d_review_figure(
+        _model_3d(),
+        _coords(),
+        _props(),
+        shell_display_mode="Left half shell",
+        side_filter="Left only",
+        show_station_markers=False,
+    )
+    mesh_y = []
+    for tr in fig.data:
+        if tr.type == "mesh3d":
+            mesh_y.extend([float(v) for v in tr.y])
+    assert mesh_y
+    assert min(mesh_y) >= -1e-8
+
+
+def test_tendon_3d_tendon_isolate_shows_only_selected_tendon():
+    from visualization.tendon_figures import tendon_3d_review_figure
+
+    fig = tendon_3d_review_figure(
+        _model_3d(),
+        _coords(),
+        _props(),
+        tendon_filter="T1-R",
+        show_outer_shell=False,
+        show_inner_void=False,
+        show_station_markers=False,
+    )
+    tendon_names = {str(tr.name) for tr in fig.data if tr.type == "scatter3d"}
+    assert "T1-R" in tendon_names
+    assert "T1-L" not in tendon_names
+
+
+def test_tendon_3d_no_shell_mode_hides_all_meshes():
+    from visualization.tendon_figures import tendon_3d_review_figure
+
+    fig = tendon_3d_review_figure(
+        _model_3d(),
+        _coords(),
+        _props(),
+        shell_display_mode="No shell",
+        show_station_markers=False,
+    )
+    assert "mesh3d" not in {tr.type for tr in fig.data}
