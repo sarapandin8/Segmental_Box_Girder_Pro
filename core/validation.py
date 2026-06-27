@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.18-commercial-ui2-canvas-figure-normalization"
+PROJECT_SCHEMA_VERSION = "0.4.19-commercial-m4-1-tendon-adopted-qa-lockdown"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 

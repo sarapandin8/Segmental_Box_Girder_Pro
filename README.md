@@ -1,8 +1,19 @@
-# Segmental Box Girder Pro — COMMERCIAL.UI.2
+# Segmental Box Girder Pro — COMMERCIAL.M4.1
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
-## COMMERCIAL.UI.2 updates
+## COMMERCIAL.M4.1 updates
+
+- Locks the Tendon Layout Reference workflow into an explicit imported working model → adopted design-source snapshot process.
+- Adds Adopt / Re-adopt tendon model as design source and Clear adopted tendon source controls so raw imports do not silently change downstream values.
+- Adds source trace rows for General, Vertical, Horizontal, and BridgeObj mapping, including filename/row-status information where available.
+- Adds adopted downstream tendon summary for num tendons, families, Aps per tendon, Aps,total, jacking stress/force, dp averages, y_t, eccentricity, and model fingerprint.
+- Updates the Tendon QA / Consistency page with a source gate, downstream trace, report preview status, and Save/Load JSON persistence trace.
+- Updates prestress summary fields only from the adopted tendon snapshot; friction curvature/angle remains a later milestone and is not silently inferred.
+- Preserves all tendon geometry import, figure generation, location QA, section overlay, and UI.2 figure-system logic.
+- Schema: `0.4.19-commercial-m4-1-tendon-adopted-qa-lockdown`.
+
+## Retained COMMERCIAL.UI.2 updates
 
 - Applies the canvas figure system to Section Properties Preview, Tendon Elevation, and Tendon Plan so the module no longer feels like separate Plotly prototypes.
 - Adds Clean / Full dimensions / Hide dimensions mode to Section Properties Preview using the same B/D/CL/CG dimension grammar as the Tendon Section Overlay.

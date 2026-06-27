@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from math import sqrt
 from pathlib import Path
@@ -38,6 +39,14 @@ from core.aashto_seismic import (
 from core.formatting import format_engineering_table, format_engineering_value
 from core.project_io import ProjectJsonLoadError, load_project_json_bytes, project_json_fingerprint, project_load_summary
 from core.section_geometry import calculate_section_properties, classify_point_in_section_void, default_coordinate_template, estimate_thin_walled_closed_box_j, normalize_coordinate_rows, read_coordinate_table
+from core.tendon_adoption import (
+    adopt_tendon_model,
+    build_tendon_downstream_summary,
+    build_tendon_source_trace,
+    clear_adopted_tendon_model,
+    tendon_model_fingerprint,
+    tendon_model_status,
+)
 from core.tendon_layout import (
     build_tendon_layout_model,
     read_tendon_general_table,
@@ -2030,17 +2039,22 @@ def _df_from_records(records: list[dict[str, Any]]) -> pd.DataFrame:
 
 def _parse_and_store_tendon_file(uploaded: Any, kind: str) -> None:
     filename = getattr(uploaded, "name", "")
+    raw = uploaded.getvalue() if hasattr(uploaded, "getvalue") else b""
+    source_meta = D["tendon_layout"].setdefault("source_meta", {})
     if kind == "general":
         df = read_tendon_general_table(uploaded, filename)
         D["tendon_layout"]["general_rows"] = df.to_dict("records")
+        source_meta["general"] = {"filename": filename, "rows": len(df), "sha256_12": hashlib.sha256(raw).hexdigest()[:12] if raw else ""}
         st.success(f"Imported General tendon table: {len(df)} tendons.")
     elif kind == "vertical":
         df = read_tendon_vertical_table(uploaded, filename)
         D["tendon_layout"]["vertical_rows"] = df.to_dict("records")
+        source_meta["vertical"] = {"filename": filename, "rows": len(df), "sha256_12": hashlib.sha256(raw).hexdigest()[:12] if raw else ""}
         st.success(f"Imported Vertical tendon profile table: {len(df)} rows.")
     elif kind == "horizontal":
         df = read_tendon_horizontal_table(uploaded, filename)
         D["tendon_layout"]["horizontal_rows"] = df.to_dict("records")
+        source_meta["horizontal"] = {"filename": filename, "rows": len(df), "sha256_12": hashlib.sha256(raw).hexdigest()[:12] if raw else ""}
         st.success(f"Imported Horizontal tendon profile table: {len(df)} rows.")
 
 
@@ -2057,6 +2071,8 @@ def _build_and_store_tendon_model() -> dict[str, Any]:
         map_to_active_bridge_object=bool(tl.get("map_bridge_objects_to_active", True)),
         y_t_from_top_m=float(D["section"].get("yt_from_top_m", 0.0)),
     )
+    model["model_fingerprint"] = tendon_model_fingerprint(model)
+    model["source_trace_rows"] = build_tendon_source_trace(tl, model)
     tl["model"] = model
     return model
 
@@ -2274,36 +2290,73 @@ def _merge_tendon_overlay_points_with_qa(points: pd.DataFrame, qa_points: pd.Dat
         base = base.merge(qa_keep, on="Tendon", how="left")
     return base
 
+def _tendon_summary_frame_from_summary(summary: dict[str, Any]) -> pd.DataFrame:
+    """Report-ready downstream tendon source summary."""
+    if not summary:
+        return pd.DataFrame(columns=["Item", "Value", "Unit", "Basis"])
+    rows = [
+        ["Source", summary.get("source", "-"), "-", "adopted snapshot"],
+        ["Active BridgeObj", summary.get("active_bridge_object", "-"), "-", "mapped / reviewed"],
+        ["Number of tendons", summary.get("tendon_count", 0), "-", "count"],
+        ["Number of families", summary.get("family_count", 0), "-", "T-family"],
+        ["Aps per tendon", summary.get("Aps_per_tendon_mm2", 0.0), "mm²", "imported General table"],
+        ["Aps total", summary.get("Aps_total_mm2", 0.0), "mm²", "sum of adopted tendons"],
+        ["Jacking stress", summary.get("jacking_stress_mpa", 0.0), "MPa", "0.75 fpu"],
+        ["Jacking force per tendon", summary.get("jacking_force_per_tendon_kN", 0.0), "kN", "0.75 fpu × Aps"],
+        ["Total jacking force", summary.get("jacking_force_total_kN", 0.0), "kN", "sum of adopted tendons"],
+        ["Average dp at end", summary.get("dp_avg_end_m", 0.0), "m", "area-weighted"],
+        ["Average dp at midspan", summary.get("dp_avg_midspan_m", 0.0), "m", "area-weighted"],
+        ["y_t from top", summary.get("y_t_from_top_m", 0.0), "m", "active adopted section property"],
+        ["Midspan eccentricity", summary.get("eccentricity_midspan_m", 0.0), "m", "dp_avg - y_t"],
+        ["Model fingerprint", summary.get("model_fingerprint", "-"), "-", "QA trace"],
+    ]
+    return pd.DataFrame(rows, columns=["Item", "Value", "Unit", "Basis"])
+
+
+def _tendon_source_trace_frame(tl: dict[str, Any], model: dict[str, Any]) -> pd.DataFrame:
+    return pd.DataFrame(build_tendon_source_trace(tl, model))
+
+
+def _active_adopted_tendon_model() -> dict[str, Any]:
+    """Return the locked design-source tendon model, if one exists."""
+    adopted = D.setdefault("tendon_layout", {}).get("adopted_model", {})
+    return adopted if isinstance(adopted, dict) and adopted.get("valid") else {}
+
+
+def _render_tendon_adoption_cards(model: dict[str, Any]) -> None:
+    tl = D.setdefault("tendon_layout", {})
+    status = tendon_model_status(model, tl)
+    adopted = _active_adopted_tendon_model()
+    working_fp = tendon_model_fingerprint(model)
+    adopted_fp = str(tl.get("adopted_model_fingerprint") or tendon_model_fingerprint(adopted) or "—")
+    summary = tl.get("adopted_downstream_summary") or build_tendon_downstream_summary(adopted, y_t_from_top_m=float(D["section"].get("yt_from_top_m", 0.0))) if adopted else {}
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        card("Tendon Source Gate", status["status"], status["message"], status["mode"])
+    with c2:
+        card("Working model", working_fp or "—", "latest imported/merged model", "neutral")
+    with c3:
+        card("Adopted model", adopted_fp, tl.get("adopted_at_utc", "not locked") or "not locked", "pass" if adopted else "warn")
+    with c4:
+        value = f"{format_engineering_value(summary.get('Aps_total_mm2', 0.0), 'mm²')} mm²" if summary else "—"
+        note = "used by downstream prestress" if summary else "adopt tendon model first"
+        card("Aps,total", value, note, "pass" if summary else "warn")
+
+
+def _adopt_working_tendon_model(model: dict[str, Any]) -> dict[str, Any]:
+    return adopt_tendon_model(
+        D.setdefault("tendon_layout", {}),
+        D.setdefault("prestress", {}),
+        model,
+        y_t_from_top_m=float(D["section"].get("yt_from_top_m", 0.0)),
+    )
+
+
 def _apply_imported_tendon_summary_to_prestress(model: dict[str, Any]) -> None:
-    """Adopt imported tendon summary into prestress one-source fields."""
+    """Backward-compatible wrapper: explicit adoption now controls downstream values."""
     if not model.get("valid"):
         return
-    p = D["prestress"]
-    tendons = model.get("tendons", [])
-    groups = model.get("group_summary", [])
-    if tendons:
-        p["num_tendons"] = int(len(tendons))
-        aps_vals = [float(t.get("area_mm2") or 0.0) for t in tendons if float(t.get("area_mm2") or 0.0) > 0]
-        if aps_vals:
-            p["Aps_per_tendon_mm2"] = float(sum(aps_vals) / len(aps_vals))
-            p["Aps_total_mm2"] = float(sum(aps_vals))
-    if model.get("dp_avg_end_m") is not None:
-        p["dp_avg_end_m"] = float(model["dp_avg_end_m"])
-    if model.get("dp_avg_midspan_m") is not None:
-        p["dp_avg_midspan_m"] = float(model["dp_avg_midspan_m"])
-    if model.get("eccentricity_midspan_m") is not None:
-        p["eccentricity_midspan_m"] = float(model["eccentricity_midspan_m"])
-
-    # Update only end/midspan dp in existing friction groups. Alpha values remain from report/FEA route until a later curvature engine imports them.
-    group_map = {g["Group"]: g for g in groups}
-    for g in p.get("tendon_friction_groups", []):
-        row = group_map.get(g.get("group"))
-        if row:
-            if row.get("End dp (m)") is not None:
-                g["end_dp_m"] = float(row["End dp (m)"])
-            if row.get("Midspan dp (m)") is not None:
-                g["midspan_dp_m"] = float(row["Midspan dp (m)"])
-    D["tendon_layout"]["adopted_status"] = "Imported CSiBridge tendon layout adopted for prestress summary / report figures"
+    _adopt_working_tendon_model(model)
 
 
 def render_tendon_layout_reference() -> None:
@@ -2311,6 +2364,7 @@ def render_tendon_layout_reference() -> None:
     tl = D.setdefault("tendon_layout", {})
     model_for_summary = _active_tendon_model()
     _render_tendon_import_summary_cards(model_for_summary)
+    _render_tendon_adoption_cards(model_for_summary)
     tabs = st.tabs(["Import / Mapping", "Elevation View", "Plan View", "Section Overlay", "Adopted Tendon Data", "QA / Consistency"])
 
     with tabs[0]:
@@ -2360,17 +2414,23 @@ def render_tendon_layout_reference() -> None:
         else:
             st.info("Upload the three CSiBridge tendon tables to build the tendon model.")
 
-        if st.button("Build / refresh adopted tendon layout model", type="primary", use_container_width=True):
+        preview_model = tl.get("model") if isinstance(tl.get("model"), dict) else {}
+        trace_preview = _tendon_source_trace_frame(tl, preview_model)
+        if not trace_preview.empty:
+            st.markdown("#### Import source trace")
+            show_engineering_table(trace_preview)
+
+        if st.button("Build / refresh imported tendon layout model", type="primary", use_container_width=True):
             model = _build_and_store_tendon_model()
             if model.get("valid"):
-                st.success(f"Tendon model built: {len(model.get('tendons', []))} tendons, span reference = {model.get('span_m', 0.0):.3f} m.")
+                st.success(f"Imported tendon working model built: {len(model.get('tendons', []))} tendons, span reference = {model.get('span_m', 0.0):.3f} m. Adopt it explicitly before downstream use.")
             else:
                 st.error("Tendon model could not be built. Check imported tables and QA messages.")
             st.rerun()
 
         if not general.empty or not vertical.empty or not horizontal.empty:
             with st.expander("Raw import data / QA only", expanded=False):
-                st.caption("Raw CSiBridge rows are shown only for parser QA. Use the Adopted Tendon Data tab for the complete merged tendon model used downstream.")
+                st.caption("Raw CSiBridge rows are shown only for parser QA. Use the Adopted Tendon Data tab to explicitly lock the merged tendon model before downstream use.")
                 if not general.empty:
                     st.markdown("##### Imported General tendon rows")
                     show_engineering_table(general[[c for c in ["BridgeObj", "Tendon", "Material", "TendonArea", "Aps_mm2", "strand_label", "force_075fpu_kN", "Force", "JackFrom"] if c in general.columns]])
@@ -2720,34 +2780,91 @@ def render_tendon_layout_reference() -> None:
     with tabs[4]:
         subsection_title("Adopted tendon data")
         if model.get("valid"):
-            st.markdown('<div class="result-card"><b>Adopted Tendon Layout Table</b> <span class="badge pass">USED BY PRESTRESS / REPORT CHECKS</span><br><span class="small-muted">Complete one-row-per-tendon model merged from CSiBridge General + Vertical + Horizontal exports. This is the user-facing tendon table; raw import rows are QA-only.</span></div>', unsafe_allow_html=True)
-            st.markdown("#### Adopted Tendon Layout Table — one row per tendon")
-            summary_display = _tendon_summary_display_frame(tendons_df)
+            adopted_model = _active_adopted_tendon_model()
+            adopted_summary = tl.get("adopted_downstream_summary", {}) if adopted_model else {}
+            gate = tendon_model_status(model, tl)
+            gate_badge = "pass" if gate["mode"] == "pass" else "neutral"
+            st.markdown(
+                f"""
+                <div class="result-card"><b>Tendon Design Source Lockdown</b> <span class="badge {gate_badge}">{gate['status']}</span><br>
+                <span class="small-muted">Imported tendon tables are a working source. Downstream prestress/report checks must use the explicitly adopted tendon snapshot only.</span></div>
+                """,
+                unsafe_allow_html=True,
+            )
+            _render_tendon_adoption_cards(model)
+
+            c_adopt, c_clear = st.columns([1.35, 0.85])
+            with c_adopt:
+                if st.button("Adopt / Re-adopt tendon model as design source", type="primary", use_container_width=True):
+                    summary = _adopt_working_tendon_model(model)
+                    st.success(
+                        "Tendon layout locked as the downstream design source. Prestress tendon count, Aps,total, dp averages, and group end/midspan dp values now come from the adopted snapshot."
+                    )
+                    st.caption(f"Adopted model fingerprint: {summary.get('model_fingerprint', '—')}")
+                    st.rerun()
+            with c_clear:
+                if st.button("Clear adopted tendon source", use_container_width=True):
+                    clear_adopted_tendon_model(tl)
+                    st.warning("Adopted tendon source cleared. Raw imports remain available for review, but downstream modules should not use them until re-adopted.")
+                    st.rerun()
+
+            active_table_model = adopted_model if adopted_model else model
+            active_table_label = "Adopted Tendon Layout Table — one row per tendon" if adopted_model else "Working imported model · not yet adopted — one row per tendon"
+            st.markdown(f"#### {active_table_label}")
+            if not adopted_model:
+                st.markdown('<div class="warn-box"><b>Not locked:</b> the table below is the current imported/merged model for review only. Click <b>Adopt / Re-adopt tendon model as design source</b> before using it downstream.</div>', unsafe_allow_html=True)
+            active_tendons_df, active_group_df, _, _ = tendon_model_to_frames(active_table_model)
+            active_profile_df = tendon_model_to_profile_frame(active_table_model)
+            summary_display = _tendon_summary_display_frame(active_tendons_df)
             st.dataframe(summary_display, use_container_width=True, hide_index=True)
 
             st.markdown("#### Merged Tendon Profile Table — vertical + horizontal")
-            st.caption("Each row combines station x, vertical dp measured from top, and horizontal offset from CL for the same tendon control point.")
-            profile_display = _tendon_profile_display_frame(profile_df)
+            st.caption("Each row combines station x, vertical dp measured from top, and horizontal offset from CL for the same tendon control point. This table belongs to the active source shown above.")
+            profile_display = _tendon_profile_display_frame(active_profile_df)
             st.dataframe(profile_display, use_container_width=True, hide_index=True)
 
+            st.markdown("#### Downstream tendon summary")
+            summary_for_display = adopted_summary or build_tendon_downstream_summary(model, y_t_from_top_m=float(D["section"].get("yt_from_top_m", 0.0)))
+            show_engineering_table(_tendon_summary_frame_from_summary(summary_for_display))
+
             st.markdown("#### Report-style tendon group summary")
-            show_engineering_table(group_df)
-            st.markdown(f'<div class="note-box">Weighted average dp at end = {model.get("dp_avg_end_m", 0.0):.3f} m; at midspan = {model.get("dp_avg_midspan_m", 0.0):.3f} m; e_midspan = {model.get("eccentricity_midspan_m", 0.0):.3f} m using y_t = {D["section"].get("yt_from_top_m", 0.0):.3f} m.</div>', unsafe_allow_html=True)
-            if st.button("Use imported tendon summary for prestress values", type="primary", use_container_width=True):
-                _apply_imported_tendon_summary_to_prestress(model)
-                st.success("Prestress tendon count, Aps,total, dp averages, and group end/midspan dp values updated from imported tendon layout. Friction angle values remain from report/FEA route.")
-                st.rerun()
+            show_engineering_table(active_group_df)
+            st.markdown(
+                f'<div class="note-box"><b>One-source rule:</b> dp_avg,end = {active_table_model.get("dp_avg_end_m", 0.0):.3f} m; dp_avg,midspan = {active_table_model.get("dp_avg_midspan_m", 0.0):.3f} m; e_midspan = {active_table_model.get("eccentricity_midspan_m", 0.0):.3f} m using y_t = {D["section"].get("yt_from_top_m", 0.0):.3f} m. Friction curvature/angle calculation remains a later milestone and is not silently inferred here.</div>',
+                unsafe_allow_html=True,
+            )
+
+            with st.expander("Source trace used for adoption", expanded=False):
+                source_trace = tl.get("adopted_source_trace") if adopted_model else build_tendon_source_trace(tl, model)
+                show_engineering_table(pd.DataFrame(source_trace))
         else:
             st.info("Build a valid tendon model to show adopted tendon data.")
 
     with tabs[5]:
         subsection_title("Tendon QA / consistency")
+        gate = tendon_model_status(model, tl)
+        adopted_model = _active_adopted_tendon_model()
+        adopted_summary = tl.get("adopted_downstream_summary", {}) if adopted_model else {}
+
+        st.markdown(
+            f"""
+            <div class="qa-card"><b>Tendon module QA gate:</b> {gate['status']}<br>
+            <span class="small-muted">{gate['message']} This page is the control point before Prestress Losses and report export consume tendon data.</span></div>
+            """,
+            unsafe_allow_html=True,
+        )
+        _render_tendon_adoption_cards(model)
+
         if model.get("warnings"):
             for w in model["warnings"]:
                 st.warning(w)
         if model.get("errors"):
             for e in model["errors"]:
                 st.error(e)
+
+        st.markdown("#### Source trace")
+        show_engineering_table(_tendon_source_trace_frame(tl, model))
+
         if not qa_df.empty:
             st.markdown("#### Import QA")
             show_engineering_table(qa_df)
@@ -2757,14 +2874,30 @@ def render_tendon_layout_reference() -> None:
         if not station_match_df.empty:
             st.markdown("#### Vertical / horizontal station matching QA")
             show_engineering_table(station_match_df)
+
         st.markdown("#### Downstream trace")
+        adopted_ready = bool(adopted_model)
         trace = pd.DataFrame([
-            ["Tendon figures", "Imported General + Vertical + Horizontal profiles", "Side elevation / plan / section overlay", "READY" if model.get("valid") else "PENDING"],
-            ["Prestress summary", "Imported tendon model", "Aps,total and dp averages can be adopted", "READY" if model.get("valid") else "PENDING"],
-            ["Friction angle α", "Existing BG40 report route", "Not recalculated from geometry in M3H", "REVIEW"],
-            ["Report export", "Adopted tendon model", "Figures and tables are report-ready", "READY" if model.get("valid") else "PENDING"],
+            ["Tendon figures", "Working imported or adopted tendon model", "Side elevation / plan / section overlay", "READY" if model.get("valid") else "PENDING"],
+            ["Prestress summary", "Explicitly adopted tendon snapshot", "Aps,total and dp averages copied only when adopted", "READY" if adopted_ready else "BLOCKED"],
+            ["Friction angle α", "Existing BG40 report route", "Not recalculated from tendon geometry in this milestone", "REVIEW"],
+            ["Report export", "Adopted tendon model + source trace", "Figures, tables, and downstream summary are report-ready", "READY" if adopted_ready else "PENDING"],
+            ["Save/Load JSON", "tendon_layout.adopted_model", "Adoption snapshot and trace persist in project JSON", "READY" if adopted_ready else "PENDING"],
         ], columns=["Item", "Source", "App action", "Status"])
         show_engineering_table(trace)
+
+        st.markdown("#### Report preview · tendon layout basis")
+        if adopted_ready:
+            show_engineering_table(_tendon_summary_frame_from_summary(adopted_summary))
+            st.markdown(
+                '<div class="note-box"><b>Report wording:</b> The tendon layout is adopted from the reviewed CSiBridge General, Vertical Layout, and Horizontal Layout tendon exports. The adopted snapshot is the single source for tendon count, Aps,total, jacking force, average dp, and midspan eccentricity used by downstream checks.</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div class="warn-box"><b>Report preview blocked:</b> adopt the imported tendon model before using tendon summary values in Prestress Losses or final reports.</div>',
+                unsafe_allow_html=True,
+            )
 
 def render_bridge_consistency() -> None:
     section_title("2.5 Consistency Checks")

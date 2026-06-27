@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.7-commercial-m3h2-json-load-stability",
+        "schema_version": "0.4.19-commercial-m4-1-tendon-adopted-qa-lockdown",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 R10 baseline loaded; DPT seismic database and AASHTO bridge R recommendation active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -216,8 +216,14 @@ BG40_DEFAULT = {
         "vertical_rows": [],
         "horizontal_rows": [],
         "model": {},
-        "adopted_status": "BG40 R10 baseline pending CSiBridge tendon import",
-        "source_note": "Import CSiBridge tendon General / Vertical / Horizontal tables to generate layout figures and adopted tendon summary.",
+        "source_meta": {},
+        "adopted_model": {},
+        "adopted_model_fingerprint": "",
+        "adopted_downstream_summary": {},
+        "adopted_source_trace": [],
+        "adopted_at_utc": "",
+        "adopted_status": "NOT ADOPTED: BG40 R10 baseline pending explicit CSiBridge tendon adoption",
+        "source_note": "Import CSiBridge tendon General / Vertical / Horizontal tables to generate layout figures, then explicitly adopt the tendon model before downstream use.",
     },
     "fea_results": {
         "source_status": "BG40 R10 baseline keyed values; future milestone will import station-by-station FEA tables.",
