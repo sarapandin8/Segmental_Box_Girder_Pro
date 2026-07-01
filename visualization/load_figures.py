@@ -13,25 +13,53 @@ def apply_engineering_layout(fig: go.Figure, title: str, x_title: str = "", y_ti
 
 def u20_loading_diagram() -> go.Figure:
     fig = go.Figure()
-    # distributed loads
-    fig.add_shape(type="rect", x0=-6.4, x1=0.0, y0=0.08, y1=0.45, line=dict(color="#0b3b91"), fillcolor="rgba(23,92,211,0.08)")
-    fig.add_shape(type="rect", x0=6.4, x1=12.8, y0=0.08, y1=0.45, line=dict(color="#0b3b91"), fillcolor="rgba(23,92,211,0.08)")
-    fig.add_annotation(x=-3.2, y=0.57, text="64 kN/m", showarrow=False, font=dict(size=13, color="#092454"), bgcolor="rgba(255,255,255,0.92)")
-    fig.add_annotation(x=9.6, y=0.57, text="64 kN/m", showarrow=False, font=dict(size=13, color="#092454"), bgcolor="rgba(255,255,255,0.92)")
-    # axle loads and dimensions
-    axles = [0.8, 2.4, 4.0, 5.6]
-    for x in axles:
-        fig.add_annotation(x=x, y=1.25, ax=x, ay=0.52, text="P", showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#0f172a", font=dict(color="#092454"))
-    fig.add_shape(type="line", x0=-6.8, x1=13.2, y0=0, y1=0, line=dict(color="#0f172a", width=2))
-    for x in [0, 0.8, 2.4, 4.0, 5.6, 6.4]:
-        fig.add_shape(type="line", x0=x, x1=x, y0=-0.06, y1=0.06, line=dict(color="#0f172a", width=1))
-    for x, txt in [(0.4, "0.80"), (1.6, "1.60"), (3.2, "1.60"), (4.8, "1.60"), (6.0, "0.80")]:
-        fig.add_annotation(x=x, y=-0.18, text=txt, showarrow=False, font=dict(size=12, color="#334155"))
-    fig.add_annotation(x=-3.2, y=-0.18, text="No limitation", showarrow=False, font=dict(size=12, color="#334155"))
-    fig.add_annotation(x=9.6, y=-0.18, text="No limitation", showarrow=False, font=dict(size=12, color="#334155"))
-    apply_engineering_figure_layout(fig, title="Figure 1.1 U20 train loading diagram (0.8 × LM71) — dimensions in metres", height=500, showlegend=False)
-    fig.update_yaxes(visible=False, range=[-0.35, 1.45])
-    fig.update_xaxes(visible=False, range=[-7, 13.5])
+
+    axle_load_kn = 200
+    udl_knpm = 64
+    axle_x = [0.8, 2.4, 4.0, 5.6]
+    baseline_y = 0.0
+    udl_y0 = 0.10
+    udl_y1 = 0.48
+    dim_y = -0.18
+
+    # baseline / rail level
+    fig.add_shape(type="line", x0=-6.8, x1=13.2, y0=baseline_y, y1=baseline_y, line=dict(color="#475467", width=2.6))
+    fig.add_annotation(x=12.95, y=0.05, text="rail / load line", showarrow=False, xanchor="right", font=dict(size=11, color="#667085"), bgcolor="rgba(255,255,255,0.92)")
+
+    # UDL blocks (0.8 x LM71)
+    udl_fill = "rgba(23,92,211,0.10)"
+    udl_line = dict(color="#175cd3", width=2.2)
+    for x0, x1 in [(-6.4, 0.0), (6.4, 12.8)]:
+        fig.add_shape(type="rect", x0=x0, x1=x1, y0=udl_y0, y1=udl_y1, line=udl_line, fillcolor=udl_fill)
+        fig.add_annotation(x=(x0 + x1) / 2, y=0.61, text=f"UDL = {udl_knpm} kN/m", showarrow=False, font=dict(size=13, color="#092454"), bordercolor="#bfd4f2", borderwidth=1, bgcolor="rgba(255,255,255,0.96)", borderpad=4)
+    fig.add_annotation(x=-3.2, y=-0.30, text="No limitation", showarrow=False, font=dict(size=12, color="#667085"))
+    fig.add_annotation(x=9.6, y=-0.30, text="No limitation", showarrow=False, font=dict(size=12, color="#667085"))
+
+    # axle loads with clear arrows and labels
+    for i, x in enumerate(axle_x, start=1):
+        fig.add_annotation(x=x, y=1.32, ax=x, ay=0.56, text=f"P{i}", showarrow=True, arrowhead=3, arrowsize=1.15, arrowwidth=2.2, arrowcolor="#0f172a", font=dict(size=13, color="#092454", family="Arial"))
+        fig.add_annotation(x=x, y=1.40, text=f"{axle_load_kn} kN", showarrow=False, font=dict(size=11, color="#0f172a"), bgcolor="rgba(255,255,255,0.94)")
+        fig.add_shape(type="circle", x0=x-0.06, x1=x+0.06, y0=0.50, y1=0.62, line=dict(color="#0f172a", width=1.6), fillcolor="#ffffff")
+
+    fig.add_annotation(x=3.2, y=1.60, text="4 concentrated axle loads = 0.8 × 250 = 200 kN each", showarrow=False, font=dict(size=12, color="#344054"), bgcolor="rgba(255,255,255,0.95)", bordercolor="#d0d5dd", borderwidth=1, borderpad=4)
+
+    # dimension chain below axle train
+    dim_points = [0.0, 0.8, 2.4, 4.0, 5.6, 6.4]
+    for x in dim_points:
+        fig.add_shape(type="line", x0=x, x1=x, y0=baseline_y - 0.03, y1=baseline_y + 0.03, line=dict(color="#667085", width=1.3))
+        fig.add_shape(type="line", x0=x, x1=x, y0=baseline_y, y1=dim_y + 0.03, line=dict(color="#98a2b3", width=1))
+
+    for x0, x1, label in [(0.0, 0.8, "0.80"), (0.8, 2.4, "1.60"), (2.4, 4.0, "1.60"), (4.0, 5.6, "1.60"), (5.6, 6.4, "0.80")]:
+        fig.add_annotation(x=x0, y=dim_y, ax=x1, ay=dim_y, text="", showarrow=True, arrowhead=2, startarrowhead=2, arrowsize=1, arrowwidth=1.4, arrowcolor="#667085")
+        fig.add_annotation(x=(x0 + x1) / 2, y=dim_y - 0.06, text=label, showarrow=False, font=dict(size=12, color="#344054"), bgcolor="rgba(255,255,255,0.95)")
+
+    # group width note and key summary note
+    fig.add_annotation(x=3.2, y=dim_y - 0.22, text="Loaded axle train length = 6.40 m", showarrow=False, font=dict(size=12, color="#092454"), bgcolor="rgba(232,242,255,0.96)", bordercolor="#bfd4f2", borderwidth=1, borderpad=4)
+    fig.add_annotation(x=12.75, y=1.60, xanchor="right", align="left", text="<b>U20 basis</b><br>0.8 × LM71<br>4 × 200 kN axle loads<br>UDL = 64 kN/m on both sides", showarrow=False, font=dict(size=11, color="#344054"), bgcolor="rgba(255,255,255,0.96)", bordercolor="#d0d5dd", borderwidth=1, borderpad=5)
+
+    apply_engineering_figure_layout(fig, title="Figure 1.1 U20 train loading diagram (0.8 × LM71) — dimensions in metres", height=560, showlegend=False)
+    fig.update_yaxes(visible=False, range=[-0.55, 1.78], showgrid=False, zeroline=False)
+    fig.update_xaxes(visible=False, range=[-7.0, 13.5], showgrid=False, zeroline=False)
     return fig
 
 
