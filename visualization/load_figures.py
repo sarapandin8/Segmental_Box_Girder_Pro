@@ -276,16 +276,16 @@ def rail_horizontal_forces_diagram_svg() -> str:
     <text x='477' y='108' font-size='11.5' font-family='Arial' fill='#344054'>Longitudinal force</text>
     <text x='475' y='122' font-size='11.5' font-family='Arial' fill='#344054'>along track / bridge axis (x)</text>
 
-    <line x1='575' y1='165' x2='598' y2='71' stroke='#c2410c' stroke-width='3.8' marker-end='url(#arrowOrange3)'/>
-    <text x='603' y='79' font-size='15' font-family='Arial' fill='#c2410c' font-weight='700'>HF</text>
-    <text x='630' y='96' font-size='11.5' font-family='Arial' fill='#344054'>HF = Qsk hunting / nosing force</text>
-    <text x='630' y='110' font-size='11.5' font-family='Arial' fill='#344054'>Normal to track (y)</text>
+    <line x1='575' y1='165' x2='636' y2='127' stroke='#c2410c' stroke-width='3.8' marker-end='url(#arrowOrange3)'/>
+    <text x='645' y='124' font-size='15' font-family='Arial' fill='#c2410c' font-weight='700'>HF</text>
+    <text x='676' y='139' font-size='11.5' font-family='Arial' fill='#344054'>HF = Qsk hunting / nosing force</text>
+    <text x='676' y='153' font-size='11.5' font-family='Arial' fill='#344054'>Normal to track (y)</text>
 
     <g>
       <line x1='138' y1='284' x2='199' y2='299' stroke='#475467' stroke-width='1.9' marker-end='url(#arrowBlue3)'/>
-      <line x1='138' y1='284' x2='156' y2='211' stroke='#475467' stroke-width='1.9' marker-end='url(#arrowOrange3)'/>
+      <line x1='138' y1='284' x2='199' y2='246' stroke='#475467' stroke-width='1.9' marker-end='url(#arrowOrange3)'/>
       <text x='205' y='304' font-size='12' font-family='Arial' fill='#175cd3' font-weight='700'>x</text>
-      <text x='160' y='205' font-size='12' font-family='Arial' fill='#c2410c' font-weight='700'>y</text>
+      <text x='204' y='243' font-size='12' font-family='Arial' fill='#c2410c' font-weight='700'>y</text>
       <text x='138' y='322' font-size='10.5' font-family='Arial' fill='#667085'>Local action axes at rail level</text>
     </g>
 
