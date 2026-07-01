@@ -68,6 +68,16 @@ BG40_DEFAULT = {
         "relaxation_80_pct": 4.50,
     },
     "load_components": {
+        "dead_load_definition": "Dead load is the vertical load due to the weight of the entire structure, including other components permanently attached thereto, such as walls, rails, concrete track supports, conduits for electrical cables, and other permanently installed tools, equipment, or appurtenances.",
+        "dead_load_note": "Self-Weight (SW): for calculation purposes, the following unit weights shall be used. This page is informational/report text only; FEA self-weight remains generated in the structural analysis model.",
+        "dead_load_unit_weights": [
+            {"Material": "Steel", "Unit Weight (kN/m³)": 76.9, "Mass Density (kg/m³)": 7850, "Source": "BG40 Calculation Report Ch. 1.3.1"},
+            {"Material": "Cast iron", "Unit Weight (kN/m³)": 70.6, "Mass Density (kg/m³)": 7200, "Source": "BG40 Calculation Report Ch. 1.3.1"},
+            {"Material": "Plain concrete", "Unit Weight (kN/m³)": 23.5, "Mass Density (kg/m³)": 2400, "Source": "BG40 Calculation Report Ch. 1.3.1"},
+            {"Material": "Reinforced concrete", "Unit Weight (kN/m³)": 24.5, "Mass Density (kg/m³)": 2500, "Source": "BG40 Calculation Report Ch. 1.3.1"},
+            {"Material": "Prestressed concrete", "Unit Weight (kN/m³)": 24.5, "Mass Density (kg/m³)": 2500, "Source": "BG40 Calculation Report Ch. 1.3.1"},
+            {"Material": "Ballast", "Unit Weight (kN/m³)": 18.6, "Mass Density (kg/m³)": 1900, "Source": "BG40 Calculation Report Ch. 1.3.1"},
+        ],
         "sdl_components": [
             {"Component": "Rails w/Fastener", "Single Track (kN/m)": 1.46, "Double Track (kN/m)": 2.93, "Include": True, "Source": "BG40 R10", "Note": "Track component"},
             {"Component": "Track Supporting Structure (Plinth)", "Single Track (kN/m)": 20.00, "Double Track (kN/m)": 40.00, "Include": True, "Source": "BG40 R10", "Note": "Plinth / track support"},

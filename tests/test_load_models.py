@@ -3,6 +3,19 @@ from core.dpt_seismic import dpt_general_spectrum, lookup_general_ss_s1, seismic
 from core.load_models import en_dynamic_factor_standard_maintenance, hunting_force_en1991, longitudinal_force_en1991, sdl_totals, wind_load_en1991_dpt, wind_load_en1991_dpt_auto, wind_load_factor_c_bridge
 
 
+def test_dead_load_report_unit_weights_are_in_default_schema():
+    dl = BG40_DEFAULT["load_components"]
+    assert "dead_load_definition" in dl
+    assert "weight of the entire structure" in dl["dead_load_definition"]
+    weights = {row["Material"]: row for row in dl["dead_load_unit_weights"]}
+    assert weights["Steel"]["Unit Weight (kN/m³)"] == 76.9
+    assert weights["Cast iron"]["Mass Density (kg/m³)"] == 7200
+    assert weights["Plain concrete"]["Unit Weight (kN/m³)"] == 23.5
+    assert weights["Reinforced concrete"]["Unit Weight (kN/m³)"] == 24.5
+    assert weights["Prestressed concrete"]["Mass Density (kg/m³)"] == 2500
+    assert weights["Ballast"]["Unit Weight (kN/m³)"] == 18.6
+
+
 def test_sdl_totals_read_from_single_component_table():
     out = sdl_totals(BG40_DEFAULT["load_components"]["sdl_components"])
     assert abs(out["single_total"] - 62.14) < 0.02

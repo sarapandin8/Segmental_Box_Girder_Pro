@@ -1207,9 +1207,17 @@ def page_loads(sub: str) -> None:
     st.markdown(f'<div class="note-box"><b>Dedicated Loads workspace:</b> Active subpage = {sub}. Load calculations are maintained as a report-driven FEA load input generator.</div>', unsafe_allow_html=True)
     section_title("3 Loads — FEA load input generator")
     st.markdown('<div class="note-box"><b>One-source rule:</b> each load is entered once in the report-driven schema. Report Preview, FEA Load Summary, QA checks, and Save/Load JSON read from the same source.</div>', unsafe_allow_html=True)
-    tabs = st.tabs(["3.2 SDL", "3.3 LL + IM", "3.4 LF / HF", "3.6 CF", "3.7 Wind", "3.8 CR&SH", "3.9 EQ", "3.10 FEA Summary"])
+    tabs = st.tabs(["3.1 Dead Load", "3.2 SDL", "3.3 LL + IM", "3.4 LF / HF", "3.6 CF", "3.7 Wind", "3.8 CR&SH", "3.9 EQ", "3.10 FEA Summary"])
 
     with tabs[0]:
+        code_basis_card("3.1 Dead Load (DL)", "BG40 Calculation Report Ch. 1.3.1", "Informational/report text only. FEA self-weight remains generated in the structural analysis model; no duplicate dead-load input is introduced here.")
+        dl = D["load_components"]
+        st.markdown(f'<div class="note-box"><b>Dead load:</b> {dl.get("dead_load_definition", "")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="note-box"><b>Self-Weight (SW):</b> {dl.get("dead_load_note", "")}</div>', unsafe_allow_html=True)
+        show_engineering_table(pd.DataFrame(dl.get("dead_load_unit_weights", [])))
+        st.caption("Report note: these unit weights are provided for information and report traceability only. The app does not create an additional DL calculation table from these values.")
+
+    with tabs[1]:
         code_basis_card("3.2 Superimposed Dead Load (SDL)", "BG40 R10 project load schedule / FEA permanent appurtenance loads", "Editable component table. Total and adopted design values are recalculated from this single table.")
         sdl_df = pd.DataFrame(D["load_components"]["sdl_components"])
         edited = st.data_editor(
@@ -1240,7 +1248,7 @@ def page_loads(sub: str) -> None:
             ["SDL", "Superimposed dead load", D["load_components"]["design_sdl_double_kn_m"], "kN/m", "Gravity / along span", "Double-track adopted design value", "User editable + app total"],
         ], columns=["Load Pattern", "Description", "Value", "Unit", "Direction", "Application", "Source"]))
 
-    with tabs[1]:
+    with tabs[2]:
         code_basis_card("3.3 Live Load + Impact (LL+IM)", "EN 1991-2 Art. 6.4.3 and Art. 6.4.5", "Railway live load is U20 = 0.8 × LM71. Adopted impact/dynamic factor is a FEA load input value.")
         show_plotly(u20_loading_diagram())
         c1, c2, c3, c4 = st.columns(4)
@@ -1267,7 +1275,7 @@ def page_loads(sub: str) -> None:
             ["LL+IM", "U20 = 0.8 × LM71", D["load_components"]["dynamic_factor_design"], "factor", "Vertical railway load", "Railway load lane / track model", "App calculated + user-adopted"],
         ], columns=["Load Pattern", "Load model", "Value", "Unit", "Direction", "Application", "Source"]))
 
-    with tabs[2]:
+    with tabs[3]:
         code_basis_card("3.4 Longitudinal Force (LF) and 3.5 Hunting / Nosing Force (HF)", "EN 1991-2 Art. 6.5.3 and Art. 6.5.2", "LF is longitudinal braking/traction at rail level. HF is the EN nosing force Qsk, concentrated transverse at top of rail.")
         show_plotly(rail_horizontal_forces_diagram())
         c1, c2, c3 = st.columns(3)
@@ -1300,7 +1308,7 @@ def page_loads(sub: str) -> None:
         with c3:
             card("Dynamic factor on HF", "Not applied", "EN nosing force", "pass")
 
-    with tabs[3]:
+    with tabs[4]:
         code_basis_card("3.6 Centrifugal Force (CF)", "EN 1991-2 Art. 6.5.1", "Applies where horizontal curvature is relevant. For straight/large-radius spans this is often non-governing but still traceable.")
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -1319,7 +1327,7 @@ def page_loads(sub: str) -> None:
         with c2:
             card("Assessment", "Not governing" if ld['cf_C_percent'] < 5 else "Review", "large radius / straight-span assumption", "pass" if ld['cf_C_percent'] < 5 else "warn")
 
-    with tabs[4]:
+    with tabs[5]:
         code_basis_card(
             "3.7 Wind Load (WS)",
             "EN 1991-1-4 and DPT 1311-50",
@@ -1470,7 +1478,7 @@ def page_loads(sub: str) -> None:
             ]
             show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Description", "Resultant Force", "Unit", "Line Load", "Line Unit", "Direction", "Application"]))
             st.markdown('<div class="note-box"><b>FEA export rule:</b> WS and WS+WL are exported as equivalent transverse line loads along the wind-loaded span. The resultant forces shown above are calculated only once from the editable parameter table.</div>', unsafe_allow_html=True)
-    with tabs[5]:
+    with tabs[6]:
         code_basis_card("1.3.8 Creep and Shrinkage Parameters", "AASHTO LRFD 2020 Section 5, Art. 5.9.3 / 5.4.2.3", "Parameters declared here are consumed by 4 Prestress Losses; formulas are wrapped with SI↔AASHTO unit conversion.")
         p = D["prestress"]
         st.dataframe(pd.DataFrame([
@@ -1484,7 +1492,7 @@ def page_loads(sub: str) -> None:
         ], columns=["Parameter", "Value", "Unit", "Remarks"]), use_container_width=True, hide_index=True)
         st.markdown('<div class="warn-box"><b>Unit warning:</b> AASHTO empirical creep/shrinkage factors use V/S in inches and concrete strength in ksi for intermediate factors.</div>', unsafe_allow_html=True)
 
-    with tabs[6]:
+    with tabs[7]:
         code_basis_card(
             "3.9 Earthquake (EQ)",
             "DPT 1301/1302-61 Section 1.4, Section 1.6, and Chapter 3 equivalent static method",
@@ -1613,7 +1621,7 @@ def page_loads(sub: str) -> None:
             st.markdown('<div class="warn-box"><b>Manual source warning:</b> results are calculated from user-entered Ss/S1 and are not verified against the DPT location database.</div>', unsafe_allow_html=True)
         st.markdown('<div class="warn-box"><b>Scope note:</b> DPT 1301/1302-61 is a building seismic design standard. In this bridge app it is used as Thai project seismic parameter basis, consistent with the BG40 report criteria.</div>', unsafe_allow_html=True)
 
-    with tabs[7]:
+    with tabs[8]:
         ld = load_derived()
         rows = [
             ["DL", "DL", "Self-weight from γc", "Auto", "-", "Gravity", "FEA self-weight", "FEA auto / QA preview"],

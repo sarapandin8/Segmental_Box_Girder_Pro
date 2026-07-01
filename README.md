@@ -222,3 +222,10 @@ M3H.7.1 fixes the tendon overlay figure call to avoid TypeError when app.py and 
 - Bumps a project widget epoch and clears stale section editor/file-upload widget cache after JSON load so old empty data-editor state cannot overwrite newly loaded `section.coordinate_rows`.
 - Adds a Section Data Gate on the Section Properties page showing coordinate rows, computed section availability, and adopted properties availability.
 - Adds regression tests for save/load preservation, legacy coordinate migration, widget-cache reset, save ordering, and the Section Data Gate.
+
+## COMMERCIAL.LOADS.1 — Dead Load Report Info Restoration
+
+- Adds the missing 3.1 Dead Load tab to the Loads workspace.
+- Restores the BG40 report dead-load definition and Self-Weight unit-weight table for Steel, Cast iron, Plain concrete, Reinforced concrete, Prestressed concrete, and Ballast.
+- Keeps the page informational/report-only as requested: no duplicate DL calculator, no new FEA load input, and no change to downstream design-check logic.
+- Preserves the one-source load workflow for SDL and other calculated load modules.
