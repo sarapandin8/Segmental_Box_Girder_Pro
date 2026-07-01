@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.3
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.4
 
 This baseline carries forward the previously accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -16,6 +16,7 @@ This baseline carries forward the previously accepted commercial milestones and 
 - COMMERCIAL.LOADS.1
 - COMMERCIAL.LOADS.2
 - COMMERCIAL.LOADS.3
+- COMMERCIAL.LOADS.4
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -36,7 +37,7 @@ Retained basis / reference notes
 - Opening Polygon 1
 
 Current milestone focus:
-- Refine the U20 / LM71 railway live-load diagram to better match the report figure.
+- Replace the LL+IM U20 figure with a report-style canvas/SVG schematic for stable arrows and dimension graphics.
 - Use vertical point-load arrows for axle loads.
-- Rebuild the spacing / dimension chain in a report-style engineering schematic.
+- Use a complete dimension chain with NO LIMITATION zones.
 - Preserve LL+IM calculation logic and adopted impact factor workflow.

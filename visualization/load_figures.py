@@ -64,6 +64,98 @@ def u20_loading_diagram() -> go.Figure:
     return fig
 
 
+def u20_loading_diagram_svg() -> str:
+    """Report-style SVG schematic for the U20 = 0.8 × LM71 railway live-load figure.
+    Uses explicit arrows and dimension chain so it remains stable and crisp in Streamlit.
+    """
+    return """
+<div style='width:100%; background:#ffffff; border:1px solid #d0d5dd; border-radius:12px; padding:18px 18px 10px 18px; box-sizing:border-box;'>
+  <div style='font-family:Arial, sans-serif; font-size:18px; font-weight:700; color:#101828; margin-bottom:8px;'>Figure 1.1 U20 train loading diagram (0.8 × LM71) — dimensions in metres</div>
+  <svg viewBox='0 0 1120 310' width='100%' height='310' xmlns='http://www.w3.org/2000/svg'>
+    <defs>
+      <marker id='arrowDown' markerWidth='10' markerHeight='10' refX='5' refY='5' orient='auto' markerUnits='strokeWidth'>
+        <path d='M1,1 L9,5 L1,9 z' fill='#111827'/>
+      </marker>
+      <marker id='arrowDimEnd' markerWidth='8' markerHeight='8' refX='7' refY='4' orient='auto' markerUnits='strokeWidth'>
+        <path d='M8,4 L0,0 L0,8 z' fill='#111827'/>
+      </marker>
+      <marker id='arrowDimStart' markerWidth='8' markerHeight='8' refX='1' refY='4' orient='auto' markerUnits='strokeWidth'>
+        <path d='M0,4 L8,0 L8,8 z' fill='#111827'/>
+      </marker>
+    </defs>
+
+    <!-- note box -->
+    <rect x='960' y='10' width='130' height='58' fill='#fff' stroke='#d0d5dd'/>
+    <text x='970' y='28' font-size='11' font-family='Arial' fill='#111827' font-weight='700'>U20 basis</text>
+    <text x='970' y='42' font-size='10' font-family='Arial' fill='#344054'>0.8 × LM71</text>
+    <text x='970' y='55' font-size='10' font-family='Arial' fill='#344054'>4 × 200 kN point loads</text>
+
+    <!-- UDL blocks -->
+    <rect x='40' y='122' width='330' height='48' fill='none' stroke='#111827' stroke-width='2'/>
+    <rect x='710' y='122' width='330' height='48' fill='none' stroke='#111827' stroke-width='2'/>
+    <text x='205' y='109' text-anchor='middle' font-family='Arial' font-size='15' font-weight='700' fill='#111827'>64 kN/m</text>
+    <text x='875' y='109' text-anchor='middle' font-family='Arial' font-size='15' font-weight='700' fill='#111827'>64 kN/m</text>
+
+    <!-- track / load line -->
+    <line x1='20' y1='188' x2='1060' y2='188' stroke='#111827' stroke-width='2.2'/>
+
+    <!-- point load arrows and labels -->
+    <g font-family='Arial' fill='#111827' text-anchor='middle'>
+      <line x1='420' y1='70' x2='420' y2='122' stroke='#111827' stroke-width='2' marker-end='url(#arrowDown)'/>
+      <text x='420' y='60' font-size='13'>200 kN</text>
+      <text x='420' y='77' font-size='18' font-weight='700'>P</text>
+
+      <line x1='500' y1='70' x2='500' y2='122' stroke='#111827' stroke-width='2' marker-end='url(#arrowDown)'/>
+      <text x='500' y='60' font-size='13'>200 kN</text>
+      <text x='500' y='77' font-size='18' font-weight='700'>P</text>
+
+      <line x1='580' y1='70' x2='580' y2='122' stroke='#111827' stroke-width='2' marker-end='url(#arrowDown)'/>
+      <text x='580' y='60' font-size='13'>200 kN</text>
+      <text x='580' y='77' font-size='18' font-weight='700'>P</text>
+
+      <line x1='660' y1='70' x2='660' y2='122' stroke='#111827' stroke-width='2' marker-end='url(#arrowDown)'/>
+      <text x='660' y='60' font-size='13'>200 kN</text>
+      <text x='660' y='77' font-size='18' font-weight='700'>P</text>
+    </g>
+
+    <!-- extension lines -->
+    <g stroke='#475467' stroke-width='1.2'>
+      <line x1='40' y1='170' x2='40' y2='208'/>
+      <line x1='370' y1='170' x2='370' y2='208'/>
+      <line x1='420' y1='188' x2='420' y2='208'/>
+      <line x1='500' y1='188' x2='500' y2='208'/>
+      <line x1='580' y1='188' x2='580' y2='208'/>
+      <line x1='660' y1='188' x2='660' y2='208'/>
+      <line x1='710' y1='170' x2='710' y2='208'/>
+      <line x1='1040' y1='170' x2='1040' y2='208'/>
+    </g>
+
+    <!-- dimension chain -->
+    <g stroke='#111827' stroke-width='1.4' fill='none'>
+      <line x1='40' y1='210' x2='370' y2='210' marker-start='url(#arrowDimStart)' marker-end='url(#arrowDimEnd)'/>
+      <line x1='370' y1='210' x2='420' y2='210' marker-start='url(#arrowDimStart)' marker-end='url(#arrowDimEnd)'/>
+      <line x1='420' y1='210' x2='500' y2='210' marker-start='url(#arrowDimStart)' marker-end='url(#arrowDimEnd)'/>
+      <line x1='500' y1='210' x2='580' y2='210' marker-start='url(#arrowDimStart)' marker-end='url(#arrowDimEnd)'/>
+      <line x1='580' y1='210' x2='660' y2='210' marker-start='url(#arrowDimStart)' marker-end='url(#arrowDimEnd)'/>
+      <line x1='660' y1='210' x2='710' y2='210' marker-start='url(#arrowDimStart)' marker-end='url(#arrowDimEnd)'/>
+      <line x1='710' y1='210' x2='1040' y2='210' marker-start='url(#arrowDimStart)' marker-end='url(#arrowDimEnd)'/>
+    </g>
+
+    <!-- dimension labels -->
+    <g font-family='Arial' text-anchor='middle'>
+      <text x='205' y='236' font-size='13' font-weight='700' fill='#111827'>NO LIMITATION</text>
+      <text x='395' y='236' font-size='13' fill='#111827'>0.80</text>
+      <text x='460' y='236' font-size='13' fill='#111827'>1.60</text>
+      <text x='540' y='236' font-size='13' fill='#111827'>1.60</text>
+      <text x='620' y='236' font-size='13' fill='#111827'>1.60</text>
+      <text x='685' y='236' font-size='13' fill='#111827'>0.80</text>
+      <text x='875' y='236' font-size='13' font-weight='700' fill='#111827'>NO LIMITATION</text>
+    </g>
+  </svg>
+</div>
+"""
+
+
 def rail_horizontal_forces_diagram() -> go.Figure:
     fig = go.Figure()
     fig.add_shape(type="rect", x0=0, x1=40, y0=-0.25, y1=0.25, line=dict(color="#0b3b91"), fillcolor="rgba(23,92,211,0.08)")

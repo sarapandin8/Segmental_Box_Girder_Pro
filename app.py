@@ -8,6 +8,7 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.graph_objects as go
 
 from core.bg40_defaults import BG40_DEFAULT
@@ -104,6 +105,7 @@ from visualization.load_figures import (
     rail_horizontal_forces_diagram,
     response_spectrum_figure,
     u20_loading_diagram,
+    u20_loading_diagram_svg,
     wind_bridge_direction_diagram,
 )
 from core.calculations import (
@@ -1250,7 +1252,7 @@ def page_loads(sub: str) -> None:
 
     with tabs[2]:
         code_basis_card("3.3 Live Load + Impact (LL+IM)", "EN 1991-2 Art. 6.4.3 and Art. 6.4.5", "Railway live load is U20 = 0.8 × LM71. Adopted impact/dynamic factor is a FEA load input value.")
-        show_plotly(u20_loading_diagram())
+        components.html(u20_loading_diagram_svg(), height=360, scrolling=False)
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             editable_value(["load_components", "dynamic_L_left_m"], "L_left (m)", 1.0)
