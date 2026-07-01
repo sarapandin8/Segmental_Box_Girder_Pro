@@ -1349,7 +1349,7 @@ def page_loads(sub: str) -> None:
         )
         st.markdown('<div class="note-box"><b>Wind one-source rule:</b> the editable parameter table below feeds the calculation trace, figures, result tables, FEA summary, Save/Load JSON, and future report export. C factors are not duplicate manual inputs.</div>', unsafe_allow_html=True)
 
-        wind_tabs = st.tabs(["Overview", "Inputs", "EN Factors", "Calculations", "Figures", "FEA Summary"])
+        wind_tabs = st.tabs(["Overview", "Input Assistant", "EN Factors", "Calculations", "Figures", "FEA Summary"])
         lc = D["load_components"]
         wind_group_options = wind_reference_group_options()
         if lc.get("wind_reference_group") not in wind_group_options:
@@ -1379,13 +1379,15 @@ def page_loads(sub: str) -> None:
             ], columns=["Item", "Value", "Unit", "Interpretation"]))
 
         with wind_tabs[1]:
-            st.markdown("#### Editable wind parameter table")
+            st.markdown("#### Code-assisted wind input assistant")
+            st.markdown('<div class="note-box"><b>Input philosophy:</b> select only the project-specific wind group and geometry. The app recommends DPT/EN factors, calculates derived wind quantities, and keeps any user override visible for report traceability.</div>', unsafe_allow_html=True)
+
             selected_group = st.selectbox(
                 "DPT 1311-50 reference wind speed group",
                 wind_group_options,
                 index=wind_group_options.index(lc.get("wind_reference_group", "Group 1")),
                 key="wind_reference_group_select",
-                help="Selecting a group updates the recommended vb,0. Manual edits remain possible in the table.",
+                help="Selecting a group updates the recommended V50, TF, and vb,0 unless the user explicitly overrides the adopted values.",
             )
             if selected_group != lc.get("wind_reference_group"):
                 rec = wind_vb0_recommended_from_group(selected_group)
@@ -1393,40 +1395,108 @@ def page_loads(sub: str) -> None:
                 lc["wind_v50_m_s"] = float(rec["V50_m_s"])
                 lc["wind_terrain_factor"] = float(rec["TF"])
                 lc["wind_vb0_m_s"] = float(rec["vb0_m_s"])
+                lc["wind_vb0_manual_override"] = False
+
+            rec = wind_vb0_recommended_from_group(lc.get("wind_reference_group", "Group 1"))
+            rec_v50 = float(rec["V50_m_s"])
+            rec_tf = float(rec["TF"])
+            rec_vb0 = float(lc.get("wind_v50_m_s", rec_v50)) * float(lc.get("wind_terrain_factor", rec_tf))
+            lc.setdefault("wind_vb0_manual_override", False)
+            manual_vb0 = bool(lc.get("wind_vb0_manual_override", False))
+
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                card("DPT group recommendation", str(lc.get("wind_reference_group", "Group 1")), f"V50 = {rec_v50:.1f} m/s · TF = {rec_tf:.2f}", "pass")
+            with c2:
+                card("Recommended vb,0", f"{rec_vb0:.2f} m/s", "V50 × TF")
+            with c3:
+                card("Recommended cdir", "1.00", "EN 1991-1-4 default")
+            with c4:
+                card("Recommended cseason", "1.00", "EN 1991-1-4 default")
+
+            b1, b2 = st.columns([1, 3])
+            with b1:
+                if st.button("Adopt DPT / EN recommended wind factors", use_container_width=True, key="adopt_wind_recommended_factors"):
+                    lc["wind_v50_m_s"] = rec_v50
+                    lc["wind_terrain_factor"] = rec_tf
+                    lc["wind_vb0_m_s"] = rec_v50 * rec_tf
+                    lc["wind_cdir"] = 1.0
+                    lc["wind_cseason"] = 1.0
+                    lc["wind_vb0_manual_override"] = False
+                    st.rerun()
+            with b2:
+                st.markdown('<div class="small-muted">Recommended values are not hidden assumptions. If edited, the app marks them as user overrides and recalculates WS / WS+WL automatically.</div>', unsafe_allow_html=True)
+
+            lc["wind_vb0_manual_override"] = st.checkbox(
+                "Allow manual override of vb,0 instead of auto-calculating vb,0 = V50 × TF",
+                value=manual_vb0,
+                key="wind_vb0_manual_override_checkbox",
+            )
+            manual_vb0 = bool(lc["wind_vb0_manual_override"])
+            if not manual_vb0:
+                lc["wind_vb0_m_s"] = rec_vb0
+
+            def _wind_status(key: str, recommended: float, tolerance: float = 1e-6) -> str:
+                try:
+                    current = float(lc.get(key, recommended))
+                except (TypeError, ValueError):
+                    return "Review input"
+                return "Recommended / auto" if abs(current - float(recommended)) <= tolerance else "User override"
 
             specs = [
-                ("Air density ρ", "wind_air_density_kg_m3", "kg/m³", 1.25, "BG40 R10 / EN calculation parameter"),
-                ("Reference wind speed V50", "wind_v50_m_s", "m/s", wind_vb0_recommended_from_group(lc.get("wind_reference_group", "Group 1"))["V50_m_s"], "DPT 1311-50 group value"),
-                ("Terrain factor TF", "wind_terrain_factor", "-", wind_vb0_recommended_from_group(lc.get("wind_reference_group", "Group 1"))["TF"], "DPT group factor shown in BG40 R10"),
-                ("Fundamental basic wind velocity vb,0", "wind_vb0_m_s", "m/s", wind_vb0_recommended_from_group(lc.get("wind_reference_group", "Group 1"))["vb0_m_s"], "User-adopted basic wind velocity"),
-                ("Directional factor cdir", "wind_cdir", "-", 1.0, "EN 1991-1-4 Section 4.2 Note 2 recommended value"),
-                ("Season factor cseason", "wind_cseason", "-", 1.0, "EN 1991-1-4 Section 4.2 Note 3 recommended value"),
-                ("Bridge/deck width b", "wind_b_m", "m", D["project"]["width_m"], "Width in x-direction D from report"),
-                ("Depth dtot,WS", "wind_dtot_ws_m", "m", 3.9, "Superstructure with parapets"),
-                ("Depth dtot,WS+WL", "wind_dtot_ws_wl_m", "m", 6.8, "Superstructure plus train"),
-                ("Deck height ze", "wind_ze_m", "m", 10.0, "Height of bridge deck"),
-                ("Wind loaded length L", "wind_span_m", "m", D["project"]["span_m"], "Length of superstructure subjected to wind"),
+                ("Air density ρ", "wind_air_density_kg_m3", "kg/m³", 1.25, "Project / report input", "Usually 1.25 kg/m³ for BG40 report basis"),
+                ("Reference wind speed V50", "wind_v50_m_s", "m/s", rec_v50, "DPT group recommendation", "From selected DPT 1311-50 wind group"),
+                ("Terrain factor TF", "wind_terrain_factor", "-", rec_tf, "DPT group recommendation", "From selected DPT 1311-50 wind group"),
+                ("Fundamental basic wind velocity vb,0", "wind_vb0_m_s", "m/s", rec_vb0, "Auto from V50 × TF" if not manual_vb0 else "User override enabled", "Used in EN vb = cdir cseason vb,0"),
+                ("Directional factor cdir", "wind_cdir", "-", 1.0, "EN recommended default", "Default 1.00 unless National Annex / project states otherwise"),
+                ("Season factor cseason", "wind_cseason", "-", 1.0, "EN recommended default", "Default 1.00 unless National Annex / project states otherwise"),
+                ("Bridge/deck width b", "wind_b_m", "m", D["project"]["width_m"], "Project geometry input", "Width in x-direction D from report"),
+                ("Depth dtot,WS", "wind_dtot_ws_m", "m", 3.9, "Project geometry input", "Superstructure with parapets"),
+                ("Depth dtot,WS+WL", "wind_dtot_ws_wl_m", "m", 6.8, "Project geometry input", "Superstructure plus train envelope"),
+                ("Deck height ze", "wind_ze_m", "m", 10.0, "Project geometry input", "Height of bridge deck"),
+                ("Wind loaded length L", "wind_span_m", "m", D["project"]["span_m"], "Project geometry input", "Length of superstructure subjected to wind"),
             ]
-            # Mirror span to a load component key for table editing while keeping project span as source of truth by default.
             lc.setdefault("wind_span_m", float(D["project"]["span_m"]))
             param_df = pd.DataFrame([
-                {"Parameter": label, "Value": float(lc.get(key, default)), "Unit": unit, "Recommended / source": src, "Schema key": key}
-                for label, key, unit, default, src in specs
+                {
+                    "Parameter": label,
+                    "Value": float(lc.get(key, default)),
+                    "Unit": unit,
+                    "Recommendation status": _wind_status(key, default),
+                    "Recommended / source": src,
+                    "Note": note,
+                    "Schema key": key,
+                }
+                for label, key, unit, default, src, note in specs
             ])
+            st.markdown("#### Editable wind parameter table")
             edited = st.data_editor(
                 param_df,
                 use_container_width=True,
                 hide_index=True,
-                disabled=["Parameter", "Unit", "Recommended / source", "Schema key"],
+                disabled=["Parameter", "Unit", "Recommendation status", "Recommended / source", "Note", "Schema key"],
                 column_config={"Value": st.column_config.NumberColumn(format="%.3f")},
                 key="wind_parameter_editor",
             )
             for _, row in edited.iterrows():
                 key = str(row["Schema key"])
                 lc[key] = float(row["Value"])
+            if not bool(lc.get("wind_vb0_manual_override", False)):
+                lc["wind_vb0_m_s"] = float(lc.get("wind_v50_m_s", rec_v50)) * float(lc.get("wind_terrain_factor", rec_tf))
+
             D["project"]["span_m"] = float(lc.get("wind_span_m", D["project"]["span_m"]))
             lc["wind_vb_m_s"] = float(lc["wind_vb0_m_s"]) * float(lc["wind_cdir"]) * float(lc["wind_cseason"])
-            st.markdown('<div class="warn-box"><b>Override rule:</b> if a recommended value is changed, the app keeps the edited value as User Input and recalculates downstream WS, WS+WL, and FEA summary values.</div>', unsafe_allow_html=True)
+
+            st.markdown("#### Recommendation / override trace")
+            show_engineering_table(pd.DataFrame([
+                ["Wind group", lc.get("wind_reference_group", "Group 1"), "User selected", "Drives V50 and TF recommendation"],
+                ["V50", lc["wind_v50_m_s"], _wind_status("wind_v50_m_s", rec_v50), "DPT group value unless user override"],
+                ["TF", lc["wind_terrain_factor"], _wind_status("wind_terrain_factor", rec_tf), "DPT group factor unless user override"],
+                ["vb,0", lc["wind_vb0_m_s"], "User override" if bool(lc.get("wind_vb0_manual_override", False)) else "Auto = V50 × TF", "Fundamental basic wind velocity"],
+                ["cdir", lc["wind_cdir"], _wind_status("wind_cdir", 1.0), "Recommended default 1.00"],
+                ["cseason", lc["wind_cseason"], _wind_status("wind_cseason", 1.0), "Recommended default 1.00"],
+            ], columns=["Item", "Value", "Status", "Trace"]))
+            st.markdown('<div class="warn-box"><b>Override rule:</b> calculated/recommended values may be edited, but the app keeps the adopted value and source status visible for report traceability.</div>', unsafe_allow_html=True)
 
         with wind_tabs[2]:
             st.markdown("#### EN 1991-1-4 wind factor reference")
