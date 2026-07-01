@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.8
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.9
 
 This baseline carries forward the previously accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -21,6 +21,7 @@ This baseline carries forward the previously accepted commercial milestones and 
 - COMMERCIAL.LOADS.6
 - COMMERCIAL.LOADS.7
 - COMMERCIAL.LOADS.8
+- COMMERCIAL.LOADS.9
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -42,8 +43,8 @@ Retained basis / reference notes
 - Orthographic Isometric
 
 Current milestone focus:
-- Refine the LF/HF isometric rail action diagram.
-- Make the sleeper/tie appearance closer to the original reference graphic.
-- Reduce arrowhead size and prevent arrow/label overlap.
+- Further refine the LF/HF isometric rail action diagram.
+- Extend sleepers across the full track width to better match the reference graphic.
+- Reduce action arrowhead size and lighten line weight.
 - Keep HF and local y-axis truly normal to the track.
 - Preserve existing LF/HF input and calculation logic.
