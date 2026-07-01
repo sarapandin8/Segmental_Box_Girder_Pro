@@ -11,6 +11,28 @@ import streamlit as st
 import plotly.graph_objects as go
 
 from core.bg40_defaults import BG40_DEFAULT
+from core.code_basis import (
+    AASHTO_2020_SECTION5_LABEL,
+    AASHTO_2020_SECTION5_TITLE,
+    AASHTO_SECTION5_ARTICLE_MAP,
+    code_basis_summary_rows,
+)
+from core.aashto_units import (
+    concrete_strength_guard_mpa,
+    ksi_to_mpa,
+    mpa_to_ksi,
+    kn_to_kip,
+    kip_to_kn,
+    mm_to_in,
+    inch_to_mm,
+    m_to_ft,
+    ft_to_m,
+    knm_to_kipft,
+    kipft_to_knm,
+    psi_sqrt_fc_coefficient_to_ksi,
+    stress_mpa_from_ksi_sqrt_fc,
+    standard_conversion_table,
+)
 from core.dpt_seismic import (
     bangkok_response_spectrum_points,
     dpt_bangkok_basin_spectrum,
@@ -474,11 +496,33 @@ def _engineering_canvas_legend_html(items: list[dict[str, str]]) -> str:
     return '<div class="canvas-legend-strip">' + "".join(html_items) + '</div>'
 
 
-def _tendon_family_legend_items(families: list[str]) -> list[dict[str, str]]:
+def _tendon_family_color(family: str, fallback_index: int = 0) -> str:
+    """Return the stable UI.2 tendon-family color used by tendon Plotly traces."""
+    import re
+
     colors = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#dc2626"]
+    m = re.search(r"(\d+)", str(family or ""))
+    idx = int(m.group(1)) - 1 if m else fallback_index
+    return colors[idx % len(colors)]
+
+
+def _tendon_family_legend_items(families: list[str]) -> list[dict[str, str]]:
     items = [{"label": "L side", "kind": "line", "color": "#475569"}, {"label": "R side", "kind": "dash", "color": "#475569"}]
     for i, fam in enumerate(families):
-        items.append({"label": fam, "kind": "dot", "color": colors[i % len(colors)]})
+        items.append({"label": fam, "kind": "dot", "color": _tendon_family_color(fam, i)})
+    return items
+
+
+def _tendon_3d_legend_items(families: list[str], sides: list[str]) -> list[dict[str, str]]:
+    """Build a 3D legend strip that mirrors only the visible tendon set."""
+    items: list[dict[str, str]] = []
+    side_set = {str(side).upper() for side in sides if str(side).strip()}
+    if "L" in side_set:
+        items.append({"label": "L side", "kind": "line", "color": "#475569"})
+    if "R" in side_set:
+        items.append({"label": "R side", "kind": "dash", "color": "#475569"})
+    for i, fam in enumerate(families):
+        items.append({"label": fam, "kind": "dot", "color": _tendon_family_color(fam, i)})
     return items
 
 
@@ -490,6 +534,47 @@ def _figure_view_texts() -> tuple[str, str]:
     view_mode_text = "Interactive review" if current_figure_view_mode() == "Interactive review" else "Report preview"
     view_mode_note = "toolbar on" if current_figure_view_mode() == "Interactive review" else "toolbar hidden"
     return view_mode_text, view_mode_note
+
+
+def render_aashto_2020_unit_safe_basis_panel() -> None:
+    """Commercial CODE.1 panel: governing AASHTO 2020 Section 5 and SI unit policy."""
+    guard = concrete_strength_guard_mpa(float(D["materials"].get("fc_mpa", 0.0)))
+    mode = "pass" if guard.status == "PASS" else ("warn" if guard.status == "WARNING" else "fail")
+    st.markdown(
+        '<div class="note-box"><b>AASHTO Section 5 governing basis:</b> Concrete and prestressed-concrete design checks in this app are governed by <b>AASHTO LRFD Bridge Design Specifications, 9th Edition, 2020 — Section 5 Concrete Structures</b>. The app remains SI-native; kip/ksi/in/ft equations must be evaluated through the shared unit-safe wrapper layer.</div>',
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        card("Concrete/PT code", "AASHTO LRFD 2020", "9th Edition · Section 5", "pass")
+    with c2:
+        card("App units", "SI only", D["code_basis"].get("internal_units", "kN, m, MPa, mm"), "pass")
+    with c3:
+        card("Formula unit guard", "Required", "No direct MPa into kip/ksi equations", "warn")
+    with c4:
+        card("f′c unit check", guard.status, guard.message, mode)
+
+    st.markdown("#### Governing code-basis summary")
+    show_engineering_table(pd.DataFrame(code_basis_summary_rows(D)))
+
+    st.markdown("#### AASHTO Section 5 article map for this app")
+    show_engineering_table(pd.DataFrame(AASHTO_SECTION5_ARTICLE_MAP))
+
+    st.markdown("#### Unit conversion basis used by calculation wrappers")
+    show_engineering_table(pd.DataFrame(standard_conversion_table()))
+
+    fc_mpa = float(D["materials"].get("fc_mpa", 60.0))
+    demo_rows = [
+        ["f′c", fc_mpa, "MPa", mpa_to_ksi(fc_mpa), "ksi", "Concrete strength converted before AASHTO √f′c expressions"],
+        ["1,000 kN", 1000.0, "kN", kn_to_kip(1000.0), "kip", "Force conversion benchmark"],
+        ["1,000 mm", 1000.0, "mm", mm_to_in(1000.0), "in", "Length conversion benchmark"],
+        ["40.0 m", 40.0, "m", m_to_ft(40.0), "ft", "Span conversion benchmark"],
+        ["1,000 kN·m", 1000.0, "kN·m", knm_to_kipft(1000.0), "kip·ft", "Moment conversion benchmark"],
+        ["Coefficient 1√f′c", 1.0, "psi-form coefficient", psi_sqrt_fc_coefficient_to_ksi(1.0), "ksi-form coefficient", "√f′c coefficient conversion guard"],
+        ["0.19√f′c", 0.19, "ksi expression", stress_mpa_from_ksi_sqrt_fc(0.19, fc_mpa), "MPa", "Example stress from ksi-based √f′c expression"],
+    ]
+    show_engineering_table(pd.DataFrame(demo_rows, columns=["Input", "SI value", "SI unit", "Converted / result", "AASHTO unit", "Trace note"]))
+    st.markdown("<div class='warn-box'><b>Non-Section-5 note:</b> the existing seismic R-factor helper still references the app&apos;s bridge seismic R table until a 2020 Section 3 source is provided. This does not control concrete/PT Section 5 design checks.</div>", unsafe_allow_html=True)
 
 def code_basis_card(title: str, code_basis: str, note: str = "") -> None:
     st.markdown(
@@ -934,7 +1019,7 @@ def render_header() -> None:
     with c2:
         small_context("Subpage", sub, "Report-driven UI section")
     with c3:
-        small_context("Design Code", "AASHTO LRFD 2014", "EN actions from FEA envelope")
+        small_context("Design Code", D["code_basis"]["concrete_design_standard"].replace("Bridge Design Specifications, ", ""), "Section 5 governs concrete/PT checks")
     with c4:
         small_context("Tendon System", D["project"]["tendon_system"], "φv route controlled by tendon system")
     st.markdown("")
@@ -1048,6 +1133,7 @@ def page_criteria_loads(sub: str) -> None:
     if sub == "1.1 Standards":
         st.markdown("### 1.1 Design Standards and Requirements")
         st.dataframe(pd.DataFrame(D["criteria"]["standards"]), use_container_width=True, hide_index=True)
+        render_aashto_2020_unit_safe_basis_panel()
         D["criteria"]["units_statement"] = st.text_area("Units statement for report", D["criteria"]["units_statement"], height=90)
         st.markdown('<div class="note-box"><b>Commercial rule:</b> UI labels stay concise, but report numbering and title are preserved for traceability.</div>', unsafe_allow_html=True)
     elif sub == "1.2 Materials":
@@ -1098,9 +1184,10 @@ def page_criteria_loads(sub: str) -> None:
             ], columns=["Calculated item", "App calculated", "Report / used", "Unit"]), use_container_width=True, hide_index=True)
     elif sub == "1.3 Design Basis / Units":
         st.markdown("### 1.3 Design Basis / Units")
+        render_aashto_2020_unit_safe_basis_panel()
         D["criteria"]["units_statement"] = st.text_area("Units statement for report", D["criteria"].get("units_statement", ""), height=90, key="criteria_units_statement")
         D["criteria"]["combination_basis"] = st.text_area("FEA combination and design-force traceability basis", D["criteria"].get("combination_basis", ""), height=140, key="criteria_combination_basis")
-        st.markdown('<div class="note-box"><b>Loads moved:</b> all load calculations and FEA load input summaries are now managed under <b>3 Loads</b>. Criteria only records standards, materials, units, and combination-basis text.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="note-box"><b>Loads moved:</b> all load calculations and FEA load input summaries are now managed under <b>3 Loads</b>. Criteria only records standards, materials, units, code basis, and combination-basis text.</div>', unsafe_allow_html=True)
     elif sub == "1.4 Combinations":
         st.markdown("### 1.4 Load Combinations")
         notation = pd.DataFrame([
@@ -1384,7 +1471,7 @@ def page_loads(sub: str) -> None:
             show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Description", "Resultant Force", "Unit", "Line Load", "Line Unit", "Direction", "Application"]))
             st.markdown('<div class="note-box"><b>FEA export rule:</b> WS and WS+WL are exported as equivalent transverse line loads along the wind-loaded span. The resultant forces shown above are calculated only once from the editable parameter table.</div>', unsafe_allow_html=True)
     with tabs[5]:
-        code_basis_card("1.3.8 Creep and Shrinkage Parameters", "AASHTO LRFD 2014 Art. 5.9.5", "Parameters declared here are consumed by Chapter 4 Prestress Losses; final loss calculation remains in the prestress module.")
+        code_basis_card("1.3.8 Creep and Shrinkage Parameters", "AASHTO LRFD 2020 Section 5, Art. 5.9.3 / 5.4.2.3", "Parameters declared here are consumed by 4 Prestress Losses; formulas are wrapped with SI↔AASHTO unit conversion.")
         p = D["prestress"]
         st.dataframe(pd.DataFrame([
             ["RH", p["RH_percent"], "%", "Project design assumption"],
@@ -1537,7 +1624,7 @@ def page_loads(sub: str) -> None:
             ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", "Curved track only", "App calculated"],
             ["WS", "WS", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure", "App calculated"],
             ["WS+WL", "WS+WL", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_WL_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure + train", "App calculated"],
-            ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO LRFD 2014 R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", "DPT lookup + AASHTO R + app calculated"],
+            ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO bridge R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", "DPT lookup + AASHTO R + app calculated"],
             ["CR&SH", "CR/SH", "AASHTO LRFD Art. 5.9.5", "parameters", "-", "Long-term", "Prestress loss module", "Declared in 1.3 / calculated in 4"],
         ]
         show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Symbol", "Code Basis", "Value", "Unit", "Direction", "Application", "Source"]))
@@ -2649,43 +2736,104 @@ def render_tendon_layout_reference() -> None:
                 "Tendon focus",
                 "Report isometric",
             ]
-            preset_options = ["Custom", "Overview", "Left inspection", "Right inspection", "Single tendon focus", "Report clean"]
-            c1, c2, c3, c4, c5 = st.columns([1.15, 1.20, 1.00, 1.10, 1.00])
-            with c1:
-                inspection_preset = st.selectbox("Inspection preset", preset_options, index=0, key="tendon_3d_inspection_preset")
-            with c2:
-                view_preset = st.selectbox("3D view preset", view_preset_options, index=0, key="tendon_3d_view_preset")
-            with c3:
-                aspect_mode = st.selectbox("Aspect mode", ["Presentation scale", "True scale"], index=0, key="tendon_3d_aspect_mode")
-            with c4:
-                shell_display_mode = st.selectbox("Shell display", ["Full shell", "Left half shell", "Right half shell", "No shell", "Inner void only"], index=0, key="tendon_3d_shell_display")
-                # Legacy explicit checkbox labels retained for regression trace: "Show outer shell" / "Show inner void".
-            with c5:
-                tendon3d_side_filter = st.selectbox("Tendon side", ["Both sides", "Left only", "Right only"], index=0, key="tendon_3d_side_filter")
+            preset_options = ["Overview", "Left inspection", "Right inspection", "Single tendon focus", "Report clean", "Custom"]
+            st.markdown("##### 3D inspection controls")
+            with st.container(border=True):
+                st.markdown(
+                    """
+                    <div class="small-muted"><b>Inspection workflow</b> · Start with a preset, then use Advanced 3D display controls only when a manual review setup is needed.</div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                p1, p2, p3, p4 = st.columns([1.05, 1.05, 1.05, 1.05])
+                with p1:
+                    inspection_preset = st.selectbox("Inspection preset", preset_options, index=0, key="tendon_3d_inspection_preset")
+                focus_control_enabled = inspection_preset in {"Custom", "Single tendon focus"}
+                with p2:
+                    focus_tendon = st.selectbox(
+                        "Focus tendon",
+                        ["None"] + tendon_names_3d,
+                        index=0,
+                        key="tendon_3d_focus_tendon",
+                        disabled=not focus_control_enabled,
+                        help="Enabled for Custom and Single tendon focus presets. Other presets intentionally keep focus off for a clean review model.",
+                    )
+                with p3:
+                    tendon3d_family_filter = st.selectbox("Family filter", ["All families"] + families, index=0, key="tendon_3d_family_filter")
+                with p4:
+                    tendon3d_tendon_filter = st.selectbox("Tendon isolate", ["All tendons"] + tendon_names_3d, index=0, key="tendon_3d_tendon_filter")
 
-            e1, e2, e3, e4 = st.columns([1.0, 1.10, 1.05, 1.05])
-            with e1:
-                tendon3d_family_filter = st.selectbox("Family filter", ["All families"] + families, index=0, key="tendon_3d_family_filter")
-            with e2:
-                tendon3d_tendon_filter = st.selectbox("Tendon isolate", ["All tendons"] + tendon_names_3d, index=0, key="tendon_3d_tendon_filter")
-            with e3:
-                focus_tendon = st.selectbox("Focus tendon", ["None"] + tendon_names_3d, index=0, key="tendon_3d_focus_tendon")
-            with e4:
-                station_marker_mode = st.selectbox("Station markers", ["Key only", "All stations", "Off"], index=0, key="tendon_3d_station_marker_mode")
+                preset_managed = inspection_preset != "Custom"
+                with st.expander("Advanced 3D display controls", expanded=False):
+                    st.markdown(
+                        '<div class="small-muted">Manual display controls are most useful in <b>Custom</b>. Preset modes keep a controlled commercial review setup.</div>',
+                        unsafe_allow_html=True,
+                    )
+                    c1, c2, c3, c4, c5 = st.columns([1.18, 1.05, 1.05, 1.10, 1.00])
+                    with c1:
+                        view_preset = st.selectbox("3D view preset", view_preset_options, index=0, key="tendon_3d_view_preset", disabled=preset_managed)
+                    with c2:
+                        aspect_mode = st.selectbox("Aspect mode", ["Presentation scale", "True scale"], index=0, key="tendon_3d_aspect_mode", disabled=preset_managed)
+                    with c3:
+                        shell_display_mode = st.selectbox("Shell display", ["Full shell", "Left half shell", "Right half shell", "No shell", "Inner void only"], index=0, key="tendon_3d_shell_display", disabled=preset_managed)
+                        # Legacy explicit checkbox labels retained for regression trace: "Show outer shell" / "Show inner void".
+                    with c4:
+                        tendon3d_side_filter = st.selectbox("Tendon side", ["Both sides", "Left only", "Right only"], index=0, key="tendon_3d_side_filter", disabled=preset_managed)
+                    with c5:
+                        station_marker_mode = st.selectbox("Station markers", ["Key only", "All stations", "Off"], index=0, key="tendon_3d_station_marker_mode", disabled=preset_managed)
 
-            f1, f2, f3 = st.columns([1.0, 1.0, 1.0])
-            with f1:
-                outer_shell_opacity = st.slider("Outer shell opacity", 0.0, 0.60, 0.18, 0.02, key="tendon_3d_outer_opacity")
-            with f2:
-                inner_void_opacity = st.slider("Inner void opacity", 0.0, 0.60, 0.16, 0.02, key="tendon_3d_inner_opacity")
-            with f3:
-                tendon_line_width = st.slider("Tendon line thickness", 2.0, 12.0, 6.0, 0.5, key="tendon_3d_line_thickness")
+                    f1, f2, f3 = st.columns([1.0, 1.0, 1.0])
+                    with f1:
+                        outer_shell_opacity = st.slider("Outer shell opacity", 0.0, 0.60, 0.18, 0.02, key="tendon_3d_outer_opacity")
+                    with f2:
+                        inner_void_opacity = st.slider("Inner void opacity", 0.0, 0.60, 0.16, 0.02, key="tendon_3d_inner_opacity")
+                    with f3:
+                        tendon_line_width = st.slider("Tendon line thickness", 2.0, 12.0, 6.0, 0.5, key="tendon_3d_line_thickness")
 
-            d1, d2 = st.columns([1.0, 1.0])
-            with d1:
-                show_tendon_labels_3d = st.checkbox("Show tendon labels", value=False, key="tendon_3d_labels")
-            with d2:
-                fade_unfocused_tendons = st.checkbox("Fade non-focused tendons", value=True, key="tendon_3d_fade_unfocused")
+                    d1, d2 = st.columns([1.0, 1.0])
+                    with d1:
+                        show_tendon_labels_3d = st.checkbox("Show tendon labels", value=False, key="tendon_3d_labels")
+                    with d2:
+                        focus_has_tendon = focus_control_enabled and focus_tendon != "None"
+                        if focus_has_tendon:
+                            fade_unfocused_tendons = st.checkbox(
+                                "Fade non-focused tendons",
+                                value=True,
+                                key="tendon_3d_fade_unfocused",
+                                help="Fades context tendons while keeping the selected tendon high-contrast.",
+                            )
+                        else:
+                            st.checkbox(
+                                "Fade non-focused tendons",
+                                value=False,
+                                key="tendon_3d_fade_unfocused_inactive",
+                                disabled=True,
+                                help="Select a focus tendon to enable faded context display.",
+                            )
+                            fade_unfocused_tendons = False
+
+            # Default fallbacks are defined here so preset-managed disabled widgets
+            # still produce stable effective values without mutating session state.
+            if 'view_preset' not in locals():
+                view_preset = "Isometric · Orthographic"
+            if 'aspect_mode' not in locals():
+                aspect_mode = "Presentation scale"
+            if 'shell_display_mode' not in locals():
+                shell_display_mode = "Full shell"
+            if 'tendon3d_side_filter' not in locals():
+                tendon3d_side_filter = "Both sides"
+            if 'station_marker_mode' not in locals():
+                station_marker_mode = "Key only"
+            if 'outer_shell_opacity' not in locals():
+                outer_shell_opacity = 0.18
+            if 'inner_void_opacity' not in locals():
+                inner_void_opacity = 0.16
+            if 'tendon_line_width' not in locals():
+                tendon_line_width = 6.0
+            if 'show_tendon_labels_3d' not in locals():
+                show_tendon_labels_3d = False
+            if 'fade_unfocused_tendons' not in locals():
+                fade_unfocused_tendons = False
 
             effective_view_preset = view_preset
             effective_shell_display_mode = shell_display_mode
@@ -2721,17 +2869,23 @@ def render_tendon_layout_reference() -> None:
                 effective_station_marker_mode = "Key only"
             elif inspection_preset == "Report clean":
                 effective_view_preset = "Report isometric"
+                effective_shell_display_mode = "Full shell"
+                effective_side_filter = "Both sides"
+                effective_tendon_filter = "All tendons"
+                effective_focus_tendon = ""
                 effective_station_marker_mode = "Key only"
                 show_tendon_labels_3d = False
 
+            effective_fade_unfocused_tendons = fade_unfocused_tendons if effective_focus_tendon else False
             show_station_markers = effective_station_marker_mode != "Off"
-            selected_families = families if tendon3d_family_filter == "All families" else [tendon3d_family_filter]
             visible_tendons = [
                 t for t in display_model.get("tendons", [])
                 if (tendon3d_family_filter == "All families" or str(t.get("family", "")) == tendon3d_family_filter)
                 and (effective_side_filter == "Both sides" or (effective_side_filter == "Left only" and str(t.get("side", "")) == "L") or (effective_side_filter == "Right only" and str(t.get("side", "")) == "R"))
                 and (effective_tendon_filter == "All tendons" or str(t.get("tendon", "")) == effective_tendon_filter)
             ]
+            visible_families = list(dict.fromkeys([str(t.get("family", "")) for t in visible_tendons if str(t.get("family", "")).strip()]))
+            visible_sides = list(dict.fromkeys([str(t.get("side", "")) for t in visible_tendons if str(t.get("side", "")).strip()]))
             view_mode_text, view_mode_note = _figure_view_texts()
             shell_legend_items = []
             if effective_shell_display_mode != "No shell":
@@ -2767,7 +2921,7 @@ def render_tendon_layout_reference() -> None:
                         <div class="canvas-dim-badge">Aspect: {aspect_mode}</div>
                       </div>
                     </div>
-                    {_engineering_canvas_legend_html(shell_legend_items + _tendon_family_legend_items(selected_families))}
+                    {_engineering_canvas_legend_html(shell_legend_items + _tendon_3d_legend_items(visible_families, visible_sides))}
                     """,
                     unsafe_allow_html=True,
                 )
@@ -2786,7 +2940,7 @@ def render_tendon_layout_reference() -> None:
                     view_preset=effective_view_preset,
                     aspect_mode=aspect_mode,
                     focus_tendon=effective_focus_tendon,
-                    fade_unfocused_tendons=fade_unfocused_tendons,
+                    fade_unfocused_tendons=effective_fade_unfocused_tendons,
                     tendon_line_width=tendon_line_width,
                     station_marker_mode=effective_station_marker_mode,
                 )
@@ -2801,7 +2955,7 @@ def render_tendon_layout_reference() -> None:
                     + _canvas_footer_card_html("Visible tendons", str(len(visible_tendons)), f"{tendon3d_family_filter} · {effective_side_filter} · {effective_tendon_filter}", "pass" if visible_tendons else "warn")
                     + _canvas_footer_card_html("Shell display", effective_shell_display_mode, f"outer {outer_shell_opacity:.2f} · inner {inner_void_opacity:.2f}", "neutral")
                     + _canvas_footer_card_html("View", effective_view_preset.replace(" · ", " / "), f"{aspect_mode} · {effective_station_marker_mode}", "neutral")
-                    + _canvas_footer_card_html("Focus", effective_focus_tendon or "None", "faded context" if effective_focus_tendon and fade_unfocused_tendons else "standard display", "neutral")
+                    + _canvas_footer_card_html("Focus", effective_focus_tendon or "None", "faded context" if effective_focus_tendon and effective_fade_unfocused_tendons else "standard display", "neutral")
                     + _canvas_footer_card_html("Interaction", "Rotate / pan / zoom", "Plotly WebGL 3D viewport", "neutral")
                     + '</div>'
                 )
@@ -3178,6 +3332,7 @@ def page_prestress_losses(sub: str) -> None:
     m, p = D["materials"], D["prestress"]
     summary = prestress_loss_summary(prestress_inputs())
     if sub == "4.1 General":
+        code_basis_card("Prestress losses code basis", "AASHTO LRFD 2020 Section 5, Art. 5.9.3", "M4.2 will connect adopted tendon/section data; M4.3 will implement loss equations through the unit-safe wrapper layer.")
         st.markdown("Prestress losses are evaluated as instantaneous and time-dependent losses. The app calculates equivalent average losses for global section design and uses final prestress force as a model consistency check.")
         c1, c2, c3, c4 = st.columns(4)
         with c1: card("fpi", f"{m['fpi_mpa']:.1f} MPa", "Initial jacking stress")
@@ -3247,7 +3402,7 @@ def page_uls_flexure(sub: str) -> None:
     st.subheader(get_workspace("6 ULS Flexure")["title"])
     flex = D["uls_flexure"]
     if sub == "6.1 Basis":
-        st.markdown("ULS flexure uses AASHTO LRFD resistance with external/unbonded tendon stress checks and FEA factored moment demand.")
+        st.markdown("ULS flexure uses AASHTO LRFD 2020 Section 5 resistance with external/unbonded tendon stress checks and FEA factored moment demand.")
         st.latex(r"f_{ps}=f_{pe}+68.95+\frac{f'_c}{100\rho_p}\leq \min(f_{py},f_{pe}+415)")
     elif sub == "6.2 Capacity":
         c1, c2, c3 = st.columns(3)
@@ -3278,7 +3433,7 @@ def page_uls_shear_torsion(sub: str) -> None:
     check = snap["transverse_check"]
     if sub == "7.1 Basis":
         st.markdown("Shear and torsion are separated by design basis to avoid formula-route errors.")
-        st.dataframe(pd.DataFrame([["Shear", "AASHTO LRFD 2014 Art. 5.8.3 / MCFT", "β and θ based shear check"], ["Torsion", "AASHTO LRFD 2014 Art. 5.8.6", "Segmental box girder special provision"], ["Resistance factor", "φv", phi_v]], columns=["Item", "Code basis", "Remarks"]), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame([["Shear", "AASHTO LRFD 2020 Section 5, Art. 5.7 / MCFT", "β and θ based shear check"], ["Torsion", "AASHTO LRFD 2020 Section 5, Art. 5.12.5.3.8 / segmental torsion", "Segmental box girder special provision"], ["Resistance factor", "φv", phi_v]], columns=["Item", "Code basis", "Remarks"]), use_container_width=True, hide_index=True)
     elif sub == "7.2 Critical Section":
         c1, c2, c3, c4 = st.columns(4)
         with c1: editable_value(["loads", "critical_x_m"], "xcr (m)", 0.001, "%.3f")
@@ -3302,7 +3457,7 @@ def page_uls_shear_torsion(sub: str) -> None:
         card("Combined transverse check", app_status(check["Status_governing"]), f"Governing D/C = {check['DCR_governing']:.3f}", mode)
         st.dataframe(pd.DataFrame([["Shear Av/s required", shear["Av_over_s_mm2_per_mm"], "mm²/mm"], ["Shear Av/s provided", prov["Av_over_s_mm2_per_mm"], "mm²/mm"], ["Torsion At/s required", tors["At_over_s_mm2_per_mm"], "mm²/mm"], ["Torsion At/s provided per leg", prov["At_over_s_per_leg_mm2_per_mm"], "mm²/mm"], ["DCR shear", check["DCR_shear"], "-"], ["DCR torsion", check["DCR_torsion"], "-"]], columns=["Item", "Value", "Unit"]), use_container_width=True, hide_index=True)
     else:
-        report_trace_table("7 ULS Shear / Torsion", [("Design basis", "AASHTO 5.8.3/5.8.6", "Formula route separated", "READY"), ("Critical section", "FEA keyed demand", "Demand table ready", "READY"), ("Shear check", "App calculation", "Trace ready", "READY"), ("Torsion check", "AASHTO 5.8.6", "At/s and Al calculated", "READY"), ("Reinforcement", "User input + app calc", "DCR active", check["Status_governing"])] )
+        report_trace_table("7 ULS Shear / Torsion", [("Design basis", "AASHTO LRFD 2020 Section 5", "Formula route separated", "READY"), ("Critical section", "FEA keyed demand", "Demand table ready", "READY"), ("Shear check", "App calculation", "Trace ready", "READY"), ("Torsion check", "AASHTO LRFD 2020 Section 5", "At/s and Al calculated", "READY"), ("Reinforcement", "User input + app calc", "DCR active", check["Status_governing"])] )
 
 
 def page_sls_stress(sub: str) -> None:
@@ -3392,7 +3547,7 @@ def page_report_qa(sub: str) -> None:
 - UI uses report-driven workspaces 1–9 without displaying the word Chapter in the sidebar; Loads are separated as a dedicated workspace and Geometry/Section Properties are combined.
 - Status wording distinguishes R10 baseline values from checks calculated by the active app engine.
 - FEA data is clearly labeled as a baseline summary until full station-by-station import is implemented.
-- Existing M1 engineering kernels are preserved for prestress losses and AASHTO 5.8.6 shear/torsion checks.
+- Existing M1 engineering kernels are preserved for prestress losses and AASHTO LRFD 2020 Section 5 shear/torsion checks.
 """
         st.markdown(report_md)
         st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_m2_summary.md", "text/markdown", use_container_width=True)

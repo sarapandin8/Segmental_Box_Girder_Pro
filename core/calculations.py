@@ -6,8 +6,7 @@ from typing import Dict, List, Tuple
 
 import pandas as pd
 
-
-MPA_TO_KSI = 0.1450377377
+from core.aashto_units import MPA_TO_KSI
 
 
 def bar_area_mm2(diameter_mm: float) -> float:
@@ -81,7 +80,7 @@ def friction_loss_table(groups: List[Dict], fpi_mpa: float, mu: float) -> Tuple[
 def aashto_creep_coefficient(RH_percent: float, V_over_S_in: float, fc_mpa: float, ti_days: float, delta_ktd: float = 0.482) -> Dict[str, float]:
     """AASHTO-style creep coefficient used by the BG40 report.
 
-    IMPORTANT: AASHTO empirical factors use V/S in inches and concrete strength in ksi.
+    IMPORTANT: AASHTO empirical factors use V/S in inches and concrete strength in ksi. SI app inputs must be converted by the shared AASHTO unit layer before use.
     """
     fc_ksi = fc_mpa * MPA_TO_KSI
     ks = max(1.45 - 0.13 * V_over_S_in, 1.0)

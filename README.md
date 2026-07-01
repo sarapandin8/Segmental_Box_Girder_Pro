@@ -1,7 +1,31 @@
-# Segmental Box Girder Pro — COMMERCIAL.M4.1D
+# Segmental Box Girder Pro — COMMERCIAL.M4.1E
 
 Commercial report-driven Streamlit workspace for PT segmental box-girder design review.
 
+
+
+## COMMERCIAL.CODE.1 — AASHTO LRFD 2020 Section 5 Unit-Safe Design Basis
+
+- Upgrades the governing concrete / prestressed-concrete design basis to `AASHTO LRFD Bridge Design Specifications, 9th Edition, 2020 — Section 5 Concrete Structures`.
+- Adds `core/code_basis.py` for the app-wide code-basis source of truth, Section 5 article map, and report-ready design-basis rows.
+- Adds `core/aashto_units.py` for unit-safe SI ↔ AASHTO conversion wrappers: MPa/ksi/psi, kN/kip, mm/in, m/ft, and kN·m/kip·ft.
+- Adds explicit guards for AASHTO `√f′c` terms so ksi/psi expressions are not evaluated directly with MPa values.
+- Adds Criteria-page code-basis panels showing the governing standard, unit policy, conversion table, article map, and f′c unit guard.
+- Preserves app internal units as SI only: kN, m, MPa, and mm.
+- Keeps EN railway actions and DPT seismic basis unchanged; existing AASHTO bridge seismic R data remains a non-Section-5 helper until a 2020 Section 3 source is provided.
+- Does not implement new prestress-loss formulas yet; this milestone establishes the unit-safe foundation before M4.2/M4.3.
+- Schema: `0.4.21-commercial-code1-aashto-2020-unit-safe-basis`.
+
+## COMMERCIAL.M4.1E updates
+
+- Polishes the `3D Tendon View` control UX so the inspection preset becomes the primary workflow instead of exposing every advanced display control at once.
+- Defaults the 3D viewport to `Overview` rather than `Custom` for a clean commercial first view.
+- Groups manual camera/shell/side/opacity/thickness/label controls inside `Advanced 3D display controls`.
+- Disables faded-context display unless a focus tendon is selected, avoiding the confusing `Focus = None` + faded tendons state.
+- Keeps left/right/single/report presets as smart controlled setups and leaves Custom for manual overrides.
+- Updates the 3D custom legend so it reflects only visible tendon sides/families instead of always showing the full overview legend.
+- Preserves all tendon geometry, adopted-source behavior, section geometry, QA, save/load persistence, and calculation logic; this milestone changes 3D control UX only.
+- Schema remains `0.4.20-commercial-bugfix1-section-save-load-persistence`; this milestone adds inspection UX polish only.
 
 ## COMMERCIAL.M4.1D updates
 

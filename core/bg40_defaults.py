@@ -6,9 +6,9 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.20-commercial-bugfix1-section-save-load-persistence",
+        "schema_version": "0.4.21-commercial-code1-aashto-2020-unit-safe-basis",
         "app_name": "Segmental Box Girder Pro",
-        "dataset_status": "BG40 R10 baseline loaded; DPT seismic database and AASHTO bridge R recommendation active",
+        "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
         "baseline_report": "BG40_Final_Complete_R10.docx",
     },
@@ -19,15 +19,25 @@ BG40_DEFAULT = {
         "span_m": 40.0,
         "width_m": 11.2,
         "depth_m": 2.5,
-        "design_code": "AASHTO LRFD 2014 + EN Actions",
+        "design_code": "AASHTO LRFD 2020 Section 5 + EN Actions",
         "tendon_system": "External / Unbonded PT",
         "units": "kN, m, MPa, mm",
         "workflow_note": "Three simply supported girder spans; one span is checked as BG40/B2_SPAN2.",
     },
+
+    "code_basis": {
+        "concrete_design_standard": "AASHTO LRFD Bridge Design Specifications, 9th Edition, 2020",
+        "concrete_design_section": "Section 5 — Concrete Structures",
+        "governing_status": "GOVERNING",
+        "reference_file": "SECTION 5 CONCRETE STRUCTURES(1).pdf",
+        "internal_units": "kN, m, MPa, mm",
+        "unit_policy": "Store/display SI only; wrap AASHTO kip/ksi/in/ft equations with explicit internal conversion.",
+        "legacy_note": "AASHTO LRFD 2014 references are superseded for concrete/prestressed-concrete Section 5 design unless explicitly marked as historical or non-Section-5 reference."
+    },
     "criteria": {
         "standards": [
             {"Code / Standard": "EUROCODE EN 1991", "Description": "Basis of design and actions on structures"},
-            {"Code / Standard": "AASHTO LRFD Bridge Design Specifications, 2014", "Description": "Primary bridge design standard"},
+            {"Code / Standard": "AASHTO LRFD Bridge Design Specifications, 9th Edition, 2020", "Description": "Primary concrete / prestressed-concrete bridge design standard — Section 5 governs this app"},
             {"Code / Standard": "ACI 318M-14", "Description": "Building code requirement for reinforced concrete"},
             {"Code / Standard": "CEB-FIP Model Code for Concrete, 1990", "Description": "Reference only; AASHTO governs creep, shrinkage, and prestress losses"},
             {"Code / Standard": "DPT 1302-61", "Description": "Thai seismic design standard"},
@@ -35,7 +45,7 @@ BG40_DEFAULT = {
             {"Code / Standard": "SRT requirements", "Description": "State Railway of Thailand requirements"},
             {"Code / Standard": "PCI Design Handbook (5th Ed.)", "Description": "Precast and prestressed concrete reference"},
         ],
-        "units_statement": "SI units are used throughout this report (kN, kN·m, MPa, m). Gravitational acceleration g = 9.807 m/s².",
+        "units_statement": "SI units are used throughout this app and report workflow (kN, kN·m, MPa, m, mm). AASHTO LRFD Section 5 equations written in kip/ksi/in/ft are evaluated through explicit unit-safe conversion wrappers.",
         "combination_basis": "ULS and SLS load combinations are generated in the FEA model in accordance with EN 1990 and EN 1991-2 railway action principles. Design forces are taken from verified FEA envelopes.",
     },
     "materials": {

@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.20-commercial-bugfix1-section-save-load-persistence"
+PROJECT_SCHEMA_VERSION = "0.4.21-commercial-code1-aashto-2020-unit-safe-basis"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 
@@ -106,6 +106,9 @@ def ensure_project_schema(project: Dict) -> Dict:
     _migrate_section_coordinate_rows(data)
     data = _deep_fill_missing(data, BG40_DEFAULT)
     _migrate_section_coordinate_rows(data)
+    from core.code_basis import migrate_project_code_basis
+
+    data = migrate_project_code_basis(data)
     meta = data.setdefault("meta", {})
     # Always promote the schema marker to the active app schema while preserving user-entered engineering data.
     meta["schema_version"] = PROJECT_SCHEMA_VERSION
@@ -280,7 +283,7 @@ def validate_project(project: Dict) -> list[ValidationIssue]:
                 "INFO",
                 "AASHTO 5.8.6",
                 "External / unbonded tendon system detected; φv = 0.85 is used for segmental shear/torsion checks.",
-                code_basis="AASHTO LRFD 2014 Table 5.5.4.2.2-1",
+                code_basis="AASHTO LRFD 2020 Section 5, Art. 5.5.4.2",
             )
         )
 

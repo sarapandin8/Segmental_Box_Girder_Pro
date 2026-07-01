@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.20-commercial-bugfix1-section-save-load-persistence"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.21-commercial-code1-aashto-2020-unit-safe-basis"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -79,6 +79,8 @@ def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation
     assert "Table 2.5" in readme
     assert "Full station-by-station FEA import remains pending" in readme
     assert "Coordinate-driven section properties" in readme
+    assert "COMMERCIAL.CODE.1" in readme
+    assert "AASHTO LRFD Bridge Design Specifications, 9th Edition, 2020" in readme
     assert "Structural Polygon 1" in readme
     assert "Opening Polygon 1" in readme
 
@@ -462,3 +464,27 @@ def test_m41d_3d_inspection_presets_and_focus_controls_are_present():
     assert "focus_tendon" in tendon_src
     assert "fade_unfocused_tendons" in tendon_src
     assert "station_marker_mode" in tendon_src
+
+
+def test_m41e_3d_control_panel_ux_and_smart_presets_are_present():
+    src = _src()
+    assert "COMMERCIAL.M4.1E" in README_SOURCE.read_text(encoding="utf-8")
+    assert 'preset_options = ["Overview", "Left inspection", "Right inspection", "Single tendon focus", "Report clean", "Custom"]' in src
+    assert "Advanced 3D display controls" in src
+    assert 'preset_managed = inspection_preset != "Custom"' in src
+    assert 'focus_control_enabled = inspection_preset in {"Custom", "Single tendon focus"}' in src
+    assert "tendon_3d_fade_unfocused_inactive" in src
+    assert "effective_fade_unfocused_tendons = fade_unfocused_tendons if effective_focus_tendon else False" in src
+    assert "visible_families" in src
+    assert "_tendon_3d_legend_items" in src
+
+
+def test_code1_aashto_2020_section5_unit_safe_basis_ui_is_present():
+    src = _src()
+    assert "render_aashto_2020_unit_safe_basis_panel" in src
+    assert "AASHTO LRFD Bridge Design Specifications, 9th Edition, 2020" in src
+    assert "Section 5 Concrete Structures" in src
+    assert "unit-safe wrapper" in src
+    assert "standard_conversion_table" in src
+    assert "psi_sqrt_fc_coefficient_to_ksi" in src
+    assert "concrete_strength_guard_mpa" in src
