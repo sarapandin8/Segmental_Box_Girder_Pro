@@ -103,6 +103,7 @@ from visualization.tendon_figures import (
 from visualization.load_figures import (
     PLOTLY_CONFIG,
     rail_horizontal_forces_diagram,
+    rail_horizontal_forces_diagram_svg,
     response_spectrum_figure,
     u20_loading_diagram,
     u20_loading_diagram_svg,
@@ -1290,7 +1291,7 @@ def page_loads(sub: str) -> None:
 
     with tabs[3]:
         code_basis_card("3.4 Longitudinal Force (LF) and 3.5 Hunting / Nosing Force (HF)", "EN 1991-2 Art. 6.5.3 and Art. 6.5.2", "LF is longitudinal braking/traction at rail level. HF is the EN nosing force Qsk, concentrated transverse at top of rail.")
-        show_plotly(rail_horizontal_forces_diagram())
+        components.html(rail_horizontal_forces_diagram_svg(), height=430, scrolling=False)
         c1, c2, c3 = st.columns(3)
         with c1:
             editable_value(["load_components", "lf_length_m"], "LF loaded length Lab (m)", 1.0)

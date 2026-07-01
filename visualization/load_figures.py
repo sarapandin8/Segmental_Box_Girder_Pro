@@ -174,6 +174,103 @@ def rail_horizontal_forces_diagram() -> go.Figure:
     return fig
 
 
+def rail_horizontal_forces_diagram_svg() -> str:
+    """SVG isometric rail schematic showing LF along track and HF normal to track."""
+    return """
+<div style='width:100%; background:#ffffff; border:1px solid #d0d5dd; border-radius:12px; padding:18px 18px 10px 18px; box-sizing:border-box;'>
+  <div style='font-family:Arial, sans-serif; font-size:18px; font-weight:700; color:#101828; margin-bottom:8px;'>Figure 1.2 Rail horizontal actions — LF along track axis and HF normal to track</div>
+  <svg viewBox='0 0 1120 360' width='100%' height='360' xmlns='http://www.w3.org/2000/svg'>
+    <defs>
+      <linearGradient id='railGrad' x1='0' y1='0' x2='1' y2='1'>
+        <stop offset='0%' stop-color='#aeb4bc'/>
+        <stop offset='50%' stop-color='#e5e7eb'/>
+        <stop offset='100%' stop-color='#7f8791'/>
+      </linearGradient>
+      <marker id='arrowBlue' markerWidth='10' markerHeight='10' refX='8' refY='5' orient='auto' markerUnits='strokeWidth'>
+        <path d='M0,0 L10,5 L0,10 z' fill='#175cd3'/>
+      </marker>
+      <marker id='arrowOrange' markerWidth='10' markerHeight='10' refX='8' refY='5' orient='auto' markerUnits='strokeWidth'>
+        <path d='M0,0 L10,5 L0,10 z' fill='#c2410c'/>
+      </marker>
+      <filter id='shadow' x='-20%' y='-20%' width='140%' height='140%'>
+        <feDropShadow dx='0.8' dy='1.2' stdDeviation='1.2' flood-color='#000000' flood-opacity='0.15'/>
+      </filter>
+    </defs>
+
+    <!-- light note box -->
+    <rect x='902' y='18' width='190' height='70' fill='#fff' stroke='#d0d5dd'/>
+    <text x='914' y='36' font-size='12' font-family='Arial' fill='#111827' font-weight='700'>Action interpretation</text>
+    <text x='914' y='54' font-size='11' font-family='Arial' fill='#344054'>LF = longitudinal force along x</text>
+    <text x='914' y='69' font-size='11' font-family='Arial' fill='#344054'>HF = Qsk hunting/nosing force</text>
+    <text x='914' y='84' font-size='11' font-family='Arial' fill='#344054'>HF acts normal to track (y)</text>
+
+    <!-- isometric track body -->
+    <g filter='url(#shadow)'>
+      <!-- sleepers -->
+      <g fill='#d9d4cb' stroke='#c1baaf' stroke-width='0.6'>
+        <polygon points='120,88 154,105 140,127 106,110'/>
+        <polygon points='170,100 204,117 190,139 156,122'/>
+        <polygon points='220,112 254,129 240,151 206,134'/>
+        <polygon points='270,124 304,141 290,163 256,146'/>
+        <polygon points='320,136 354,153 340,175 306,158'/>
+        <polygon points='370,148 404,165 390,187 356,170'/>
+        <polygon points='420,160 454,177 440,199 406,182'/>
+        <polygon points='470,172 504,189 490,211 456,194'/>
+        <polygon points='520,184 554,201 540,223 506,206'/>
+        <polygon points='570,196 604,213 590,235 556,218'/>
+        <polygon points='620,208 654,225 640,247 606,230'/>
+        <polygon points='670,220 704,237 690,259 656,242'/>
+        <polygon points='720,232 754,249 740,271 706,254'/>
+        <polygon points='770,244 804,261 790,283 756,266'/>
+        <polygon points='820,256 854,273 840,295 806,278'/>
+        <polygon points='870,268 904,285 890,307 856,290'/>
+      </g>
+
+      <!-- rails -->
+      <g stroke='url(#railGrad)' stroke-width='7' stroke-linecap='round'>
+        <line x1='108' y1='82' x2='904' y2='272'/>
+        <line x1='148' y1='58' x2='944' y2='248'/>
+      </g>
+      <g stroke='#7f8791' stroke-width='1.4' opacity='0.9'>
+        <line x1='108' y1='88' x2='904' y2='278'/>
+        <line x1='148' y1='64' x2='944' y2='254'/>
+      </g>
+
+      <!-- fasteners hint -->
+      <g fill='#b9aca6' stroke='#8f857e' stroke-width='0.5'>
+        <circle cx='165' cy='78' r='3'/><circle cx='205' cy='88' r='3'/><circle cx='245' cy='98' r='3'/><circle cx='285' cy='108' r='3'/><circle cx='325' cy='118' r='3'/><circle cx='365' cy='128' r='3'/><circle cx='405' cy='138' r='3'/><circle cx='445' cy='148' r='3'/><circle cx='485' cy='158' r='3'/><circle cx='525' cy='168' r='3'/><circle cx='565' cy='178' r='3'/><circle cx='605' cy='188' r='3'/><circle cx='645' cy='198' r='3'/><circle cx='685' cy='208' r='3'/><circle cx='725' cy='218' r='3'/><circle cx='765' cy='228' r='3'/><circle cx='805' cy='238' r='3'/><circle cx='845' cy='248' r='3'/>
+        <circle cx='125' cy='102' r='3'/><circle cx='165' cy='112' r='3'/><circle cx='205' cy='122' r='3'/><circle cx='245' cy='132' r='3'/><circle cx='285' cy='142' r='3'/><circle cx='325' cy='152' r='3'/><circle cx='365' cy='162' r='3'/><circle cx='405' cy='172' r='3'/><circle cx='445' cy='182' r='3'/><circle cx='485' cy='192' r='3'/><circle cx='525' cy='202' r='3'/><circle cx='565' cy='212' r='3'/><circle cx='605' cy='222' r='3'/><circle cx='645' cy='232' r='3'/><circle cx='685' cy='242' r='3'/><circle cx='725' cy='252' r='3'/><circle cx='765' cy='262' r='3'/><circle cx='805' cy='272' r='3'/>
+      </g>
+    </g>
+
+    <!-- action arrows -->
+    <line x1='445' y1='112' x2='680' y2='168' stroke='#175cd3' stroke-width='6' marker-end='url(#arrowBlue)'/>
+    <text x='514' y='108' font-size='18' font-family='Arial' fill='#175cd3' font-weight='700'>LF</text>
+    <text x='480' y='94' font-size='12' font-family='Arial' fill='#344054'>Longitudinal force</text>
+    <text x='488' y='79' font-size='12' font-family='Arial' fill='#344054'>along track / bridge axis (x)</text>
+
+    <line x1='572' y1='156' x2='528' y2='82' stroke='#c2410c' stroke-width='6' marker-end='url(#arrowOrange)'/>
+    <text x='492' y='84' font-size='18' font-family='Arial' fill='#c2410c' font-weight='700'>HF</text>
+    <text x='622' y='108' font-size='12' font-family='Arial' fill='#344054'>HF = Qsk hunting / nosing force</text>
+    <text x='622' y='123' font-size='12' font-family='Arial' fill='#344054'>Normal to track (y)</text>
+
+    <!-- local axes -->
+    <g>
+      <line x1='130' y1='282' x2='195' y2='297' stroke='#475467' stroke-width='2.5' marker-end='url(#arrowBlue)'/>
+      <line x1='130' y1='282' x2='97' y2='226' stroke='#475467' stroke-width='2.5' marker-end='url(#arrowOrange)'/>
+      <text x='203' y='303' font-size='13' font-family='Arial' fill='#175cd3' font-weight='700'>x</text>
+      <text x='86' y='222' font-size='13' font-family='Arial' fill='#c2410c' font-weight='700'>y</text>
+      <text x='130' y='320' font-size='11' font-family='Arial' fill='#667085'>Local action axes at rail level</text>
+    </g>
+
+    <!-- small labels -->
+    <text x='715' y='286' font-size='11' font-family='Arial' fill='#667085'>rail level</text>
+    <text x='756' y='298' font-size='11' font-family='Arial' fill='#667085'>bridge / track axis</text>
+  </svg>
+</div>
+"""
+
+
 def wind_bridge_direction_diagram() -> go.Figure:
     fig = go.Figure()
     x = [0, 40, 43, 3, 0]
