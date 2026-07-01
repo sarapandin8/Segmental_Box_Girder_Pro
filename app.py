@@ -791,11 +791,22 @@ def report_trace_table(section: str, rows: list[tuple[str, str, str, str]]) -> N
 
 
 def editable_value(path: list[str], label: str, step: float = 1.0, fmt: str | None = None) -> None:
+    """Render a project-backed numeric input with stable Streamlit state.
+
+    Streamlit number inputs can feel like they need a second edit when the
+    widget is recreated with a changing ``value=`` argument on every rerun.
+    Keep a stable key per project-load epoch, initialise it once from the
+    project dictionary, then write the widget value back to the project source.
+    """
     ref = D
     for key in path[:-1]:
         ref = ref[key]
     key = path[-1]
-    kwargs = {"value": float(ref[key]), "step": step}
+    epoch = int(st.session_state.get("project_widget_epoch", 0))
+    widget_key = f"project_number__{epoch}__{'__'.join(path)}"
+    if widget_key not in st.session_state:
+        st.session_state[widget_key] = float(ref.get(key, 0.0))
+    kwargs = {"step": step, "key": widget_key}
     if fmt:
         kwargs["format"] = fmt
     ref[key] = st.number_input(label, **kwargs)
