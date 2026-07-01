@@ -101,19 +101,23 @@ def u20_loading_diagram_svg() -> str:
 
     <!-- point load arrows and labels -->
     <g font-family='Arial' fill='#111827' text-anchor='middle'>
-      <line x1='420' y1='70' x2='420' y2='122' stroke='#111827' stroke-width='2' marker-end='url(#arrowDown)'/>
+      <line x1='420' y1='76' x2='420' y2='178' stroke='#111827' stroke-width='2'/>
+      <polygon points='414,178 426,178 420,188' fill='#111827'/>
       <text x='420' y='60' font-size='13'>200 kN</text>
       <text x='420' y='77' font-size='18' font-weight='700'>P</text>
 
-      <line x1='500' y1='70' x2='500' y2='122' stroke='#111827' stroke-width='2' marker-end='url(#arrowDown)'/>
+      <line x1='500' y1='76' x2='500' y2='178' stroke='#111827' stroke-width='2'/>
+      <polygon points='494,178 506,178 500,188' fill='#111827'/>
       <text x='500' y='60' font-size='13'>200 kN</text>
       <text x='500' y='77' font-size='18' font-weight='700'>P</text>
 
-      <line x1='580' y1='70' x2='580' y2='122' stroke='#111827' stroke-width='2' marker-end='url(#arrowDown)'/>
+      <line x1='580' y1='76' x2='580' y2='178' stroke='#111827' stroke-width='2'/>
+      <polygon points='574,178 586,178 580,188' fill='#111827'/>
       <text x='580' y='60' font-size='13'>200 kN</text>
       <text x='580' y='77' font-size='18' font-weight='700'>P</text>
 
-      <line x1='660' y1='70' x2='660' y2='122' stroke='#111827' stroke-width='2' marker-end='url(#arrowDown)'/>
+      <line x1='660' y1='76' x2='660' y2='178' stroke='#111827' stroke-width='2'/>
+      <polygon points='654,178 666,178 660,188' fill='#111827'/>
       <text x='660' y='60' font-size='13'>200 kN</text>
       <text x='660' y='77' font-size='18' font-weight='700'>P</text>
     </g>
