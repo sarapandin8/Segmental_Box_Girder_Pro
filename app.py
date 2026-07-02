@@ -442,6 +442,51 @@ def wind_reference_figure_card(filename: str, title: str, source: str, note: str
     )
 
 
+def wind_group_map_figure_card(selected_group: str, note: str = "", *, max_height_px: int = 300) -> None:
+    """Display the DPT wind map with clear app-drawn group labels and selected-group highlight."""
+    filename = "fig_1_2_dpt_wind_speed_map.png"
+    path = WIND_ASSET_DIR / filename
+    if not path.exists():
+        st.warning(f"Missing bundled figure asset: {filename}")
+        return
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    labels = [
+        ("3", 38, 9),
+        ("2", 56, 10),
+        ("1", 68, 38),
+        ("4B", 24, 49),
+        ("4A", 57, 63),
+    ]
+    selected_label = str(selected_group).replace("Group ", "")
+    label_html = []
+    for label, left, top in labels:
+        active = label == selected_label
+        bg = "#175cd3" if active else "#ffffff"
+        fg = "#ffffff" if active else "#101828"
+        border = "#175cd3" if active else "#101828"
+        ring = "0 0 0 3px rgba(23,92,211,0.18)" if active else "0 1px 3px rgba(16,24,40,0.18)"
+        label_html.append(
+            f"<div style=\"position:absolute; left:{left}%; top:{top}%; transform:translate(-50%,-50%); min-width:30px; height:30px; padding:0 6px; border-radius:999px; display:flex; align-items:center; justify-content:center; background:{bg}; color:{fg}; border:2px solid {border}; box-shadow:{ring}; font-weight:800; font-size:14px; line-height:1;\">{label}</div>"
+        )
+    selected_note = f"Selected group: {selected_group}" if selected_group else "Select a province to highlight the governing group."
+    note_html = f'<div class="status-note">{note}</div>' if note else ""
+    st.markdown(
+        f"""
+        <div class="context-card" style="min-height:{max_height_px + 145}px; padding:12px 14px;">
+          <div class="status-kicker">Reference figure</div>
+          <div class="status-value" style="font-size:0.96rem; margin-bottom:0.18rem;">DPT wind speed group map</div>
+          <div class="small-muted" style="margin-bottom:8px;">DPT 1311-50 / 1312-50 reference wind speed groups</div>
+          <div style="border:1px solid #e4e7ec; border-radius:10px; background:#ffffff; padding:6px; position:relative; height:{max_height_px}px; overflow:hidden;">
+            <img src="data:image/png;base64,{encoded}" style="display:block; width:100%; height:100%; object-fit:contain;" />
+            {''.join(label_html)}
+          </div>
+          <div class="status-note"><b>{selected_note}</b> · app-drawn labels are overlaid for readability.</div>
+          {note_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def section_title(text: str) -> None:
     st.markdown(f'<div class="section-title">{text}</div>', unsafe_allow_html=True)
 
@@ -943,6 +988,24 @@ def render_aashto_bridge_seismic_controls(lc: dict[str, Any]) -> dict[str, Any]:
 # -----------------------------------------------------------------------------
 # Sidebar and header
 # -----------------------------------------------------------------------------
+def _sync_loads_inline_subpage_to_sidebar() -> None:
+    """Keep the global subpage state in sync when using the in-page Loads selector."""
+    load_subpages = get_workspace("3 Loads")["subpages"]
+    inline_subpage = st.session_state.get("loads_inline_subpage")
+    if inline_subpage in load_subpages:
+        st.session_state.current_workspace = "3 Loads"
+        st.session_state.current_subpage = inline_subpage
+
+
+def _sync_sidebar_subpage_to_loads_inline() -> None:
+    """Keep the in-page Loads selector in sync when navigation happens from the sidebar."""
+    if st.session_state.get("current_workspace") == "3 Loads":
+        load_subpages = get_workspace("3 Loads")["subpages"]
+        current_subpage = st.session_state.get("current_subpage")
+        if current_subpage in load_subpages:
+            st.session_state.loads_inline_subpage = current_subpage
+
+
 def render_sidebar() -> None:
     with st.sidebar:
         st.markdown(
@@ -960,7 +1023,7 @@ def render_sidebar() -> None:
         ws = get_workspace(st.session_state.current_workspace)
         if "current_subpage" not in st.session_state or st.session_state.current_subpage not in ws["subpages"]:
             st.session_state.current_subpage = ws["subpages"][0]
-        st.radio("SUBPAGE", ws["subpages"], key="current_subpage")
+        st.radio("SUBPAGE", ws["subpages"], key="current_subpage", on_change=_sync_sidebar_subpage_to_loads_inline)
 
         issues, counts, workflow = active_qa()
         st.markdown("---")
@@ -1250,12 +1313,22 @@ def page_criteria_loads(sub: str) -> None:
 
 def page_loads(sub: str) -> None:
     st.subheader(get_workspace("3 Loads")["title"])
-    st.markdown(f'<div class="note-box"><b>Dedicated Loads workspace:</b> Active subpage = {sub}. Load calculations are maintained as a report-driven FEA load input generator.</div>', unsafe_allow_html=True)
     section_title("3 Loads — FEA load input generator")
     st.markdown('<div class="note-box"><b>One-source rule:</b> each load is entered once in the report-driven schema. Report Preview, FEA Load Summary, QA checks, and Save/Load JSON read from the same source.</div>', unsafe_allow_html=True)
-    tabs = st.tabs(["3.1 Dead Load", "3.2 SDL", "3.3 LL + IM", "3.4 LF / HF", "3.6 CF", "3.7 Wind", "3.8 CR&SH", "3.9 EQ", "3.10 FEA Summary"])
+    load_tab_labels = ["3.1 Dead Load", "3.2 SDL", "3.3 LL + IM", "3.4 LF / HF", "3.6 CF", "3.7 Wind", "3.8 CR&SH", "3.9 EQ", "3.10 FEA Summary"]
+    if st.session_state.get("loads_inline_subpage") not in load_tab_labels:
+        st.session_state.loads_inline_subpage = sub if sub in load_tab_labels else load_tab_labels[0]
+    selected_load_subpage = st.radio(
+        "Load subpage",
+        load_tab_labels,
+        key="loads_inline_subpage",
+        horizontal=True,
+        label_visibility="collapsed",
+        on_change=_sync_loads_inline_subpage_to_sidebar,
+    )
+    st.markdown(f'<div class="note-box"><b>Dedicated Loads workspace:</b> Active subpage = {selected_load_subpage}. Load calculations are maintained as a report-driven FEA load input generator.</div>', unsafe_allow_html=True)
 
-    with tabs[0]:
+    if selected_load_subpage == "3.1 Dead Load":
         code_basis_card("3.1 Dead Load (DL)", "BG40 Calculation Report Ch. 1.3.1", "Informational/report text only. FEA self-weight remains generated in the structural analysis model; no duplicate dead-load input is introduced here.")
         dl = D["load_components"]
         st.markdown(f'<div class="note-box"><b>Dead load:</b> {dl.get("dead_load_definition", "")}</div>', unsafe_allow_html=True)
@@ -1263,7 +1336,7 @@ def page_loads(sub: str) -> None:
         show_engineering_table(pd.DataFrame(dl.get("dead_load_unit_weights", [])))
         st.caption("Report note: these unit weights are provided for information and report traceability only. The app does not create an additional DL calculation table from these values.")
 
-    with tabs[1]:
+    if selected_load_subpage == "3.2 SDL":
         code_basis_card("3.2 Superimposed Dead Load (SDL)", "BG40 R10 project load schedule / FEA permanent appurtenance loads", "Editable component table. Total and adopted design values are recalculated from this single table.")
         sdl_df = pd.DataFrame(D["load_components"]["sdl_components"])
         edited = st.data_editor(
@@ -1294,7 +1367,7 @@ def page_loads(sub: str) -> None:
             ["SDL", "Superimposed dead load", D["load_components"]["design_sdl_double_kn_m"], "kN/m", "Gravity / along span", "Double-track adopted design value", "User editable + app total"],
         ], columns=["Load Pattern", "Description", "Value", "Unit", "Direction", "Application", "Source"]))
 
-    with tabs[2]:
+    if selected_load_subpage == "3.3 LL + IM":
         code_basis_card("3.3 Live Load + Impact (LL+IM)", "EN 1991-2 Art. 6.4.3 and Art. 6.4.5", "Railway live load is U20 = 0.8 × LM71. Adopted impact/dynamic factor is a FEA load input value.")
         components.html(u20_loading_diagram_svg(), height=360, scrolling=False)
         c1, c2, c3, c4 = st.columns(4)
@@ -1321,7 +1394,7 @@ def page_loads(sub: str) -> None:
             ["LL+IM", "U20 = 0.8 × LM71", D["load_components"]["dynamic_factor_design"], "factor", "Vertical railway load", "Railway load lane / track model", "App calculated + user-adopted"],
         ], columns=["Load Pattern", "Load model", "Value", "Unit", "Direction", "Application", "Source"]))
 
-    with tabs[3]:
+    if selected_load_subpage == "3.4 LF / HF":
         code_basis_card("3.4 Longitudinal Force (LF) and 3.5 Hunting / Nosing Force (HF)", "EN 1991-2 Art. 6.5.3 and Art. 6.5.2", "LF is longitudinal braking/traction at rail level. HF is the EN nosing force Qsk, concentrated transverse at top of rail.")
         components.html(rail_horizontal_forces_diagram_svg(), height=430, scrolling=False)
         c1, c2, c3 = st.columns(3)
@@ -1354,7 +1427,7 @@ def page_loads(sub: str) -> None:
         with c3:
             card("Dynamic factor on HF", "Not applied", "EN nosing force", "pass")
 
-    with tabs[4]:
+    if selected_load_subpage == "3.6 CF":
         code_basis_card("3.6 Centrifugal Force (CF)", "EN 1991-2 Art. 6.5.1", "Applies where horizontal curvature is relevant. For straight/large-radius spans this is often non-governing but still traceable.")
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -1373,7 +1446,7 @@ def page_loads(sub: str) -> None:
         with c2:
             card("Assessment", "Not governing" if ld['cf_C_percent'] < 5 else "Review", "large radius / straight-span assumption", "pass" if ld['cf_C_percent'] < 5 else "warn")
 
-    with tabs[5]:
+    if selected_load_subpage == "3.7 Wind":
         code_basis_card(
             "3.7 Wind Load (WS)",
             "EN 1991-1-4 and DPT 1311-50",
@@ -1474,15 +1547,10 @@ def page_loads(sub: str) -> None:
 
             if location_group:
                 selected_group = location_group
-                g_index = wind_group_options.index(selected_group) if selected_group in wind_group_options else 0
-                st.selectbox(
-                    "DPT 1311-50 reference wind speed group",
-                    wind_group_options,
-                    index=g_index,
-                    key="wind_reference_group_select_auto_from_province",
-                    disabled=True,
-                    help="Automatically recommended from the selected province/area. Choose manual group selection above to override.",
-                )
+                # Province lookup owns the wind group in this mode.  Do not show a
+                # disabled manual dropdown, because a stale widget value can look
+                # like a conflicting adopted group.
+                st.markdown('<div class="note-box"><b>DPT wind group source:</b> auto from selected province / area. Choose <b>Manual group selection</b> in the province dropdown only when project-specific requirements govern.</div>', unsafe_allow_html=True)
                 loc_c1, loc_c2, loc_c3 = st.columns(3)
                 with loc_c1:
                     card("Province lookup", selected_province, "DPT province-group table", "pass")
@@ -1527,14 +1595,13 @@ def page_loads(sub: str) -> None:
             with c4:
                 card("Recommended cseason", "1.00", "EN 1991-1-4 default")
 
+
             st.markdown("#### Reference figures for input selection")
             st.markdown('<div class="note-box"><b>Reference visual workflow:</b> use the map and wind-action sketches here while selecting input values. These figures are shown at the decision point instead of being hidden in a separate figure tab.</div>', unsafe_allow_html=True)
             r1c1, r1c2 = st.columns(2)
             with r1c1:
-                wind_reference_figure_card(
-                    "fig_1_2_dpt_wind_speed_map.png",
-                    "DPT wind speed group map",
-                    "DPT 1311-50 / 1312-50 reference wind speed groups",
+                wind_group_map_figure_card(
+                    str(lc.get("wind_reference_group", "Group 1")),
                     "Select the project location group, then the app recommends V50 and TF.",
                     max_height_px=300,
                 )
@@ -1572,27 +1639,6 @@ def page_loads(sub: str) -> None:
                     max_height_px=245,
                 )
 
-            b1, b2 = st.columns([1, 3])
-            with b1:
-                if st.button("Adopt DPT / EN recommended wind factors", use_container_width=True, key="adopt_wind_recommended_factors"):
-                    lc["wind_v50_m_s"] = rec_v50
-                    lc["wind_terrain_factor"] = rec_tf
-                    lc["wind_vb0_m_s"] = rec_v50 * rec_tf
-                    lc["wind_cdir"] = 1.0
-                    lc["wind_cseason"] = 1.0
-                    lc["wind_vb0_manual_override"] = False
-                    st.rerun()
-            with b2:
-                st.markdown('<div class="small-muted">Recommended values are not hidden assumptions. If edited, the app marks them as user overrides and recalculates WS / WS+WL automatically.</div>', unsafe_allow_html=True)
-
-            lc["wind_vb0_manual_override"] = st.checkbox(
-                "Allow manual override of vb,0 instead of auto-calculating vb,0 = V50 × TF",
-                value=manual_vb0,
-                key="wind_vb0_manual_override_checkbox",
-            )
-            manual_vb0 = bool(lc["wind_vb0_manual_override"])
-            if not manual_vb0:
-                lc["wind_vb0_m_s"] = rec_vb0
 
             def _wind_status(key: str, recommended: float, tolerance: float = 1e-6) -> str:
                 try:
@@ -1710,7 +1756,7 @@ def page_loads(sub: str) -> None:
             ]
             show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Description", "Resultant Force", "Unit", "Line Load", "Line Unit", "Direction", "Application"]))
             st.markdown('<div class="note-box"><b>FEA export rule:</b> WS and WS+WL are exported as equivalent transverse line loads along the wind-loaded span. The resultant forces shown above are calculated only once from the editable parameter table.</div>', unsafe_allow_html=True)
-    with tabs[6]:
+    if selected_load_subpage == "3.8 CR&SH":
         code_basis_card("1.3.8 Creep and Shrinkage Parameters", "AASHTO LRFD 2020 Section 5, Art. 5.9.3 / 5.4.2.3", "Parameters declared here are consumed by 4 Prestress Losses; formulas are wrapped with SI↔AASHTO unit conversion.")
         p = D["prestress"]
         st.dataframe(pd.DataFrame([
@@ -1724,7 +1770,7 @@ def page_loads(sub: str) -> None:
         ], columns=["Parameter", "Value", "Unit", "Remarks"]), use_container_width=True, hide_index=True)
         st.markdown('<div class="warn-box"><b>Unit warning:</b> AASHTO empirical creep/shrinkage factors use V/S in inches and concrete strength in ksi for intermediate factors.</div>', unsafe_allow_html=True)
 
-    with tabs[7]:
+    if selected_load_subpage == "3.9 EQ":
         code_basis_card(
             "3.9 Earthquake (EQ)",
             "DPT 1301/1302-61 Section 1.4, Section 1.6, and Chapter 3 equivalent static method",
@@ -1853,7 +1899,7 @@ def page_loads(sub: str) -> None:
             st.markdown('<div class="warn-box"><b>Manual source warning:</b> results are calculated from user-entered Ss/S1 and are not verified against the DPT location database.</div>', unsafe_allow_html=True)
         st.markdown('<div class="warn-box"><b>Scope note:</b> DPT 1301/1302-61 is a building seismic design standard. In this bridge app it is used as Thai project seismic parameter basis, consistent with the BG40 report criteria.</div>', unsafe_allow_html=True)
 
-    with tabs[8]:
+    if selected_load_subpage == "3.10 FEA Summary":
         ld = load_derived()
         rows = [
             ["DL", "DL", "Self-weight from γc", "Auto", "-", "Gravity", "FEA self-weight", "FEA auto / QA preview"],

@@ -28,7 +28,7 @@ def test_dashboard_uses_professional_wording_without_chapter_prompt():
 def test_navigation_keeps_single_source_of_truth_keys():
     src = _src()
     assert 'st.radio("WORKSPACE", WORKSPACE_LABELS, key="current_workspace")' in src
-    assert 'st.radio("SUBPAGE", ws["subpages"], key="current_subpage")' in src
+    assert 'key="current_subpage", on_change=_sync_sidebar_subpage_to_loads_inline' in src
     assert "old_nav" not in src
 
 
@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.22-commercial-loads1-dead-load-report-info"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.35-commercial-loads14-wind-province-ui-consistency"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -498,3 +498,13 @@ def test_code1_aashto_2020_section5_unit_safe_basis_ui_is_present():
     assert "standard_conversion_table" in src
     assert "psi_sqrt_fc_coefficient_to_ksi" in src
     assert "concrete_strength_guard_mpa" in src
+
+
+def test_loads14_wind_province_ui_consistency():
+    src = _src()
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.14" in readme
+    assert "wind_group_map_figure_card" in src
+    assert "app-drawn labels are overlaid for readability" in src
+    assert "DPT wind group source" in src
+    assert "loads_inline_subpage" in src
