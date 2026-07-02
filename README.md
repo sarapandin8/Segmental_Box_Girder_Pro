@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.11
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.12
 
 This baseline carries forward the previously accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -24,6 +24,7 @@ This baseline carries forward the previously accepted commercial milestones and 
 - COMMERCIAL.LOADS.9
 - COMMERCIAL.LOADS.10
 - COMMERCIAL.LOADS.11
+- COMMERCIAL.LOADS.12
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -45,8 +46,6 @@ Retained basis / reference notes
 - Orthographic Isometric
 
 Current milestone focus:
-- Polish the 3.7 Wind input workflow as a code-assisted input assistant.
-- Recommend V50 and TF from the selected DPT wind group.
-- Default cdir and cseason to 1.00 with visible EN source trace.
-- Auto-calculate vb,0 = V50 × TF unless manual override is explicitly enabled.
-- Preserve WS / WS+WL calculation and FEA summary logic.
+- Move wind report/reference figures from a separate Figures tab into compact Input Assistant cards.
+- Add a DPT wind group lookup table next to the map-driven group selection workflow.
+- Keep DPT/EN wind recommendation logic and WS/WS+WL calculation logic unchanged.

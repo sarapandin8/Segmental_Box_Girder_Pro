@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from math import sqrt
@@ -408,6 +409,30 @@ def show_report_image(filename: str, caption: str, *, use_column_width: bool = T
         st.image(str(path), caption=caption, use_container_width=use_column_width)
     else:
         st.warning(f"Missing bundled figure asset: {filename}")
+
+
+def wind_reference_figure_card(filename: str, title: str, source: str, note: str = "", *, max_height_px: int = 260) -> None:
+    """Display wind report/reference images in a compact commercial card."""
+    path = WIND_ASSET_DIR / filename
+    if not path.exists():
+        st.warning(f"Missing bundled figure asset: {filename}")
+        return
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    note_html = f'<div class="status-note">{note}</div>' if note else ""
+    st.markdown(
+        f"""
+        <div class="context-card" style="min-height:{max_height_px + 118}px; padding:12px 14px;">
+          <div class="status-kicker">Reference figure</div>
+          <div class="status-value" style="font-size:0.96rem; margin-bottom:0.18rem;">{title}</div>
+          <div class="small-muted" style="margin-bottom:8px;">{source}</div>
+          <div style="border:1px solid #e4e7ec; border-radius:10px; background:#ffffff; padding:6px;">
+            <img src="data:image/png;base64,{encoded}" style="display:block; width:100%; height:{max_height_px}px; object-fit:contain;" />
+          </div>
+          {note_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def section_title(text: str) -> None:
@@ -1349,7 +1374,7 @@ def page_loads(sub: str) -> None:
         )
         st.markdown('<div class="note-box"><b>Wind one-source rule:</b> the editable parameter table below feeds the calculation trace, figures, result tables, FEA summary, Save/Load JSON, and future report export. C factors are not duplicate manual inputs.</div>', unsafe_allow_html=True)
 
-        wind_tabs = st.tabs(["Overview", "Input Assistant", "EN Factors", "Calculations", "Figures", "FEA Summary"])
+        wind_tabs = st.tabs(["Overview", "Input Assistant", "EN Factors", "Calculations", "FEA Summary"])
         lc = D["load_components"]
         wind_group_options = wind_reference_group_options()
         if lc.get("wind_reference_group") not in wind_group_options:
@@ -1413,6 +1438,51 @@ def page_loads(sub: str) -> None:
                 card("Recommended cdir", "1.00", "EN 1991-1-4 default")
             with c4:
                 card("Recommended cseason", "1.00", "EN 1991-1-4 default")
+
+            st.markdown("#### Reference figures for input selection")
+            st.markdown('<div class="note-box"><b>Reference visual workflow:</b> use the map and wind-action sketches here while selecting input values. These figures are shown at the decision point instead of being hidden in a separate figure tab.</div>', unsafe_allow_html=True)
+            r1c1, r1c2 = st.columns(2)
+            with r1c1:
+                wind_reference_figure_card(
+                    "fig_1_2_dpt_wind_speed_map.png",
+                    "DPT wind speed group map",
+                    "DPT 1311-50 / 1312-50 reference wind speed groups",
+                    "Select the project location group, then the app recommends V50 and TF.",
+                    max_height_px=300,
+                )
+            with r1c2:
+                wind_reference_figure_card(
+                    "fig_1_3_en_wind_direction_bridge.png",
+                    "Wind action direction on bridge deck",
+                    "EN 1991-1-4 / BG40 report reference",
+                    "Clarifies b, L, d, and wind direction used by the bridge wind calculation.",
+                    max_height_px=300,
+                )
+            lookup_rows = [
+                ["Group 1", "25.0", "1.00", "25.00", "General reference group"],
+                ["Group 2", "27.0", "1.00", "27.00", "Higher reference wind speed group"],
+                ["Group 3", "29.0", "1.00", "29.00", "Highest V50 group in the report table"],
+                ["Group 4A", "25.0", "1.20", "30.00", "Terrain factor amplified group"],
+                ["Group 4B", "25.0", "1.08", "27.00", "Terrain factor amplified group"],
+            ]
+            show_engineering_table(pd.DataFrame(lookup_rows, columns=["DPT group", "V50 (m/s)", "TF", "Recommended vb,0 (m/s)", "Interpretation"]))
+            r2c1, r2c2 = st.columns(2)
+            with r2c1:
+                wind_reference_figure_card(
+                    "fig_ws_factor_table_and_ze.png",
+                    "Wind factor C and deck height reference",
+                    "BG40 Table 2.5 / EN 1991-1-4 Table 8.2 basis",
+                    "Used to check the app's automatic C interpolation from b/dtot and ze.",
+                    max_height_px=245,
+                )
+            with r2c2:
+                wind_reference_figure_card(
+                    "fig_ws_bridge_cross_section_load.png",
+                    "WS / WL wind application model",
+                    "BG40 report wind application sketch",
+                    "Shows wind on superstructure (WS) and train envelope (WL).",
+                    max_height_px=245,
+                )
 
             b1, b2 = st.columns([1, 3])
             with b1:
@@ -1542,19 +1612,6 @@ def page_loads(sub: str) -> None:
             ], columns=["Item", "Value", "Unit", "Interpretation"]))
 
         with wind_tabs[4]:
-            st.markdown("#### Report reference figures")
-            c1, c2 = st.columns(2)
-            with c1:
-                show_report_image("fig_1_2_dpt_wind_speed_map.png", "Figure 1.2 Reference wind speed map of Thailand (DPT 1311-50)")
-            with c2:
-                show_report_image("fig_1_3_en_wind_direction_bridge.png", "Figure 1.3 Wind load directions on bridge (EN 1991-1-4 Fig. 8.2)")
-            c3, c4 = st.columns(2)
-            with c3:
-                show_report_image("fig_ws_factor_table_and_ze.png", "Wind factor C table and ze definition (report Table 2.5)")
-            with c4:
-                show_report_image("fig_ws_bridge_cross_section_load.png", "Wind application on superstructure and train load envelope (WS / WL)")
-
-        with wind_tabs[5]:
             ld = load_derived()
             rows = [
                 ["WS", "Wind on superstructure", ld["WSsuper_kn"], "kN", ld["WSsuper_kn_m"], "kN/m", "Transverse x-direction", "Superstructure"],
