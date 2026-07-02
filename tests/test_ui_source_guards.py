@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.45-commercial-loads25-ws-wl-reference-figure"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.46-commercial-loads26-bridge-wind-direction-figure"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -173,6 +173,8 @@ def test_m3e_wind_report_figures_and_auto_factor_ui_are_present():
     src = _src()
     assert "fig_1_2_dpt_wind_speed_map.png" in src
     assert "fig_1_3_en_wind_direction_bridge.png" in src
+    assert "User-provided refined bridge wind-direction sketch" in src
+    assert "max_height_px=340" in src
     assert "fig_ws_factor_table_and_ze.png" not in src
     assert "ze_bridge_reference_card" in src
     assert "fig_ws_bridge_cross_section_load.png" in src
@@ -506,7 +508,7 @@ def test_code1_aashto_2020_section5_unit_safe_basis_ui_is_present():
 def test_loads23_en_factors_no_duplicate_report_images():
     src = _src()
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "COMMERCIAL.LOADS.25" in readme
+    assert "COMMERCIAL.LOADS.26" in readme
     assert "wind_group_map_figure_card" in src
     assert "clean color reference map" in src
     assert "fig_ze_bridge_reference.svg" in src

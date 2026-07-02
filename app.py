@@ -1715,9 +1715,9 @@ def page_loads(sub: str) -> None:
                 wind_reference_figure_card(
                     "fig_1_3_en_wind_direction_bridge.png",
                     "Wind action direction on bridge deck",
-                    "EN 1991-1-4 / BG40 report reference",
-                    "Clarifies b, L, d, and wind direction used by the bridge wind calculation.",
-                    max_height_px=300,
+                    "User-provided refined bridge wind-direction sketch",
+                    "Clarifies b, L, d, bridge axes, and wind direction used by the bridge wind calculation.",
+                    max_height_px=340,
                 )
             lookup_rows = [
                 ["Group 1", "25.0", "1.00", "25.00", "General reference group"],
