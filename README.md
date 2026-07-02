@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.18
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.19
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -30,7 +30,7 @@ This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.LOADS.15
 - COMMERCIAL.LOADS.16
 - COMMERCIAL.LOADS.17
-- COMMERCIAL.LOADS.18
+- COMMERCIAL.LOADS.19
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -60,3 +60,8 @@ Current milestone focus
 
 Clean release rule
 - ZIP packages must not include `__pycache__/`, `.pytest_cache/`, `*.pyc`, `*.pyo`, `.streamlit/`, or `.DS_Store`.
+
+
+Current milestone focus:
+- Replace the grayscale/contrast-enhanced DPT wind map card asset with the user-approved clean color reference map.
+- Keep province lookup as the authoritative adopted wind-group source.

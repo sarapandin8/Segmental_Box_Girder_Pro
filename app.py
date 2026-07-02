@@ -507,10 +507,13 @@ def wind_group_map_figure_card(selected_group: str, note: str = "", *, max_heigh
     """Display a sharpened DPT wind map without app-drawn overlays.
 
     The province dropdown is now the authoritative group lookup. The map is a visual
-    reference only, so misleading approximate overlay labels are deliberately avoided.
+    reference only. Prefer a clean color reference map over approximate app-drawn overlays.
     """
-    filename = "fig_1_2_dpt_wind_speed_map_clarity.png"
+    filename = "fig_1_2_dpt_wind_speed_map_color.png"
     path = WIND_ASSET_DIR / filename
+    if not path.exists():
+        filename = "fig_1_2_dpt_wind_speed_map_clarity.png"
+        path = WIND_ASSET_DIR / filename
     if not path.exists():
         filename = "fig_1_2_dpt_wind_speed_map.png"
         path = WIND_ASSET_DIR / filename
@@ -529,7 +532,7 @@ def wind_group_map_figure_card(selected_group: str, note: str = "", *, max_heigh
           <div style="border:1px solid #e4e7ec; border-radius:10px; background:#ffffff; padding:8px; height:{max_height_px}px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
             <img src="data:image/png;base64,{encoded}" style="display:block; max-width:100%; max-height:100%; object-fit:contain; filter:contrast(1.08);" />
           </div>
-          <div class="status-note"><b>{selected_note}</b> · map enhanced for contrast; province lookup controls the adopted group.</div>
+          <div class="status-note"><b>{selected_note}</b> · clean color reference map; province lookup controls the adopted group.</div>
           {note_html}
         </div>
         """,

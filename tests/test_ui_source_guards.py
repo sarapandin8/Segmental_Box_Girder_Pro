@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.38-commercial-loads18-sdl-track-selection"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.39-commercial-loads19-color-wind-map"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -500,11 +500,11 @@ def test_code1_aashto_2020_section5_unit_safe_basis_ui_is_present():
     assert "concrete_strength_guard_mpa" in src
 
 
-def test_loads15_wind_map_clarity_card_fit():
+def test_loads19_color_wind_map_asset():
     src = _src()
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "COMMERCIAL.LOADS.15" in readme
+    assert "COMMERCIAL.LOADS.19" in readme
     assert "wind_group_map_figure_card" in src
-    assert "map enhanced for contrast" in src
+    assert "clean color reference map" in src
     assert "DPT wind group source" in src
     assert "loads_inline_subpage" in src
