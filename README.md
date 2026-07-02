@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.23
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.24
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -30,7 +30,7 @@ This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.LOADS.15
 - COMMERCIAL.LOADS.16
 - COMMERCIAL.LOADS.17
-- COMMERCIAL.LOADS.23
+- COMMERCIAL.LOADS.24
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -73,3 +73,5 @@ Current milestone focus:
 - Compact the separate z_e bridge-profile card using an embedded SVG image constrained to a fixed card height so the editable wind parameter table remains close to the input assistant.
 
 - Remove duplicate right-side report images from the EN Factors tab; the tab now shows only the formula, Table 2.5 data, interpolation results, and a note that figures remain in Input Assistant cards.
+
+- Polish the Wind Calculations tab with result cards, explicit q = 0.5ρvb² velocity pressure, and Pa→N→kN unit trace using Fw = q·C·Aref/1000.

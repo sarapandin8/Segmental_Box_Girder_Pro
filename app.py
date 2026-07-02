@@ -1828,26 +1828,43 @@ def page_loads(sub: str) -> None:
 
         with wind_tabs[3]:
             ld = load_derived()
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                card("Velocity pressure q", f"{ld['q_pa']:.3f} Pa", "q = 0.5ρvb²")
+            with c2:
+                card("WS line load", f"{ld['WSsuper_kn_m']:.2f} kN/m", f"F = {ld['WSsuper_kn']:.0f} kN")
+            with c3:
+                card("WS + WL line load", f"{ld['WSsuper_WL_kn_m']:.2f} kN/m", f"F = {ld['WSsuper_WL_kn']:.0f} kN", "good")
+            with c4:
+                card("Governing wind input", f"{max(ld['WSsuper_kn_m'], ld['WSsuper_WL_kn_m']):.2f} kN/m", "used for envelope review")
+
             st.markdown("#### Basic wind velocity")
             st.latex(r"v_b=c_{dir}c_{season}v_{b,0}")
             st.latex(fr"v_b={lc['wind_cdir']:.2f}({lc['wind_cseason']:.2f})({lc['wind_vb0_m_s']:.1f})={ld['vb_m_s']:.1f}\,\mathrm{{m/s}}")
+
+            st.markdown("#### Velocity pressure and unit trace")
+            st.latex(r"q=0.5\\rho v_b^2")
+            st.latex(fr"q=0.5({lc['wind_air_density_kg_m3']:.2f})({ld['vb_m_s']:.1f})^2={ld['q_pa']:.3f}\,\mathrm{{Pa}}")
+            st.markdown('<div class="note-box"><b>Unit trace:</b> Pa = N/m². The wind resultant from q·C·Aref is first obtained in N and then divided by 1000 to report kN.</div>', unsafe_allow_html=True)
+
             st.markdown("#### Wind load factor and reference area")
             st.latex(r"A_{ref,x}=d_{tot}L")
             st.latex(fr"A_{{ref,x,WS}}={lc['wind_dtot_ws_m']:.3f}({lc.get('wind_span_m', D['project']['span_m']):.3f})={ld['Aref_ws_m2']:.1f}\,\mathrm{{m^2}}")
             st.latex(fr"A_{{ref,x,WS+WL}}={lc['wind_dtot_ws_wl_m']:.3f}({lc.get('wind_span_m', D['project']['span_m']):.3f})={ld['Aref_ws_wl_m2']:.1f}\,\mathrm{{m^2}}")
+
             st.markdown("#### Wind force and equivalent line load")
-            st.latex(r"F_{W,x}=\frac{1}{2}\rho v_b^2 C A_{ref,x}")
-            st.latex(fr"F_{{W,x,WS}}=\frac{{1}}{{2}}({lc['wind_air_density_kg_m3']:.2f})({ld['vb_m_s']:.1f})^2({ld['C_ws']:.3f})({ld['Aref_ws_m2']:.1f})={ld['WSsuper_kn']:.0f}\,\mathrm{{kN}}")
-            st.latex(fr"F_{{W,x,WS+WL}}=\frac{{1}}{{2}}({lc['wind_air_density_kg_m3']:.2f})({ld['vb_m_s']:.1f})^2({ld['C_ws_wl']:.3f})({ld['Aref_ws_wl_m2']:.1f})={ld['WSsuper_WL_kn']:.0f}\,\mathrm{{kN}}")
-            st.latex(fr"w_{{WS}}=F_{{W,x,WS}}/L={ld['WSsuper_kn_m']:.2f}\,\mathrm{{kN/m}},\qquad w_{{WS+WL}}={ld['WSsuper_WL_kn_m']:.2f}\,\mathrm{{kN/m}}")
+            st.latex(r"F_{W,x}=\frac{q C A_{ref,x}}{1000}\quad [\mathrm{kN}]")
+            st.latex(fr"F_{{W,x,WS}}=\frac{{({ld['q_pa']:.3f})({ld['C_ws']:.3f})({ld['Aref_ws_m2']:.1f})}}{{1000}}={ld['WSsuper_kn']:.0f}\,\mathrm{{kN}}")
+            st.latex(fr"F_{{W,x,WS+WL}}=\frac{{({ld['q_pa']:.3f})({ld['C_ws_wl']:.3f})({ld['Aref_ws_wl_m2']:.1f})}}{{1000}}={ld['WSsuper_WL_kn']:.0f}\,\mathrm{{kN}}")
+            st.latex(fr"w_{{WS}}=F_{{W,x,WS}}/L={ld['WSsuper_kn_m']:.2f}\,\mathrm{{kN/m}},\qquad w_{{WS+WL}}=F_{{W,x,WS+WL}}/L={ld['WSsuper_WL_kn_m']:.2f}\,\mathrm{{kN/m}}")
             show_engineering_table(pd.DataFrame([
-                ["q = 0.5ρvb²", ld["q_pa"], "Pa", "velocity pressure"],
+                ["q = 0.5ρvb²", ld["q_pa"], "Pa", "velocity pressure = N/m²"],
                 ["CWS", ld["C_ws"], "factor", "automatic interpolation"],
                 ["CWS+WL", ld["C_ws_wl"], "factor", "automatic interpolation"],
                 ["Aref,x,WS", ld["Aref_ws_m2"], "m²", "dtot,WS × L"],
                 ["Aref,x,WS+WL", ld["Aref_ws_wl_m2"], "m²", "dtot,WS+WL × L"],
-                ["WSsuper", ld["WSsuper_kn"], "kN", f"{ld['WSsuper_kn_m']:.2f} kN/m"],
-                ["WSsuper+WL", ld["WSsuper_WL_kn"], "kN", f"{ld['WSsuper_WL_kn_m']:.2f} kN/m"],
+                ["FW,x,WS = q·C·Aref/1000", ld["WSsuper_kn"], "kN", f"{ld['WSsuper_kn_m']:.2f} kN/m"],
+                ["FW,x,WS+WL = q·C·Aref/1000", ld["WSsuper_WL_kn"], "kN", f"{ld['WSsuper_WL_kn_m']:.2f} kN/m"],
             ], columns=["Item", "Value", "Unit", "Interpretation"]))
 
         with wind_tabs[4]:
