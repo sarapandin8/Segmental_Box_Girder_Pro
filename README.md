@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.20
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.21
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -30,7 +30,7 @@ This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.LOADS.15
 - COMMERCIAL.LOADS.16
 - COMMERCIAL.LOADS.17
-- COMMERCIAL.LOADS.20
+- COMMERCIAL.LOADS.21
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -67,3 +67,5 @@ Current milestone focus:
 - Keep province lookup as the authoritative adopted wind-group source.
 
 - Replace the simplified lower z_e schematic in the wind factor C reference card with the user-provided four-pier bridge SVG reference.
+
+- Split the wind factor C / z_e mixed reference into a compact Table 2.5 card plus a separate z_e bridge-profile card so the figure fits comfortably in the UI.

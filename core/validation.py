@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.40-commercial-loads20-ze-bridge-reference"
+PROJECT_SCHEMA_VERSION = "0.4.41-commercial-loads21-separate-ze-card"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 
