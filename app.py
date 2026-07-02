@@ -1736,9 +1736,9 @@ def page_loads(sub: str) -> None:
                 wind_reference_figure_card(
                     "fig_ws_bridge_cross_section_load.png",
                     "WS / WL wind application model",
-                    "BG40 report wind application sketch",
-                    "Shows wind on superstructure (WS) and train envelope (WL).",
-                    max_height_px=245,
+                    "User-provided refined WS/WL wind application sketch",
+                    "Shows wind on superstructure (WS), train envelope wind (WL), D, D/4, and the associated reference V effect.",
+                    max_height_px=360,
                 )
             ze_bridge_reference_card(
                 "Compact separate card added so the user-provided bridge profile supports z_e interpretation without oversizing the Input Assistant layout."
