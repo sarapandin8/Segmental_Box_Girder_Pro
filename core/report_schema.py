@@ -41,7 +41,7 @@ WORKSPACES = [
             "3.1 Dead Load",
             "3.2 SDL",
             "3.3 LL + IM",
-            "3.4 LF / HF",
+            "3.4 LF / 3.5 HF",
             "3.6 CF",
             "3.7 Wind",
             "3.8 CR&SH",

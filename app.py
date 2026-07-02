@@ -442,6 +442,69 @@ def wind_reference_figure_card(filename: str, title: str, source: str, note: str
     )
 
 
+def wind_factor_c_reference_card(note: str = "") -> None:
+    """Vector reference card for EN 1991-1-4 bridge wind factor C and deck-height ze.
+
+    This replaces the cropped raster figure so the table and the lower deck-height
+    schematic are always fully visible in the Input Assistant.
+    """
+    note_html = f'<div class="status-note">{note}</div>' if note else ""
+    st.markdown(
+        f"""
+        <div class="context-card" style="min-height:372px; padding:12px 14px; overflow:visible;">
+          <div class="status-kicker">Reference figure</div>
+          <div class="status-value" style="font-size:0.96rem; margin-bottom:0.18rem;">Wind factor C and deck height reference</div>
+          <div class="small-muted" style="margin-bottom:8px;">BG40 Table 2.5 / EN 1991-1-4 Table 8.2 basis</div>
+          <div style="border:1px solid #e4e7ec; border-radius:10px; background:#ffffff; padding:10px;">
+            <svg viewBox="0 0 620 310" width="100%" height="310" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wind factor C and deck height reference">
+              <style>
+                .wf-title {{ font: 700 15px Arial, sans-serif; fill:#101828; }}
+                .wf-text {{ font: 12px Arial, sans-serif; fill:#101828; }}
+                .wf-small {{ font: 11px Arial, sans-serif; fill:#344054; }}
+                .wf-muted {{ font: 11px Arial, sans-serif; fill:#667085; }}
+                .wf-line {{ stroke:#101828; stroke-width:1.3; }}
+                .wf-thin {{ stroke:#344054; stroke-width:1.0; }}
+              </style>
+              <text x="310" y="18" text-anchor="middle" class="wf-title">Table 2.5  Wind load factor C for bridges</text>
+              <text x="310" y="35" text-anchor="middle" class="wf-muted">Data taken from EN 1991-1-4, Table 8.2</text>
+
+              <line x1="50" y1="55" x2="570" y2="55" class="wf-line"/>
+              <line x1="50" y1="84" x2="570" y2="84" class="wf-line"/>
+              <line x1="50" y1="142" x2="570" y2="142" class="wf-line"/>
+              <line x1="180" y1="55" x2="180" y2="142" class="wf-thin"/>
+              <line x1="375" y1="55" x2="375" y2="142" class="wf-thin"/>
+              <text x="115" y="76" text-anchor="middle" class="wf-text">b/d<tspan baseline-shift="sub" font-size="9">tot</tspan></text>
+              <text x="278" y="76" text-anchor="middle" class="wf-text">z<tspan baseline-shift="sub" font-size="9">e</tspan> ≤ 20 m</text>
+              <text x="475" y="76" text-anchor="middle" class="wf-text">z<tspan baseline-shift="sub" font-size="9">e</tspan> = 50 m</text>
+              <text x="115" y="108" text-anchor="middle" class="wf-text">≤ 0.5</text>
+              <text x="278" y="108" text-anchor="middle" class="wf-text">6.7</text>
+              <text x="475" y="108" text-anchor="middle" class="wf-text">8.3</text>
+              <text x="115" y="132" text-anchor="middle" class="wf-text">≥ 4.0</text>
+              <text x="278" y="132" text-anchor="middle" class="wf-text">3.6</text>
+              <text x="475" y="132" text-anchor="middle" class="wf-text">4.5</text>
+              <text x="50" y="168" class="wf-small">If 0.5 &lt; b/d<tspan baseline-shift="sub" font-size="9">tot</tspan> &lt; 4.0, linear interpolation may be used.</text>
+
+              <line x1="55" y1="210" x2="570" y2="210" class="wf-line"/>
+              <rect x="70" y="212" width="68" height="42" fill="#e5e7eb" stroke="#98a2b3"/>
+              <polygon points="50,255 135,255 160,285 50,285" fill="#d7d7d7" stroke="#98a2b3"/>
+              <rect x="240" y="212" width="56" height="78" fill="#f2f4f7" stroke="#98a2b3"/>
+              <rect x="430" y="212" width="56" height="78" fill="#f2f4f7" stroke="#98a2b3"/>
+              <line x1="330" y1="210" x2="330" y2="288" stroke="#101828" stroke-width="1.0"/>
+              <line x1="322" y1="210" x2="338" y2="210" class="wf-line"/>
+              <line x1="322" y1="288" x2="338" y2="288" class="wf-line"/>
+              <polygon points="330,214 326,222 334,222" fill="#101828"/>
+              <polygon points="330,284 326,276 334,276" fill="#101828"/>
+              <text x="342" y="254" class="wf-text">z<tspan baseline-shift="sub" font-size="9">e</tspan></text>
+              <text x="54" y="303" class="wf-muted">Deck / bridge reference height used for wind factor selection</text>
+            </svg>
+          </div>
+          {note_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def wind_group_map_figure_card(selected_group: str, note: str = "", *, max_height_px: int = 340) -> None:
     """Display a sharpened DPT wind map without app-drawn overlays.
 
@@ -1304,7 +1367,7 @@ def page_loads(sub: str) -> None:
     st.subheader(get_workspace("3 Loads")["title"])
     section_title("3 Loads — FEA load input generator")
     st.markdown('<div class="note-box"><b>One-source rule:</b> each load is entered once in the report-driven schema. Report Preview, FEA Load Summary, QA checks, and Save/Load JSON read from the same source.</div>', unsafe_allow_html=True)
-    load_tab_labels = ["3.1 Dead Load", "3.2 SDL", "3.3 LL + IM", "3.4 LF / HF", "3.6 CF", "3.7 Wind", "3.8 CR&SH", "3.9 EQ", "3.10 FEA Summary"]
+    load_tab_labels = ["3.1 Dead Load", "3.2 SDL", "3.3 LL + IM", "3.4 LF / 3.5 HF", "3.6 CF", "3.7 Wind", "3.8 CR&SH", "3.9 EQ", "3.10 FEA Summary"]
     if st.session_state.get("loads_inline_subpage") not in load_tab_labels:
         st.session_state.loads_inline_subpage = sub if sub in load_tab_labels else load_tab_labels[0]
     selected_load_subpage = st.radio(
@@ -1383,7 +1446,7 @@ def page_loads(sub: str) -> None:
             ["LL+IM", "U20 = 0.8 × LM71", D["load_components"]["dynamic_factor_design"], "factor", "Vertical railway load", "Railway load lane / track model", "App calculated + user-adopted"],
         ], columns=["Load Pattern", "Load model", "Value", "Unit", "Direction", "Application", "Source"]))
 
-    if selected_load_subpage == "3.4 LF / HF":
+    if selected_load_subpage == "3.4 LF / 3.5 HF":
         code_basis_card("3.4 Longitudinal Force (LF) and 3.5 Hunting / Nosing Force (HF)", "EN 1991-2 Art. 6.5.3 and Art. 6.5.2", "LF is longitudinal braking/traction at rail level. HF is the EN nosing force Qsk, concentrated transverse at top of rail.")
         components.html(rail_horizontal_forces_diagram_svg(), height=430, scrolling=False)
         c1, c2, c3 = st.columns(3)
@@ -1612,12 +1675,8 @@ def page_loads(sub: str) -> None:
             show_engineering_table(pd.DataFrame(lookup_rows, columns=["DPT group", "V50 (m/s)", "TF", "Recommended vb,0 (m/s)", "Interpretation"]))
             r2c1, r2c2 = st.columns(2)
             with r2c1:
-                wind_reference_figure_card(
-                    "fig_ws_factor_table_and_ze.png",
-                    "Wind factor C and deck height reference",
-                    "BG40 Table 2.5 / EN 1991-1-4 Table 8.2 basis",
-                    "Used to check the app's automatic C interpolation from b/dtot and ze.",
-                    max_height_px=245,
+                wind_factor_c_reference_card(
+                    "Used to check the app's automatic C interpolation from b/dtot and ze. The lower deck-height schematic is app-rendered so it is not cropped."
                 )
             with r2c2:
                 wind_reference_figure_card(
