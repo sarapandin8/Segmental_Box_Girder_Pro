@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.39-commercial-loads19-color-wind-map"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.40-commercial-loads20-ze-bridge-reference"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -500,11 +500,13 @@ def test_code1_aashto_2020_section5_unit_safe_basis_ui_is_present():
     assert "concrete_strength_guard_mpa" in src
 
 
-def test_loads19_color_wind_map_asset():
+def test_loads20_wind_factor_ze_bridge_reference():
     src = _src()
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "COMMERCIAL.LOADS.19" in readme
+    assert "COMMERCIAL.LOADS.20" in readme
     assert "wind_group_map_figure_card" in src
     assert "clean color reference map" in src
+    assert "fig_ze_bridge_reference.svg" in src
+    assert "user-provided bridge profile reference" in src
     assert "DPT wind group source" in src
     assert "loads_inline_subpage" in src

@@ -443,19 +443,26 @@ def wind_reference_figure_card(filename: str, title: str, source: str, note: str
 
 
 def wind_factor_c_reference_card(note: str = "") -> None:
-    """Vector reference card for EN 1991-1-4 bridge wind factor C and deck-height ze.
+    """Reference card for EN 1991-1-4 bridge wind factor C and deck-height ze.
 
-    Rendered through Streamlit components so the inline SVG is interpreted as SVG,
-    not escaped/printed as raw markup by st.markdown.
+    The upper part is an app-rendered Table 2.5 summary. The lower part uses the
+    user-provided four-pier bridge deck-height schematic as a more faithful visual
+    reference for z_e. Both are rendered through Streamlit components so inline SVG
+    is interpreted correctly.
     """
     note_html = f'<div style="font:11px Arial,sans-serif;color:#667085;margin-top:6px;">{note}</div>' if note else ""
+    ze_svg_path = WIND_ASSET_DIR / "fig_ze_bridge_reference.svg"
+    if ze_svg_path.exists():
+        ze_svg = ze_svg_path.read_text(encoding="utf-8")
+    else:
+        ze_svg = '<div style="font-size:12px;color:#b42318;">Missing z_e bridge reference schematic asset.</div>'
     html = f"""
 <div style="width:100%; background:#ffffff; border:1px solid #d0d5dd; border-radius:12px; padding:12px 14px; box-sizing:border-box; font-family:Arial, sans-serif;">
   <div style="font-size:0.68rem; letter-spacing:0.12em; text-transform:uppercase; font-weight:700; color:#175cd3; margin-bottom:6px;">Reference figure</div>
   <div style="font-size:0.96rem; line-height:1.2; font-weight:700; color:#101828; margin-bottom:3px;">Wind factor C and deck height reference</div>
   <div style="font-size:0.78rem; color:#667085; margin-bottom:8px;">BG40 Table 2.5 / EN 1991-1-4 Table 8.2 basis</div>
   <div style="border:1px solid #e4e7ec; border-radius:10px; background:#ffffff; padding:10px; overflow:hidden;">
-    <svg viewBox="0 0 620 310" width="100%" height="310" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wind factor C and deck height reference">
+    <svg viewBox="0 0 620 170" width="100%" height="170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wind factor C table">
       <style>
         .wf-title {{ font: 700 15px Arial, sans-serif; fill:#101828; }}
         .wf-text {{ font: 12px Arial, sans-serif; fill:#101828; }}
@@ -466,7 +473,6 @@ def wind_factor_c_reference_card(note: str = "") -> None:
       </style>
       <text x="310" y="18" text-anchor="middle" class="wf-title">Table 2.5  Wind load factor C for bridges</text>
       <text x="310" y="35" text-anchor="middle" class="wf-muted">Data taken from EN 1991-1-4, Table 8.2</text>
-
       <line x1="50" y1="55" x2="570" y2="55" class="wf-line"/>
       <line x1="50" y1="84" x2="570" y2="84" class="wf-line"/>
       <line x1="50" y1="142" x2="570" y2="142" class="wf-line"/>
@@ -481,26 +487,17 @@ def wind_factor_c_reference_card(note: str = "") -> None:
       <text x="115" y="132" text-anchor="middle" class="wf-text">≥ 4.0</text>
       <text x="278" y="132" text-anchor="middle" class="wf-text">3.6</text>
       <text x="475" y="132" text-anchor="middle" class="wf-text">4.5</text>
-      <text x="50" y="168" class="wf-small">If 0.5 &lt; b/d<tspan baseline-shift="sub" font-size="9">tot</tspan> &lt; 4.0, linear interpolation may be used.</text>
-
-      <line x1="55" y1="210" x2="570" y2="210" class="wf-line"/>
-      <rect x="70" y="212" width="68" height="42" fill="#e5e7eb" stroke="#98a2b3"/>
-      <polygon points="50,255 135,255 160,285 50,285" fill="#d7d7d7" stroke="#98a2b3"/>
-      <rect x="240" y="212" width="56" height="78" fill="#f2f4f7" stroke="#98a2b3"/>
-      <rect x="430" y="212" width="56" height="78" fill="#f2f4f7" stroke="#98a2b3"/>
-      <line x1="330" y1="210" x2="330" y2="288" stroke="#101828" stroke-width="1.0"/>
-      <line x1="322" y1="210" x2="338" y2="210" class="wf-line"/>
-      <line x1="322" y1="288" x2="338" y2="288" class="wf-line"/>
-      <polygon points="330,214 326,222 334,222" fill="#101828"/>
-      <polygon points="330,284 326,276 334,276" fill="#101828"/>
-      <text x="342" y="254" class="wf-text">z<tspan baseline-shift="sub" font-size="9">e</tspan></text>
-      <text x="54" y="303" class="wf-muted">Deck / bridge reference height used for wind factor selection</text>
+      <text x="50" y="160" class="wf-small">If 0.5 &lt; b/d<tspan baseline-shift="sub" font-size="9">tot</tspan> &lt; 4.0, linear interpolation may be used.</text>
     </svg>
+    <div style="margin-top:8px; border-top:1px solid #eaecf0; padding-top:8px;">
+      <div style="font-size:11px; color:#667085; margin-bottom:6px;">Deck / bridge reference height schematic used for selecting z<sub>e</sub> (user-provided bridge profile reference).</div>
+      <div style="width:100%;">{ze_svg}</div>
+    </div>
   </div>
   {note_html}
 </div>
 """
-    components.html(html, height=450, scrolling=False)
+    components.html(html, height=660, scrolling=False)
 
 
 def wind_group_map_figure_card(selected_group: str, note: str = "", *, max_height_px: int = 340) -> None:
@@ -1714,7 +1711,7 @@ def page_loads(sub: str) -> None:
             r2c1, r2c2 = st.columns(2)
             with r2c1:
                 wind_factor_c_reference_card(
-                    "Used to check the app's automatic C interpolation from b/dtot and ze. The lower deck-height schematic is app-rendered so it is not cropped."
+                    "Used to check the app's automatic C interpolation from b/dtot and ze. The lower deck-height schematic uses the user-provided bridge reference figure so z_e interpretation matches the intended bridge profile."
                 )
             with r2c2:
                 wind_reference_figure_card(

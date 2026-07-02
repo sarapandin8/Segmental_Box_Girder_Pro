@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.19
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.20
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -30,7 +30,7 @@ This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.LOADS.15
 - COMMERCIAL.LOADS.16
 - COMMERCIAL.LOADS.17
-- COMMERCIAL.LOADS.19
+- COMMERCIAL.LOADS.20
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -65,3 +65,5 @@ Clean release rule
 Current milestone focus:
 - Replace the grayscale/contrast-enhanced DPT wind map card asset with the user-approved clean color reference map.
 - Keep province lookup as the authoritative adopted wind-group source.
+
+- Replace the simplified lower z_e schematic in the wind factor C reference card with the user-provided four-pier bridge SVG reference.
