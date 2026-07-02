@@ -445,64 +445,62 @@ def wind_reference_figure_card(filename: str, title: str, source: str, note: str
 def wind_factor_c_reference_card(note: str = "") -> None:
     """Vector reference card for EN 1991-1-4 bridge wind factor C and deck-height ze.
 
-    This replaces the cropped raster figure so the table and the lower deck-height
-    schematic are always fully visible in the Input Assistant.
+    Rendered through Streamlit components so the inline SVG is interpreted as SVG,
+    not escaped/printed as raw markup by st.markdown.
     """
-    note_html = f'<div class="status-note">{note}</div>' if note else ""
-    st.markdown(
-        f"""
-        <div class="context-card" style="min-height:372px; padding:12px 14px; overflow:visible;">
-          <div class="status-kicker">Reference figure</div>
-          <div class="status-value" style="font-size:0.96rem; margin-bottom:0.18rem;">Wind factor C and deck height reference</div>
-          <div class="small-muted" style="margin-bottom:8px;">BG40 Table 2.5 / EN 1991-1-4 Table 8.2 basis</div>
-          <div style="border:1px solid #e4e7ec; border-radius:10px; background:#ffffff; padding:10px;">
-            <svg viewBox="0 0 620 310" width="100%" height="310" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wind factor C and deck height reference">
-              <style>
-                .wf-title {{ font: 700 15px Arial, sans-serif; fill:#101828; }}
-                .wf-text {{ font: 12px Arial, sans-serif; fill:#101828; }}
-                .wf-small {{ font: 11px Arial, sans-serif; fill:#344054; }}
-                .wf-muted {{ font: 11px Arial, sans-serif; fill:#667085; }}
-                .wf-line {{ stroke:#101828; stroke-width:1.3; }}
-                .wf-thin {{ stroke:#344054; stroke-width:1.0; }}
-              </style>
-              <text x="310" y="18" text-anchor="middle" class="wf-title">Table 2.5  Wind load factor C for bridges</text>
-              <text x="310" y="35" text-anchor="middle" class="wf-muted">Data taken from EN 1991-1-4, Table 8.2</text>
+    note_html = f'<div style="font:11px Arial,sans-serif;color:#667085;margin-top:6px;">{note}</div>' if note else ""
+    html = f"""
+<div style="width:100%; background:#ffffff; border:1px solid #d0d5dd; border-radius:12px; padding:12px 14px; box-sizing:border-box; font-family:Arial, sans-serif;">
+  <div style="font-size:0.68rem; letter-spacing:0.12em; text-transform:uppercase; font-weight:700; color:#175cd3; margin-bottom:6px;">Reference figure</div>
+  <div style="font-size:0.96rem; line-height:1.2; font-weight:700; color:#101828; margin-bottom:3px;">Wind factor C and deck height reference</div>
+  <div style="font-size:0.78rem; color:#667085; margin-bottom:8px;">BG40 Table 2.5 / EN 1991-1-4 Table 8.2 basis</div>
+  <div style="border:1px solid #e4e7ec; border-radius:10px; background:#ffffff; padding:10px; overflow:hidden;">
+    <svg viewBox="0 0 620 310" width="100%" height="310" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wind factor C and deck height reference">
+      <style>
+        .wf-title {{ font: 700 15px Arial, sans-serif; fill:#101828; }}
+        .wf-text {{ font: 12px Arial, sans-serif; fill:#101828; }}
+        .wf-small {{ font: 11px Arial, sans-serif; fill:#344054; }}
+        .wf-muted {{ font: 11px Arial, sans-serif; fill:#667085; }}
+        .wf-line {{ stroke:#101828; stroke-width:1.3; }}
+        .wf-thin {{ stroke:#344054; stroke-width:1.0; }}
+      </style>
+      <text x="310" y="18" text-anchor="middle" class="wf-title">Table 2.5  Wind load factor C for bridges</text>
+      <text x="310" y="35" text-anchor="middle" class="wf-muted">Data taken from EN 1991-1-4, Table 8.2</text>
 
-              <line x1="50" y1="55" x2="570" y2="55" class="wf-line"/>
-              <line x1="50" y1="84" x2="570" y2="84" class="wf-line"/>
-              <line x1="50" y1="142" x2="570" y2="142" class="wf-line"/>
-              <line x1="180" y1="55" x2="180" y2="142" class="wf-thin"/>
-              <line x1="375" y1="55" x2="375" y2="142" class="wf-thin"/>
-              <text x="115" y="76" text-anchor="middle" class="wf-text">b/d<tspan baseline-shift="sub" font-size="9">tot</tspan></text>
-              <text x="278" y="76" text-anchor="middle" class="wf-text">z<tspan baseline-shift="sub" font-size="9">e</tspan> ≤ 20 m</text>
-              <text x="475" y="76" text-anchor="middle" class="wf-text">z<tspan baseline-shift="sub" font-size="9">e</tspan> = 50 m</text>
-              <text x="115" y="108" text-anchor="middle" class="wf-text">≤ 0.5</text>
-              <text x="278" y="108" text-anchor="middle" class="wf-text">6.7</text>
-              <text x="475" y="108" text-anchor="middle" class="wf-text">8.3</text>
-              <text x="115" y="132" text-anchor="middle" class="wf-text">≥ 4.0</text>
-              <text x="278" y="132" text-anchor="middle" class="wf-text">3.6</text>
-              <text x="475" y="132" text-anchor="middle" class="wf-text">4.5</text>
-              <text x="50" y="168" class="wf-small">If 0.5 &lt; b/d<tspan baseline-shift="sub" font-size="9">tot</tspan> &lt; 4.0, linear interpolation may be used.</text>
+      <line x1="50" y1="55" x2="570" y2="55" class="wf-line"/>
+      <line x1="50" y1="84" x2="570" y2="84" class="wf-line"/>
+      <line x1="50" y1="142" x2="570" y2="142" class="wf-line"/>
+      <line x1="180" y1="55" x2="180" y2="142" class="wf-thin"/>
+      <line x1="375" y1="55" x2="375" y2="142" class="wf-thin"/>
+      <text x="115" y="76" text-anchor="middle" class="wf-text">b/d<tspan baseline-shift="sub" font-size="9">tot</tspan></text>
+      <text x="278" y="76" text-anchor="middle" class="wf-text">z<tspan baseline-shift="sub" font-size="9">e</tspan> ≤ 20 m</text>
+      <text x="475" y="76" text-anchor="middle" class="wf-text">z<tspan baseline-shift="sub" font-size="9">e</tspan> = 50 m</text>
+      <text x="115" y="108" text-anchor="middle" class="wf-text">≤ 0.5</text>
+      <text x="278" y="108" text-anchor="middle" class="wf-text">6.7</text>
+      <text x="475" y="108" text-anchor="middle" class="wf-text">8.3</text>
+      <text x="115" y="132" text-anchor="middle" class="wf-text">≥ 4.0</text>
+      <text x="278" y="132" text-anchor="middle" class="wf-text">3.6</text>
+      <text x="475" y="132" text-anchor="middle" class="wf-text">4.5</text>
+      <text x="50" y="168" class="wf-small">If 0.5 &lt; b/d<tspan baseline-shift="sub" font-size="9">tot</tspan> &lt; 4.0, linear interpolation may be used.</text>
 
-              <line x1="55" y1="210" x2="570" y2="210" class="wf-line"/>
-              <rect x="70" y="212" width="68" height="42" fill="#e5e7eb" stroke="#98a2b3"/>
-              <polygon points="50,255 135,255 160,285 50,285" fill="#d7d7d7" stroke="#98a2b3"/>
-              <rect x="240" y="212" width="56" height="78" fill="#f2f4f7" stroke="#98a2b3"/>
-              <rect x="430" y="212" width="56" height="78" fill="#f2f4f7" stroke="#98a2b3"/>
-              <line x1="330" y1="210" x2="330" y2="288" stroke="#101828" stroke-width="1.0"/>
-              <line x1="322" y1="210" x2="338" y2="210" class="wf-line"/>
-              <line x1="322" y1="288" x2="338" y2="288" class="wf-line"/>
-              <polygon points="330,214 326,222 334,222" fill="#101828"/>
-              <polygon points="330,284 326,276 334,276" fill="#101828"/>
-              <text x="342" y="254" class="wf-text">z<tspan baseline-shift="sub" font-size="9">e</tspan></text>
-              <text x="54" y="303" class="wf-muted">Deck / bridge reference height used for wind factor selection</text>
-            </svg>
-          </div>
-          {note_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+      <line x1="55" y1="210" x2="570" y2="210" class="wf-line"/>
+      <rect x="70" y="212" width="68" height="42" fill="#e5e7eb" stroke="#98a2b3"/>
+      <polygon points="50,255 135,255 160,285 50,285" fill="#d7d7d7" stroke="#98a2b3"/>
+      <rect x="240" y="212" width="56" height="78" fill="#f2f4f7" stroke="#98a2b3"/>
+      <rect x="430" y="212" width="56" height="78" fill="#f2f4f7" stroke="#98a2b3"/>
+      <line x1="330" y1="210" x2="330" y2="288" stroke="#101828" stroke-width="1.0"/>
+      <line x1="322" y1="210" x2="338" y2="210" class="wf-line"/>
+      <line x1="322" y1="288" x2="338" y2="288" class="wf-line"/>
+      <polygon points="330,214 326,222 334,222" fill="#101828"/>
+      <polygon points="330,284 326,276 334,276" fill="#101828"/>
+      <text x="342" y="254" class="wf-text">z<tspan baseline-shift="sub" font-size="9">e</tspan></text>
+      <text x="54" y="303" class="wf-muted">Deck / bridge reference height used for wind factor selection</text>
+    </svg>
+  </div>
+  {note_html}
+</div>
+"""
+    components.html(html, height=450, scrolling=False)
 
 
 def wind_group_map_figure_card(selected_group: str, note: str = "", *, max_height_px: int = 340) -> None:
