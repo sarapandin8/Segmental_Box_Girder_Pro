@@ -1,6 +1,6 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.17
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.18
 
-This baseline carries forward the previously accepted commercial milestones and standards:
+This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
 - COMMERCIAL.M3H.9
 - COMMERCIAL.M3H.10
@@ -30,14 +30,15 @@ This baseline carries forward the previously accepted commercial milestones and 
 - COMMERCIAL.LOADS.15
 - COMMERCIAL.LOADS.16
 - COMMERCIAL.LOADS.17
+- COMMERCIAL.LOADS.18
 
-Display formatting rules:
+Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
 - Shared figure helpers remain under `visualization/figure_system.py`.
 - New figures must follow the existing UI.1 / UI.2 standards.
-- Orthographic Isometric 3D tendon review remains available.
+- One-source UI mode applies to Plotly figures, SVG components, source panels, and report-ready cards.
 
-Retained basis / reference notes:
+Retained basis / reference notes
 - 1.3.7 Wind Load
 - EN 1991-1-4
 - Table 2.5
@@ -49,12 +50,13 @@ Retained basis / reference notes:
 - AASHTO LRFD Bridge Design Specifications, 9th Edition, 2020
 - Structural Polygon 1
 - Opening Polygon 1
+- Orthographic Isometric
 
-Current milestone focus:
-- Fix the Wind factor C and deck-height reference card so inline SVG is rendered as a vector figure, not escaped as raw SVG markup.
-- Continue to show the Table 2.5 bridge wind-factor reference and lower deck-height `ze` schematic fully inside the Wind Input Assistant.
-- Preserve the 3.4 LF / 3.5 HF numbering clarification from LOADS.16.
-- Preserve all wind group lookup, V50 / TF / vb0, cdir / cseason, WS / WS+WL, LF/HF, and downstream load calculation logic.
+Current milestone focus
+- Add explicit Single Track / Double Track selection for the 3.2 SDL page.
+- Use the selected track configuration to control the SDL value sent to the FEA input summary.
+- Keep both single-track and double-track component totals/adopted values visible and editable for report traceability.
+- Preserve existing SDL component table logic and downstream load calculation behavior.
 
-Clean package rule:
-- ZIP releases must not include `__pycache__/`, `.pytest_cache/`, `*.pyc`, `*.pyo`, `.streamlit/`, or `.DS_Store`.
+Clean release rule
+- ZIP packages must not include `__pycache__/`, `.pytest_cache/`, `*.pyc`, `*.pyo`, `.streamlit/`, or `.DS_Store`.

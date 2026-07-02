@@ -853,9 +853,25 @@ def load_derived() -> dict[str, Any]:
     except Exception:
         eq = {"region": lc.get("seismic_region", "General Thailand"), "Fa": 0.0, "Fv": 0.0, "SMS": 0.0, "SM1": 0.0, "SDS": 0.0, "SD1": 0.0, "T0": 0.0, "Ts": 0.0, "Sa": 0.0, "Cs_raw": 0.0, "Cs": 0.0, "category_sds": "-", "category_sd1": "-", "category_governing": "-", "category_basis": "blocked", "spectrum_branch": "blocked"}
 
+    sdl_track_basis = str(D.get("bridge_model", {}).get("number_of_tracks", "Double Track"))
+    if sdl_track_basis not in {"Single Track", "Double Track"}:
+        sdl_track_basis = "Double Track"
+    if sdl_track_basis == "Single Track":
+        sdl_adopted = float(lc.get("design_sdl_single_kn_m", sdl["single_total"]))
+        sdl_total = float(sdl["single_total"])
+        sdl_application = "Single-track adopted design value"
+    else:
+        sdl_adopted = float(lc.get("design_sdl_double_kn_m", sdl["double_total"]))
+        sdl_total = float(sdl["double_total"])
+        sdl_application = "Double-track adopted design value"
+
     return {
         "sdl_single_total": sdl["single_total"],
         "sdl_double_total": sdl["double_total"],
+        "sdl_track_basis": sdl_track_basis,
+        "sdl_selected_total": sdl_total,
+        "sdl_selected_adopted_kn_m": sdl_adopted,
+        "sdl_selected_application": sdl_application,
         "Lphi": dyn["Lphi_m"],
         "dynamic_phi_calc": dyn["phi"],
         **lf,
@@ -1387,7 +1403,22 @@ def page_loads(sub: str) -> None:
         st.caption("Report note: these unit weights are provided for information and report traceability only. The app does not create an additional DL calculation table from these values.")
 
     if selected_load_subpage == "3.2 SDL":
-        code_basis_card("3.2 Superimposed Dead Load (SDL)", "BG40 R10 project load schedule / FEA permanent appurtenance loads", "Editable component table. Total and adopted design values are recalculated from this single table.")
+        code_basis_card("3.2 Superimposed Dead Load (SDL)", "BG40 R10 project load schedule / FEA permanent appurtenance loads", "Editable component table. Total and adopted design values are recalculated from this single table. The selected track configuration controls the SDL value sent to the FEA summary.")
+        track_options = ["Single Track", "Double Track"]
+        current_track = str(D.get("bridge_model", {}).get("number_of_tracks", "Double Track"))
+        if current_track not in track_options:
+            current_track = "Double Track"
+        selected_track = st.radio(
+            "SDL design track configuration for FEA input",
+            track_options,
+            index=track_options.index(current_track),
+            horizontal=True,
+            help="Choose which adopted SDL value is sent to the FEA input summary. Both single-track and double-track component totals remain visible and editable.",
+            key="sdl_track_configuration_radio",
+        )
+        D["bridge_model"]["number_of_tracks"] = selected_track
+        st.markdown(f'<div class="note-box"><b>SDL selection rule:</b> Active FEA SDL basis = {selected_track}. The app still keeps both single-track and double-track totals for report traceability.</div>', unsafe_allow_html=True)
+
         sdl_df = pd.DataFrame(D["load_components"]["sdl_components"])
         edited = st.data_editor(
             sdl_df,
@@ -1407,14 +1438,20 @@ def page_loads(sub: str) -> None:
         with c1:
             card("Total SDL — single", f"{format_engineering_value(ld['sdl_single_total'], 'kN/m')} kN/m", "sum of included rows")
         with c2:
-            card("Total SDL — double", f"{format_engineering_value(ld['sdl_double_total'], 'kN/m')} kN/m", "sum of included rows", "pass")
+            card("Total SDL — double", f"{format_engineering_value(ld['sdl_double_total'], 'kN/m')} kN/m", "sum of included rows")
         with c3:
-            editable_value(["load_components", "design_sdl_single_kn_m"], "Adopted single-track SDL (kN/m)", 1.0)
+            card("Active SDL basis", str(ld["sdl_track_basis"]), "selected track configuration", "pass")
         with c4:
+            card("Active FEA SDL", f"{format_engineering_value(ld['sdl_selected_adopted_kn_m'], 'kN/m')} kN/m", str(ld["sdl_selected_application"]), "pass")
+
+        c5, c6 = st.columns(2)
+        with c5:
+            editable_value(["load_components", "design_sdl_single_kn_m"], "Adopted single-track SDL (kN/m)", 1.0)
+        with c6:
             editable_value(["load_components", "design_sdl_double_kn_m"], "Adopted double-track SDL (kN/m)", 1.0)
         st.markdown("#### FEA SDL input summary")
         show_engineering_table(pd.DataFrame([
-            ["SDL", "Superimposed dead load", D["load_components"]["design_sdl_double_kn_m"], "kN/m", "Gravity / along span", "Double-track adopted design value", "User editable + app total"],
+            ["SDL", "Superimposed dead load", ld["sdl_selected_adopted_kn_m"], "kN/m", "Gravity / along span", ld["sdl_selected_application"], "Selected track basis + user editable + app total"],
         ], columns=["Load Pattern", "Description", "Value", "Unit", "Direction", "Application", "Source"]))
 
     if selected_load_subpage == "3.3 LL + IM":
@@ -1949,7 +1986,7 @@ def page_loads(sub: str) -> None:
         ld = load_derived()
         rows = [
             ["DL", "DL", "Self-weight from γc", "Auto", "-", "Gravity", "FEA self-weight", "FEA auto / QA preview"],
-            ["SDL", "SDL", "BG40 R10 SDL schedule", D["load_components"]["design_sdl_double_kn_m"], "kN/m", "Gravity", "Along span", "Editable table"],
+            ["SDL", "SDL", f"BG40 R10 SDL schedule · {ld['sdl_track_basis']}", ld["sdl_selected_adopted_kn_m"], "kN/m", "Gravity", "Along span", "Selected track basis + editable table"],
             ["LL+IM", "LL+IM", "EN 1991-2 Art. 6.4.3/6.4.5", f"U20 × {format_engineering_value(D['load_components']['dynamic_factor_design'], 'factor')}", "factor", "Vertical", "Railway load model", "App calc + adopted"],
             ["LF", "LF", "EN 1991-2 Art. 6.5.3", f"{ld['LF_design_kn']:.0f} / {ld['LF_design_kn_m']:.1f}", "kN / kN/m", "Longitudinal", "Rail level", "App calculated"],
             ["HF", "Qsk", "EN 1991-2 Art. 6.5.2", f"{ld['hf_HF_adopted_kn']:.0f}", "kN", "Transverse", "Top of rail concentrated", "App decision"],
