@@ -486,26 +486,37 @@ def wind_factor_c_reference_card(note: str = "") -> None:
 
 
 def ze_bridge_reference_card(note: str = "") -> None:
-    """Separate bridge-profile card for interpreting z_e without oversized mixed cards."""
+    """Compact bridge-profile card for interpreting z_e.
+
+    The user-provided bridge profile is embedded as an SVG image and constrained
+    to a compact card height so it supports the wind input workflow without
+    pushing the editable parameter table too far down the page.
+    """
     note_html = f'<div style="font:11px Arial,sans-serif;color:#667085;margin-top:6px;">{note}</div>' if note else ""
     ze_svg_path = WIND_ASSET_DIR / "fig_ze_bridge_reference.svg"
     if ze_svg_path.exists():
-        ze_svg = ze_svg_path.read_text(encoding="utf-8")
+        ze_svg_encoded = base64.b64encode(ze_svg_path.read_bytes()).decode("ascii")
+        ze_figure_html = (
+            f'<img src="data:image/svg+xml;base64,{ze_svg_encoded}" '
+            'style="display:block; width:100%; height:255px; object-fit:contain;" '
+            'alt="Deck-height ze bridge profile reference" />'
+        )
     else:
-        ze_svg = '<div style="font-size:12px;color:#b42318;">Missing z_e bridge reference schematic asset.</div>'
+        ze_figure_html = '<div style="font-size:12px;color:#b42318;">Missing z_e bridge reference schematic asset.</div>'
     html = f"""
 <div style="width:100%; background:#ffffff; border:1px solid #d0d5dd; border-radius:12px; padding:12px 14px; box-sizing:border-box; font-family:Arial, sans-serif;">
   <div style="font-size:0.68rem; letter-spacing:0.12em; text-transform:uppercase; font-weight:700; color:#175cd3; margin-bottom:6px;">Reference figure</div>
   <div style="font-size:0.96rem; line-height:1.2; font-weight:700; color:#101828; margin-bottom:3px;">Deck-height z<sub>e</sub> bridge profile reference</div>
   <div style="font-size:0.78rem; color:#667085; margin-bottom:8px;">user-provided bridge profile reference (four-pier schematic)</div>
   <div style="border:1px solid #e4e7ec; border-radius:10px; background:#ffffff; padding:8px 10px; overflow:hidden;">
-    <div style="font-size:11px; color:#667085; margin-bottom:6px;">Use this bridge profile reference to interpret the vertical deck reference height z<sub>e</sub> used in the wind factor C selection.</div>
-    <div style="width:100%;">{ze_svg}</div>
+    <div style="font-size:11px; color:#667085; margin-bottom:6px;">Use this compact bridge profile reference to interpret the vertical deck reference height z<sub>e</sub> used in the wind factor C selection.</div>
+    <div style="width:100%; height:255px; display:flex; align-items:center; justify-content:center; overflow:hidden;">{ze_figure_html}</div>
   </div>
   {note_html}
 </div>
 """
-    components.html(html, height=430, scrolling=False)
+    components.html(html, height=370, scrolling=False)
+
 
 
 def wind_group_map_figure_card(selected_group: str, note: str = "", *, max_height_px: int = 340) -> None:
@@ -1730,7 +1741,7 @@ def page_loads(sub: str) -> None:
                     max_height_px=245,
                 )
             ze_bridge_reference_card(
-                "Separate card added so the user-provided bridge profile can be read comfortably without oversizing the Table 2.5 reference card."
+                "Compact separate card added so the user-provided bridge profile supports z_e interpretation without oversizing the Input Assistant layout."
             )
 
 

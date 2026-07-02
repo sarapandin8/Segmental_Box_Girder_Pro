@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.41-commercial-loads21-separate-ze-card"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.42-commercial-loads22-compact-ze-card"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -500,15 +500,17 @@ def test_code1_aashto_2020_section5_unit_safe_basis_ui_is_present():
     assert "concrete_strength_guard_mpa" in src
 
 
-def test_loads21_separate_ze_bridge_card():
+def test_loads22_compact_ze_bridge_card():
     src = _src()
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "COMMERCIAL.LOADS.21" in readme
+    assert "COMMERCIAL.LOADS.22" in readme
     assert "wind_group_map_figure_card" in src
     assert "clean color reference map" in src
     assert "fig_ze_bridge_reference.svg" in src
     assert "ze_bridge_reference_card" in src
-    assert "Separate card added" in src
+    assert "height:255px" in src
+    assert "object-fit:contain" in src
+    assert "Compact separate card added" in src
     assert "user-provided bridge profile reference" in src
     assert "DPT wind group source" in src
     assert "loads_inline_subpage" in src
