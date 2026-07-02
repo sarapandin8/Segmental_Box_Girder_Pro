@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.42-commercial-loads22-compact-ze-card"
+PROJECT_SCHEMA_VERSION = "0.4.43-commercial-loads23-remove-en-factor-duplicate-figures"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 

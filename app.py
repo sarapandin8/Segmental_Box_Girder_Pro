@@ -1812,22 +1812,19 @@ def page_loads(sub: str) -> None:
 
         with wind_tabs[2]:
             st.markdown("#### EN 1991-1-4 wind factor reference")
-            c1, c2 = st.columns([1.1, 1.0])
-            with c1:
-                st.latex(r"C=C(b/d_{tot},z_e)")
-                st.markdown("The app uses the report Table 2.5 / EN 1991-1-4 Table 8.2 bridge wind factor data and applies linear interpolation for `0.5 < b/dtot < 4.0`.")
-                factor_df = pd.DataFrame([
-                    ["b/dtot ≤ 0.5", 6.7, 8.3],
-                    ["b/dtot ≥ 4.0", 3.6, 4.5],
-                ], columns=["b/dtot range", "C at ze ≤ 20 m", "C at ze = 50 m"])
-                show_engineering_table(factor_df)
-                ld = load_derived()
-                show_engineering_table(pd.DataFrame([
-                    ["WS", ld["b_over_d_ws"], "-", ld["C_ws"], ld["C_ws_note"]],
-                    ["WS+WL", ld["b_over_d_ws_wl"], "-", ld["C_ws_wl"], ld["C_ws_wl_note"]],
-                ], columns=["Case", "b/dtot", "Unit", "C", "Interpolation trace"]))
-            with c2:
-                show_report_image("fig_ws_factor_table_and_ze.png", "Table 2.5 Wind load factor C for bridges and deck-height reference (from BG40 R10 / EN 1991-1-4)")
+            st.latex(r"C=C(b/d_{tot},z_e)")
+            st.markdown("The app uses the report Table 2.5 / EN 1991-1-4 Table 8.2 bridge wind factor data and applies linear interpolation for `0.5 < b/dtot < 4.0`.")
+            factor_df = pd.DataFrame([
+                ["b/dtot ≤ 0.5", 6.7, 8.3],
+                ["b/dtot ≥ 4.0", 3.6, 4.5],
+            ], columns=["b/dtot range", "C at ze ≤ 20 m", "C at ze = 50 m"])
+            show_engineering_table(factor_df)
+            ld = load_derived()
+            show_engineering_table(pd.DataFrame([
+                ["WS", ld["b_over_d_ws"], "-", ld["C_ws"], ld["C_ws_note"]],
+                ["WS+WL", ld["b_over_d_ws_wl"], "-", ld["C_ws_wl"], ld["C_ws_wl_note"]],
+            ], columns=["Case", "b/dtot", "Unit", "C", "Interpolation trace"]))
+            st.markdown('<div class="note-box"><b>Figure note:</b> EN factor reference images are kept in the Input Assistant cards only. This EN Factors tab intentionally shows the calculation table and interpolation trace without duplicate right-side report figures.</div>', unsafe_allow_html=True)
 
         with wind_tabs[3]:
             ld = load_derived()
