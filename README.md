@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.14
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.15
 
 This baseline carries forward the previously accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -27,6 +27,7 @@ This baseline carries forward the previously accepted commercial milestones and 
 - COMMERCIAL.LOADS.12
 - COMMERCIAL.LOADS.13
 - COMMERCIAL.LOADS.14
+- COMMERCIAL.LOADS.15
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -47,12 +48,9 @@ Retained basis / reference notes
 - Opening Polygon 1
 - Orthographic Isometric
 
-COMMERCIAL.LOADS.14 focus:
-- Fix Loads subpage state consistency so header, sidebar, in-page selector, and active content agree after selecting 3.7 Wind.
-- Remove the confusing disabled manual wind-group dropdown when province lookup governs.
-- Keep DPT province lookup as the source for Group/V50/TF/vb0 recommendations unless Manual group selection is chosen.
-- Add app-drawn overlay labels on the DPT wind map so Group 1, 2, 3, 4A, and 4B remain readable inside the card.
-- Highlight the selected wind group on the map.
-- Move Adopt / manual vb0 override controls directly under the recommendation cards.
-- Update schema/status wording to the current milestone.
-- Preserve existing DPT/EN wind calculation logic and one-source trace.
+Current milestone focus:
+- Remove approximate app-drawn overlay labels from the DPT wind speed group map.
+- Use a sharpened/contrast-enhanced map asset with the clipped embedded caption removed.
+- Fix card fit so the map is shown cleanly without cropped text inside the card.
+- Keep the province lookup database as the authoritative source for the adopted wind group.
+- Preserve existing DPT/EN wind recommendation and WS/WS+WL calculation logic.

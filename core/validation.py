@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.35-commercial-loads14-wind-province-ui-consistency"
+PROJECT_SCHEMA_VERSION = "0.4.36-commercial-loads15-wind-map-clarity-card-fit"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 

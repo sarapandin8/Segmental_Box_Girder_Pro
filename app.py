@@ -442,50 +442,39 @@ def wind_reference_figure_card(filename: str, title: str, source: str, note: str
     )
 
 
-def wind_group_map_figure_card(selected_group: str, note: str = "", *, max_height_px: int = 300) -> None:
-    """Display the DPT wind map with clear app-drawn group labels and selected-group highlight."""
-    filename = "fig_1_2_dpt_wind_speed_map.png"
+def wind_group_map_figure_card(selected_group: str, note: str = "", *, max_height_px: int = 340) -> None:
+    """Display a sharpened DPT wind map without app-drawn overlays.
+
+    The province dropdown is now the authoritative group lookup. The map is a visual
+    reference only, so misleading approximate overlay labels are deliberately avoided.
+    """
+    filename = "fig_1_2_dpt_wind_speed_map_clarity.png"
     path = WIND_ASSET_DIR / filename
+    if not path.exists():
+        filename = "fig_1_2_dpt_wind_speed_map.png"
+        path = WIND_ASSET_DIR / filename
     if not path.exists():
         st.warning(f"Missing bundled figure asset: {filename}")
         return
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-    labels = [
-        ("3", 38, 9),
-        ("2", 56, 10),
-        ("1", 68, 38),
-        ("4B", 24, 49),
-        ("4A", 57, 63),
-    ]
-    selected_label = str(selected_group).replace("Group ", "")
-    label_html = []
-    for label, left, top in labels:
-        active = label == selected_label
-        bg = "#175cd3" if active else "#ffffff"
-        fg = "#ffffff" if active else "#101828"
-        border = "#175cd3" if active else "#101828"
-        ring = "0 0 0 3px rgba(23,92,211,0.18)" if active else "0 1px 3px rgba(16,24,40,0.18)"
-        label_html.append(
-            f"<div style=\"position:absolute; left:{left}%; top:{top}%; transform:translate(-50%,-50%); min-width:30px; height:30px; padding:0 6px; border-radius:999px; display:flex; align-items:center; justify-content:center; background:{bg}; color:{fg}; border:2px solid {border}; box-shadow:{ring}; font-weight:800; font-size:14px; line-height:1;\">{label}</div>"
-        )
-    selected_note = f"Selected group: {selected_group}" if selected_group else "Select a province to highlight the governing group."
+    selected_note = f"Selected group from province lookup: {selected_group}" if selected_group else "Select a province to determine the governing wind group."
     note_html = f'<div class="status-note">{note}</div>' if note else ""
     st.markdown(
         f"""
-        <div class="context-card" style="min-height:{max_height_px + 145}px; padding:12px 14px;">
+        <div class="context-card" style="min-height:{max_height_px + 145}px; padding:12px 14px; overflow:visible;">
           <div class="status-kicker">Reference figure</div>
           <div class="status-value" style="font-size:0.96rem; margin-bottom:0.18rem;">DPT wind speed group map</div>
           <div class="small-muted" style="margin-bottom:8px;">DPT 1311-50 / 1312-50 reference wind speed groups</div>
-          <div style="border:1px solid #e4e7ec; border-radius:10px; background:#ffffff; padding:6px; position:relative; height:{max_height_px}px; overflow:hidden;">
-            <img src="data:image/png;base64,{encoded}" style="display:block; width:100%; height:100%; object-fit:contain;" />
-            {''.join(label_html)}
+          <div style="border:1px solid #e4e7ec; border-radius:10px; background:#ffffff; padding:8px; height:{max_height_px}px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+            <img src="data:image/png;base64,{encoded}" style="display:block; max-width:100%; max-height:100%; object-fit:contain; filter:contrast(1.08);" />
           </div>
-          <div class="status-note"><b>{selected_note}</b> · app-drawn labels are overlaid for readability.</div>
+          <div class="status-note"><b>{selected_note}</b> · map enhanced for contrast; province lookup controls the adopted group.</div>
           {note_html}
         </div>
         """,
         unsafe_allow_html=True,
     )
+
 
 def section_title(text: str) -> None:
     st.markdown(f'<div class="section-title">{text}</div>', unsafe_allow_html=True)
@@ -1603,7 +1592,7 @@ def page_loads(sub: str) -> None:
                 wind_group_map_figure_card(
                     str(lc.get("wind_reference_group", "Group 1")),
                     "Select the project location group, then the app recommends V50 and TF.",
-                    max_height_px=300,
+                    max_height_px=340,
                 )
             with r1c2:
                 wind_reference_figure_card(
