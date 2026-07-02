@@ -90,6 +90,13 @@ from core.load_models import (
     wind_reference_group_options,
     wind_vb0_recommended_from_group,
 )
+from core.wind_regions import (
+    MANUAL_LOCATION,
+    WHOLE_PROVINCE,
+    wind_area_options,
+    wind_group_from_province_area,
+    wind_province_options,
+)
 from visualization.figure_system import figure_view_badge_text, plotly_config_for_view_mode
 from visualization.section_figures import PLOTLY_SECTION_CONFIG, section_polygon_figure
 from visualization.tendon_figures import (
@@ -1407,13 +1414,94 @@ def page_loads(sub: str) -> None:
             st.markdown("#### Code-assisted wind input assistant")
             st.markdown('<div class="note-box"><b>Input philosophy:</b> select only the project-specific wind group and geometry. The app recommends DPT/EN factors, calculates derived wind quantities, and keeps any user override visible for report traceability.</div>', unsafe_allow_html=True)
 
-            selected_group = st.selectbox(
-                "DPT 1311-50 reference wind speed group",
-                wind_group_options,
-                index=wind_group_options.index(lc.get("wind_reference_group", "Group 1")),
-                key="wind_reference_group_select",
-                help="Selecting a group updates the recommended V50, TF, and vb,0 unless the user explicitly overrides the adopted values.",
+            st.markdown("##### Project location lookup")
+            st.markdown(
+                '<div class="small-muted">Select the project province first. The app uses the DPT 1311-50 / 1312-50 province-group table to recommend the wind group automatically. Use manual group selection only when the project has a special requirement.</div>',
+                unsafe_allow_html=True,
             )
+            province_options = [MANUAL_LOCATION] + wind_province_options()
+            default_province = lc.get("wind_province", "ขอนแก่น")
+            if default_province not in province_options:
+                default_province = MANUAL_LOCATION
+            pc1, pc2 = st.columns([2, 2])
+            with pc1:
+                selected_province = st.selectbox(
+                    "Project province / DPT province-group lookup",
+                    province_options,
+                    index=province_options.index(default_province),
+                    key="wind_project_province_select",
+                    help="Province lookup reduces the need to read the DPT wind map manually.",
+                )
+
+            location_group = None
+            selected_area = MANUAL_LOCATION
+            if selected_province != MANUAL_LOCATION:
+                area_options = wind_area_options(selected_province)
+                default_area = lc.get("wind_province_area", area_options[0])
+                if default_area not in area_options:
+                    default_area = area_options[0]
+                with pc2:
+                    selected_area = st.selectbox(
+                        "Province area / district condition",
+                        area_options,
+                        index=area_options.index(default_area),
+                        key="wind_project_area_select",
+                        help="Only provinces with split DPT groups need a district/area selection.",
+                    )
+                loc = wind_group_from_province_area(selected_province, selected_area)
+                if loc:
+                    location_group = loc.group
+                    if selected_province != lc.get("wind_province") or selected_area != lc.get("wind_province_area"):
+                        rec = wind_vb0_recommended_from_group(location_group)
+                        lc["wind_province"] = selected_province
+                        lc["wind_province_area"] = selected_area
+                        lc["wind_reference_group"] = str(rec["group"])
+                        lc["wind_v50_m_s"] = float(rec["V50_m_s"])
+                        lc["wind_terrain_factor"] = float(rec["TF"])
+                        lc["wind_vb0_m_s"] = float(rec["vb0_m_s"])
+                        lc["wind_vb0_manual_override"] = False
+            else:
+                with pc2:
+                    st.selectbox(
+                        "Province area / district condition",
+                        [MANUAL_LOCATION],
+                        index=0,
+                        key="wind_project_area_manual",
+                        disabled=True,
+                    )
+                lc["wind_province"] = MANUAL_LOCATION
+                lc["wind_province_area"] = MANUAL_LOCATION
+
+            if location_group:
+                selected_group = location_group
+                g_index = wind_group_options.index(selected_group) if selected_group in wind_group_options else 0
+                st.selectbox(
+                    "DPT 1311-50 reference wind speed group",
+                    wind_group_options,
+                    index=g_index,
+                    key="wind_reference_group_select_auto_from_province",
+                    disabled=True,
+                    help="Automatically recommended from the selected province/area. Choose manual group selection above to override.",
+                )
+                loc_c1, loc_c2, loc_c3 = st.columns(3)
+                with loc_c1:
+                    card("Province lookup", selected_province, "DPT province-group table", "pass")
+                with loc_c2:
+                    card("Area condition", selected_area, "district/area selector")
+                with loc_c3:
+                    card("Auto wind group", selected_group, "from province lookup", "pass")
+            else:
+                current_group = lc.get("wind_reference_group", "Group 1")
+                if current_group not in wind_group_options:
+                    current_group = "Group 1"
+                selected_group = st.selectbox(
+                    "DPT 1311-50 reference wind speed group",
+                    wind_group_options,
+                    index=wind_group_options.index(current_group),
+                    key="wind_reference_group_select",
+                    help="Manual group selection. Select a province above to let the app recommend this automatically.",
+                )
+
             if selected_group != lc.get("wind_reference_group"):
                 rec = wind_vb0_recommended_from_group(selected_group)
                 lc["wind_reference_group"] = str(rec["group"])
@@ -1558,8 +1646,11 @@ def page_loads(sub: str) -> None:
             lc["wind_vb_m_s"] = float(lc["wind_vb0_m_s"]) * float(lc["wind_cdir"]) * float(lc["wind_cseason"])
 
             st.markdown("#### Recommendation / override trace")
+            location_status = "Manual group selection" if lc.get("wind_province") == MANUAL_LOCATION else "Auto from province lookup"
             show_engineering_table(pd.DataFrame([
-                ["Wind group", lc.get("wind_reference_group", "Group 1"), "User selected", "Drives V50 and TF recommendation"],
+                ["Project province", lc.get("wind_province", MANUAL_LOCATION), location_status, "DPT 1311-50 / 1312-50 province group database"],
+                ["Province area", lc.get("wind_province_area", MANUAL_LOCATION), location_status, "District/area condition for split provinces"],
+                ["Wind group", lc.get("wind_reference_group", "Group 1"), location_status, "Drives V50 and TF recommendation"],
                 ["V50", lc["wind_v50_m_s"], _wind_status("wind_v50_m_s", rec_v50), "DPT group value unless user override"],
                 ["TF", lc["wind_terrain_factor"], _wind_status("wind_terrain_factor", rec_tf), "DPT group factor unless user override"],
                 ["vb,0", lc["wind_vb0_m_s"], "User override" if bool(lc.get("wind_vb0_manual_override", False)) else "Auto = V50 × TF", "Fundamental basic wind velocity"],

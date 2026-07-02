@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.12
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.13
 
 This baseline carries forward the previously accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -25,6 +25,7 @@ This baseline carries forward the previously accepted commercial milestones and 
 - COMMERCIAL.LOADS.10
 - COMMERCIAL.LOADS.11
 - COMMERCIAL.LOADS.12
+- COMMERCIAL.LOADS.13
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -49,3 +50,10 @@ Current milestone focus:
 - Move wind report/reference figures from a separate Figures tab into compact Input Assistant cards.
 - Add a DPT wind group lookup table next to the map-driven group selection workflow.
 - Keep DPT/EN wind recommendation logic and WS/WS+WL calculation logic unchanged.
+
+
+COMMERCIAL.LOADS.13 focus:
+- Add a DPT 1311-50 / 1312-50 province-to-wind-group database.
+- Let users select project province and district/area condition; the app recommends Group 1/2/3/4A/4B automatically.
+- Preserve manual group selection for special project requirements.
+- Preserve existing DPT/EN wind calculation logic and one-source trace.

@@ -107,6 +107,8 @@ BG40_DEFAULT = {
         "hf_qsk_kn": 100.0,
         "hf_alpha": 0.80,
         "hf_reduce_alpha_below_one": False,
+        "wind_province": "ขอนแก่น",
+        "wind_province_area": "ทั้งจังหวัด",
         "wind_reference_group": "Group 1",
         "wind_v50_m_s": 25.0,
         "wind_terrain_factor": 1.0,
