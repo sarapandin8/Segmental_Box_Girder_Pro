@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.53-commercial-loads33-crsh-minimal-input-geometry-trace"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.54-commercial-loads34-crsh-drying-basis-guidance"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -589,3 +589,15 @@ def test_loads33_crsh_minimal_input_geometry_trace():
     assert "AASHTO unit-conversion / factor preview" in src
     assert "Prestress Losses handoff" in src
     assert "crsh_drying_perimeter_basis" in defaults
+
+
+def test_loads34_crsh_drying_perimeter_guidance_and_tf_years():
+    src = _src()
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.34" in readme
+    assert "Drying perimeter basis guidance" in src
+    assert "inner void perimeter is included only when the void surface is exposed or ventilated" in src
+    assert "Use <b>Outer perimeter only</b> when the internal void is sealed" in src
+    assert "tf_days / 365.25" in src
+    assert "tf_years" in src
+    assert "≈ {tf_years:.1f} yr" in src

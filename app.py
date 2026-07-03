@@ -2098,13 +2098,18 @@ def page_loads(sub: str) -> None:
             )
 
         crsh = update_crsh_derived_parameters()
+        tf_years = float(p["tf_days"]) / 365.25 if float(p["tf_days"]) > 0.0 else 0.0
+        if crsh["include_inner"]:
+            st.markdown('<div class="note-box"><b>Drying perimeter basis guidance:</b> inner void perimeter is included only when the void surface is exposed or ventilated and drying is considered effective. Use <b>Outer perimeter only</b> when the internal void is sealed, not exposed to drying, or the project basis requires external drying surface only.</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="note-box"><b>Drying perimeter basis guidance:</b> outer perimeter only is used when the internal void is sealed, not exposed to drying, or the project design basis excludes internal void drying. Select <b>Outer + inner void perimeter</b> only when the void surface is exposed or ventilated and drying is considered effective.</div>', unsafe_allow_html=True)
         creep_preview = aashto_creep_coefficient(float(p["RH_percent"]), float(p["V_over_S_in"]), float(m["fc_mpa"]), float(p["ti_days"]))
         shrink_preview = aashto_shrinkage_strain(float(p["RH_percent"]), float(p["V_over_S_in"]), float(m["fc_mpa"]))
 
         st.markdown("### Result summary")
         r1, r2, r3, r4 = st.columns(4)
         with r1:
-            card("RH / age inputs", f"{p['RH_percent']:.1f}%", f"ti = {p['ti_days']:.0f} d · tf = {p['tf_days']:.0f} d")
+            card("RH / age inputs", f"{p['RH_percent']:.1f}%", f"ti = {p['ti_days']:.0f} d · tf = {p['tf_days']:.0f} d ≈ {tf_years:.1f} yr")
         with r2:
             card("Drying perimeter basis", "Outer + inner" if crsh["include_inner"] else "Outer only", f"u_total = {crsh['u_total_m']:.2f} m")
         with r3:
@@ -2151,6 +2156,7 @@ def page_loads(sub: str) -> None:
             ["RH_percent", f"{p['RH_percent']:.1f}", "%", "4.5 Creep / Shrinkage"],
             ["ti_days", f"{p['ti_days']:.0f}", "days", "Creep age factor"],
             ["tf_days", f"{p['tf_days']:.0f}", "days", "Long-term design age / report trace"],
+            ["tf_years", f"{tf_years:.1f}", "years", "Displayed design-age check from tf_days / 365.25"],
             ["V_over_S_in", f"{p['V_over_S_in']:.2f}", "in", "AASHTO creep/shrinkage factors"],
             ["V_over_S_m", f"{p['V_over_S_m']:.4f}", "m", "SI report value"],
             ["h0_m", f"{p['h0_m']:.4f}", "m", "Notional size report value"],
