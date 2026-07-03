@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.57-commercial-loads37-fea-load-input-summary"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.58-commercial-loads38-fea-load-summary-table-polish"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -644,8 +644,23 @@ def test_loads37_fea_load_input_summary_renaming_and_handoff_table():
     assert "3.10 FEA Load Input Summary" in src
     assert "3.10 FEA Summary" in src  # migration alias for old UI/session state
     assert "single handoff table for load patterns, coefficients, and parameter traces" in src
-    assert "FEA action type" in src
-    assert "Source page" in src
+    assert "Quantity type" in src
+    assert "Source:" in src
     assert "EQX/EQY = Cs × W" in src
     assert "Do not duplicate self-weight" in src
     assert "CR&SH" in src and "Long-term parameter handoff" in src
+
+
+def test_loads38_fea_load_input_summary_table_polish():
+    src = _src()
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.38" in readme
+    assert "render_fea_load_input_handoff_table" in src
+    assert "HANDOFF READY" in src
+    assert "Ready for FEA input review; not a second calculator" in src
+    assert "Quantity type" in src
+    assert "Adopted value / basis" in src
+    assert "Required FEA action / engineer check" in src
+    assert "Do not enter W here" in src
+    assert "not as an additive duplicate of WS" in src
+    assert "This table is display-only" in src

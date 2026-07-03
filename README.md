@@ -44,6 +44,7 @@ This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.LOADS.35
 - COMMERCIAL.LOADS.36
 - COMMERCIAL.LOADS.37
+- COMMERCIAL.LOADS.38
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -114,3 +115,6 @@ Current milestone focus:
 - COMMERCIAL.LOADS.36: Polished EQ schema/status display, clarified coefficient-trace FEA adoption and numeric-force ownership, and wrapped the DPT response spectrum in a report-ready canvas figure without changing EQ formulas.
 
 - COMMERCIAL.LOADS.37: Renamed 3.10 to FEA Load Input Summary and upgraded the page into a source-of-truth load handoff table for DL, SDL, LL+IM, LF/HF, CF, Wind, EQ coefficient trace, and CR&SH parameters.
+
+
+- COMMERCIAL.LOADS.38: Polished 3.10 FEA Load Input Summary as a wrapped commercial handoff sheet with HANDOFF READY status, compact adopted value/basis wording, explicit quantity types, and row-level required FEA actions without changing load formulas.

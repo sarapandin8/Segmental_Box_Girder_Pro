@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from html import escape
 from math import sqrt
 from pathlib import Path
 from typing import Any
@@ -286,6 +287,19 @@ hr {margin: 1rem 0;}
 .table-caption {font-size:0.78rem; color:#667085; margin-top:0.35rem;}
 .dataframe th {font-weight:850 !important;}
 
+.fea-handoff-table {width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; border:1px solid #d5e6ff; border-radius:16px; overflow:hidden; background:#ffffff; box-shadow:0 8px 22px rgba(15,23,42,0.055);}
+.fea-handoff-table th {background:#f4f8ff; color:#092454; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.04em; font-weight:950; border-bottom:1px solid #d5e6ff; padding:9px 10px; text-align:left; vertical-align:top;}
+.fea-handoff-table td {font-size:0.80rem; color:#24364b; border-bottom:1px solid #edf2f7; padding:9px 10px; vertical-align:top; white-space:normal; overflow-wrap:anywhere; line-height:1.28;}
+.fea-handoff-table tr:last-child td {border-bottom:0;}
+.fea-handoff-table .load-item {font-weight:900; color:#092454;}
+.fea-handoff-table .subtext {display:block; color:#667085; font-size:0.74rem; margin-top:2px;}
+.fea-handoff-table .value-main {font-weight:900; color:#0f172a;}
+.fea-handoff-table .status-chip {display:inline-block; border-radius:999px; padding:3px 8px; font-size:0.70rem; font-weight:900; border:1px solid #bcd3f5; background:#eef6ff; color:#0b3b91;}
+.fea-handoff-table .status-chip.pass {border-color:#a7e6bc; background:#dffbe8; color:#126b37;}
+.fea-handoff-table .status-chip.warn {border-color:#fed7aa; background:#fff7ed; color:#b54708;}
+.fea-handoff-table .status-chip.neutral {border-color:#d5e6ff; background:#f8fbff; color:#344054;}
+.fea-handoff-caption {font-size:0.80rem; color:#667085; margin:0.35rem 0 0.75rem 0;}
+
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -407,6 +421,63 @@ def fnum(value: float, nd: int = 3) -> str:
 def show_engineering_table(df: pd.DataFrame, *, hide_index: bool = True) -> None:
     """Display read-only engineering tables using the global app format rules."""
     st.dataframe(format_engineering_table(df), use_container_width=True, hide_index=hide_index)
+
+
+def _fea_status_chip(text: str, mode: str = "neutral") -> str:
+    safe_text = escape(str(text))
+    safe_mode = escape(str(mode or "neutral"))
+    return f'<span class="status-chip {safe_mode}">{safe_text}</span>'
+
+
+def render_fea_load_input_handoff_table(rows: list[dict[str, Any]]) -> None:
+    """Render the 3.10 FEA handoff table with wrapping instead of truncation.
+
+    This page is a report/handoff sheet, so readability is more important than
+    spreadsheet density.  Keep this table display-only; all values must continue
+    to come from the report-driven load schema.
+    """
+    headers = [
+        ("Load / FEA symbol", "18%"),
+        ("Quantity type", "13%"),
+        ("Adopted value / basis", "17%"),
+        ("FEA mapping", "20%"),
+        ("Handoff status", "13%"),
+        ("Required FEA action / engineer check", "19%"),
+    ]
+    html = ["<table class='fea-handoff-table'>", "<thead><tr>"]
+    for label, width in headers:
+        html.append(f"<th style='width:{width}'>{escape(label)}</th>")
+    html.append("</tr></thead><tbody>")
+    for row in rows:
+        item = escape(str(row.get("item", "-")))
+        symbol = escape(str(row.get("symbol", "-")))
+        qtype = escape(str(row.get("quantity_type", "-")))
+        value = escape(str(row.get("value", "-")))
+        unit = escape(str(row.get("unit", "")))
+        basis = escape(str(row.get("basis", "")))
+        mapping = escape(str(row.get("mapping", "-")))
+        direction = escape(str(row.get("direction", "")))
+        source = escape(str(row.get("source", "")))
+        status = _fea_status_chip(str(row.get("status", "REVIEW")), str(row.get("status_mode", "neutral")))
+        check = escape(str(row.get("check", "-")))
+        html.append("<tr>")
+        html.append(f"<td><span class='load-item'>{item}</span><span class='subtext'>{symbol}</span></td>")
+        html.append(f"<td>{qtype}</td>")
+        unit_html = f" <span class='subtext'>Unit: {unit}</span>" if unit else ""
+        basis_html = f"<span class='subtext'>{basis}</span>" if basis else ""
+        html.append(f"<td><span class='value-main'>{value}</span>{unit_html}{basis_html}</td>")
+        dir_html = f"<span class='subtext'>Direction: {direction}</span>" if direction else ""
+        source_html = f"<span class='subtext'>Source: {source}</span>" if source else ""
+        html.append(f"<td>{mapping}{dir_html}{source_html}</td>")
+        html.append(f"<td>{status}</td>")
+        html.append(f"<td>{check}</td>")
+        html.append("</tr>")
+    html.append("</tbody></table>")
+    st.markdown("".join(html), unsafe_allow_html=True)
+    st.markdown(
+        "<div class='fea-handoff-caption'>This table is display-only. It reads the adopted load schema and does not create a second input source for FEA loads.</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def show_report_image(filename: str, caption: str, *, use_column_width: bool = True) -> None:
@@ -2491,28 +2562,157 @@ def page_loads(sub: str) -> None:
         )
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            card("SUMMARY STATUS", "READY", "Loads are collected from the report-driven schema", "pass")
+            card("SUMMARY STATUS", "HANDOFF READY", "Ready for FEA input review; not a second calculator", "pass")
         with c2:
             card("SOURCE RULE", "ONE-SOURCE", "No duplicate FEA input fields are created here", "pass")
         with c3:
             card("EQ FORCE POLICY", "COEFFICIENT ONLY", "EQX/EQY force remains Cs × W in FEA", "warn")
         with c4:
-            card("CR&SH", "HANDOFF", "Parameters are consumed by Prestress Losses", "neutral")
+            card("CR&SH", "PARAMETER HANDOFF", "Consumed by Prestress Losses / staged FEA", "neutral")
 
         rows = [
-            {"Load case / item": "DL", "FEA symbol": "DL / Self-weight", "Adopted value": "FEA auto", "Unit": "-", "FEA action type": "Generated in FEA", "Direction": "Gravity", "Application / mapping": "Self-weight from model material density", "Adoption status": "FEA model owns numeric load", "Source page": "3.1 Dead Load", "Notes": "No duplicate DL table is generated by the app."},
-            {"Load case / item": "SDL", "FEA symbol": "SDL", "Adopted value": f"{float(ld['sdl_selected_adopted_kn_m']):.2f}", "Unit": "kN/m", "FEA action type": "Line load", "Direction": "Gravity", "Application / mapping": "Along span / selected track basis", "Adoption status": "Adopted as FEA load", "Source page": "3.2 SDL", "Notes": f"{ld['sdl_track_basis']} · editable component table."},
-            {"Load case / item": "LL + IM", "FEA symbol": "LL+IM", "Adopted value": f"U20 × {format_engineering_value(lc['dynamic_factor_design'], 'factor')}", "Unit": "factor", "FEA action type": "Moving load factor", "Direction": "Vertical", "Application / mapping": "Railway load model", "Adoption status": "Adopted as traffic-load basis", "Source page": "3.3 LL + IM", "Notes": "EN dynamic factor/project adopted value."},
-            {"Load case / item": "LF", "FEA symbol": "LF", "Adopted value": f"{float(ld['LF_design_kn']):.0f} / {float(ld['LF_design_kn_m']):.1f}", "Unit": "kN / kN/m", "FEA action type": "Longitudinal load", "Direction": "Longitudinal", "Application / mapping": "Rail level / span basis", "Adoption status": "Adopted as FEA load", "Source page": "3.4 LF / 3.5 HF", "Notes": "Max of traction/braking route."},
-            {"Load case / item": "HF", "FEA symbol": "HF / Qsk", "Adopted value": f"{float(ld['hf_HF_adopted_kn']):.0f}", "Unit": "kN", "FEA action type": "Concentrated lateral load", "Direction": "Transverse", "Application / mapping": "Top of rail", "Adoption status": "Adopted as FEA load", "Source page": "3.4 LF / 3.5 HF", "Notes": str(ld.get("hf_decision_basis", "App decision"))},
-            {"Load case / item": "CF", "FEA symbol": "CF / C", "Adopted value": f"{float(ld['cf_C_percent']):.2f}", "Unit": "% of LL", "FEA action type": "Traffic lateral coefficient", "Direction": "Radial / transverse", "Application / mapping": str(rail.get("cf_application_level", "Rail level")), "Adoption status": str(ld.get("cf_fea_adoption_status", ld.get("cf_assessment", "App calculated"))), "Source page": "3.6 CF", "Notes": str(ld.get("cf_fea_adoption_note", ld.get("cf_assessment_note", "")))},
-            {"Load case / item": "Wind on structure", "FEA symbol": "WS", "Adopted value": f"{float(ld['WSsuper_kn_m']):.2f}", "Unit": "kN/m", "FEA action type": "Transverse line load", "Direction": "Wind transverse", "Application / mapping": "Superstructure", "Adoption status": "Adopted as FEA load", "Source page": "3.7 Wind", "Notes": "EN 1991-1-4 + DPT 1311-50 trace."},
-            {"Load case / item": "Wind on structure + train", "FEA symbol": "WS+WL", "Adopted value": f"{float(ld['WSsuper_WL_kn_m']):.2f}", "Unit": "kN/m", "FEA action type": "Transverse line load", "Direction": "Wind transverse", "Application / mapping": "Superstructure + train envelope", "Adoption status": "Adopted as FEA load", "Source page": "3.7 Wind", "Notes": "Train silhouette included in wind reference area."},
-            {"Load case / item": "Earthquake", "FEA symbol": "EQX / EQY", "Adopted value": f"Cs = {float(ld['eq_Cs']):.4f}", "Unit": "coefficient", "FEA action type": "Equivalent-static coefficient", "Direction": "X/Y independent horizontal", "Application / mapping": "FEA seismic weight / mass source", "Adoption status": str(lc.get("seismic_fea_adoption_mode", EQ_COEFFICIENT_TRACE_MODE)), "Source page": "3.9 EQ", "Notes": f"Numeric force is not generated here; EQX/EQY = Cs × W, I/R={float(lc['seismic_I']):.2f}/{float(lc['seismic_R']):.1f}."},
-            {"Load case / item": "Creep / shrinkage", "FEA symbol": "CR&SH", "Adopted value": "parameters", "Unit": "-", "FEA action type": "Long-term parameter handoff", "Direction": "Long-term prestress/time effects", "Application / mapping": "Prestress Losses / FEA staged construction", "Adoption status": "Consumed by downstream module", "Source page": "3.8 CR&SH", "Notes": "Not a direct load pattern; keep source trace for losses/report."},
+            {
+                "item": "DL",
+                "symbol": "DL / Self-weight",
+                "quantity_type": "FEA auto self-weight",
+                "value": "FEA auto",
+                "unit": "—",
+                "basis": "Material density and model geometry",
+                "mapping": "Generated by the FEA model from material density.",
+                "direction": "Gravity",
+                "source": "3.1 DL",
+                "status": "FEA-owned",
+                "status_mode": "neutral",
+                "check": "Confirm FEA self-weight is active once only; do not add a duplicate DL line load.",
+            },
+            {
+                "item": "SDL",
+                "symbol": "SDL",
+                "quantity_type": "Permanent line load",
+                "value": f"{float(ld['sdl_selected_adopted_kn_m']):.2f}",
+                "unit": "kN/m",
+                "basis": f"{ld['sdl_track_basis']} component table",
+                "mapping": "Apply along span using the selected track basis.",
+                "direction": "Gravity",
+                "source": "3.2 SDL",
+                "status": "Adopted load",
+                "status_mode": "pass",
+                "check": "Map as permanent SDL; keep component-table trace in report.",
+            },
+            {
+                "item": "LL + IM",
+                "symbol": "LL+IM",
+                "quantity_type": "Traffic model factor",
+                "value": f"U20 × {format_engineering_value(lc['dynamic_factor_design'], 'factor')}",
+                "unit": "factor",
+                "basis": "Railway load model + adopted dynamic factor",
+                "mapping": "Use as the traffic load model multiplier.",
+                "direction": "Vertical",
+                "source": "3.3 LL+IM",
+                "status": "Traffic basis",
+                "status_mode": "pass",
+                "check": "Confirm the FEA moving-load case uses the same U20 and IM basis.",
+            },
+            {
+                "item": "LF",
+                "symbol": "LF",
+                "quantity_type": "Longitudinal rail load",
+                "value": f"{float(ld['LF_design_kn']):.0f} total / {float(ld['LF_design_kn_m']):.1f} line",
+                "unit": "kN / kN/m",
+                "basis": "Governing traction/braking route",
+                "mapping": "Apply at rail level over the selected span basis.",
+                "direction": "Longitudinal",
+                "source": "3.4 LF/HF",
+                "status": "Adopted load",
+                "status_mode": "pass",
+                "check": "Use the governing LF route only; do not stack traction and braking unless the FEA combination requires it.",
+            },
+            {
+                "item": "HF",
+                "symbol": "HF / Qsk",
+                "quantity_type": "Concentrated lateral load",
+                "value": f"{float(ld['hf_HF_adopted_kn']):.0f}",
+                "unit": "kN",
+                "basis": "EN horizontal force basis",
+                "mapping": "Apply at top of rail as the adopted horizontal force.",
+                "direction": "Transverse",
+                "source": "3.4 LF/HF",
+                "status": "Adopted load",
+                "status_mode": "pass",
+                "check": str(ld.get("hf_decision_basis", "Confirm vertical traffic-load classification and combination basis.")),
+            },
+            {
+                "item": "CF",
+                "symbol": "CF / C",
+                "quantity_type": "Traffic lateral coefficient",
+                "value": f"{float(ld['cf_C_percent']):.2f}% LL",
+                "unit": "% of LL",
+                "basis": str(ld.get("cf_alignment_condition", "Alignment condition")),
+                "mapping": f"Apply only when adopted for FEA; application level = {rail.get('cf_application_level', 'Rail level')}.",
+                "direction": "Radial / transverse",
+                "source": "3.6 CF",
+                "status": str(ld.get("cf_fea_adoption_status", ld.get("cf_assessment", "Review"))),
+                "status_mode": "warn" if "not" in str(ld.get("cf_fea_adoption_status", "")).lower() else "neutral",
+                "check": str(ld.get("cf_fea_adoption_note", ld.get("cf_assessment_note", "Confirm whether CF is adopted into the FEA load set."))),
+            },
+            {
+                "item": "Wind — structure",
+                "symbol": "WS",
+                "quantity_type": "Transverse line load",
+                "value": f"{float(ld['WSsuper_kn_m']):.2f}",
+                "unit": "kN/m",
+                "basis": "EN 1991-1-4 + DPT 1311-50 trace",
+                "mapping": "Apply to superstructure wind area.",
+                "direction": "Wind transverse",
+                "source": "3.7 Wind",
+                "status": "Adopted load",
+                "status_mode": "pass",
+                "check": "Confirm wind direction sign convention and selected wind group in the FEA model.",
+            },
+            {
+                "item": "Wind — structure + train",
+                "symbol": "WS+WL",
+                "quantity_type": "Transverse line-load envelope",
+                "value": f"{float(ld['WSsuper_WL_kn_m']):.2f}",
+                "unit": "kN/m",
+                "basis": "Superstructure plus train silhouette",
+                "mapping": "Use as the wind-with-train envelope case, not as an additive duplicate of WS unless the combination requires it.",
+                "direction": "Wind transverse",
+                "source": "3.7 Wind",
+                "status": "Adopted envelope",
+                "status_mode": "pass",
+                "check": "Map WS and WS+WL as separate alternatives/envelopes, not automatically simultaneous loads.",
+            },
+            {
+                "item": "EQ",
+                "symbol": "EQX / EQY",
+                "quantity_type": "Equivalent-static coefficient",
+                "value": f"Cs = {float(ld['eq_Cs']):.4f}",
+                "unit": "coefficient",
+                "basis": f"Sa(T)×I/R = {float(ld['eq_Sa']):.4f}×{float(lc['seismic_I']):.2f}/{float(lc['seismic_R']):.1f}",
+                "mapping": "FEA generates numeric EQ force from seismic weight/mass source W.",
+                "direction": "X/Y independent horizontal",
+                "source": "3.9 EQ",
+                "status": "Coefficient trace",
+                "status_mode": "warn",
+                "check": "Do not enter W here. Confirm FEA mass source and load pattern: EQX = Cs×W, EQY = Cs×W.",
+            },
+            {
+                "item": "CR&SH",
+                "symbol": "CR&SH",
+                "quantity_type": "Long-term parameter handoff",
+                "value": "Parameters",
+                "unit": "—",
+                "basis": "RH, age, drying perimeter, V/S and h0 trace",
+                "mapping": "Consumed by Prestress Losses and/or staged-construction FEA settings.",
+                "direction": "Long-term prestress/time effects",
+                "source": "3.8 CR&SH",
+                "status": "Downstream",
+                "status_mode": "neutral",
+                "check": "Not a direct load pattern. Keep the parameter trace with Prestress Losses and report notes.",
+            },
         ]
-        summary_df = pd.DataFrame(rows)
-        show_engineering_table(summary_df)
+        render_fea_load_input_handoff_table(rows)
         st.markdown(
             '<div class="note-box"><b>Report/export rule:</b> this FEA Load Input Summary reads from the same load schema edited in 3.1–3.9. Values shown as coefficients or parameters must remain coefficients/parameters unless the external FEA model supplies the missing source, such as seismic weight W.</div>',
             unsafe_allow_html=True,

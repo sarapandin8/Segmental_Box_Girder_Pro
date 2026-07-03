@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.57-commercial-loads37-fea-load-input-summary",
+        "schema_version": "0.4.58-commercial-loads38-fea-load-summary-table-polish",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
