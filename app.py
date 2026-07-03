@@ -3762,6 +3762,211 @@ def _active_adopted_tendon_model() -> dict[str, Any]:
     return adopted if isinstance(adopted, dict) and adopted.get("valid") else {}
 
 
+
+
+def _psloss_source_gate_state() -> dict[str, Any]:
+    """Build the PSLOSS.1 read-only source gate for detailed loss calculation.
+
+    Prestress Losses must consume locked/adopted sources only.  Working tendon
+    imports, keyed fallback values, and diagnostic previews are deliberately kept
+    out of the detailed-loss readiness status.
+    """
+    tl = D.setdefault("tendon_layout", {})
+    ps = D.setdefault("prestress", {})
+    sec = D.setdefault("section", {})
+    project = D.setdefault("project", {})
+
+    working_model = _active_tendon_model()
+    adopted_model = _active_adopted_tendon_model()
+    tendon_status = tendon_model_status(working_model, tl)
+    tendon_locked = bool(adopted_model) and tendon_status.get("status") == "LOCKED"
+    adopted_summary = tl.get("adopted_downstream_summary") if tendon_locked else {}
+    if not isinstance(adopted_summary, dict) or not adopted_summary:
+        adopted_summary = build_tendon_downstream_summary(
+            adopted_model,
+            y_t_from_top_m=float(sec.get("yt_from_top_m", 0.0) or 0.0),
+        ) if tendon_locked else {}
+
+    section_ready = all(float(sec.get(k, 0.0) or 0.0) > 0.0 for k in ("Ac_m2", "I33_m4", "I22_m4", "yt_from_top_m"))
+    crsh = update_crsh_derived_parameters()
+    crsh_ready = (
+        float(ps.get("RH_percent", 0.0) or 0.0) > 0.0
+        and float(ps.get("ti_days", 0.0) or 0.0) >= 0.0
+        and float(ps.get("tf_days", 0.0) or 0.0) > float(ps.get("ti_days", 0.0) or 0.0)
+        and float(ps.get("V_over_S_in", 0.0) or 0.0) > 0.0
+        and float(ps.get("h0_m", 0.0) or 0.0) > 0.0
+    )
+    span_ready = float(project.get("span_m", 0.0) or 0.0) > 0.0
+    ready = tendon_locked and section_ready and crsh_ready and span_ready
+
+    return {
+        "overall_status": "READY FOR LOSS CALCULATION" if ready else "SOURCE BLOCKED",
+        "overall_mode": "pass" if ready else "warn",
+        "ready": ready,
+        "tendon_locked": tendon_locked,
+        "tendon_status": tendon_status,
+        "adopted_summary": adopted_summary,
+        "working_fingerprint": tendon_model_fingerprint(working_model),
+        "adopted_fingerprint": str(tl.get("adopted_model_fingerprint") or tendon_model_fingerprint(adopted_model) or ""),
+        "section_ready": section_ready,
+        "crsh_ready": crsh_ready,
+        "span_ready": span_ready,
+        "crsh": crsh,
+    }
+
+
+def _psloss_source_gate_rows(state: dict[str, Any]) -> pd.DataFrame:
+    ps = D.setdefault("prestress", {})
+    sec = D.setdefault("section", {})
+    project = D.setdefault("project", {})
+    tendon_status = state["tendon_status"]
+    return pd.DataFrame(
+        [
+            [
+                "Adopted tendon source",
+                tendon_status.get("status", "PENDING"),
+                "2.4 Tendon Layout Reference → Adopted Tendon Data",
+                tendon_status.get("message", "Adopt imported tendon model before detailed losses."),
+            ],
+            [
+                "Section properties",
+                "READY" if state["section_ready"] else "MISSING",
+                "2.3 Section Properties → Adopted Properties for Design",
+                f"A={float(sec.get('Ac_m2', 0.0) or 0.0):.3f} m²; y_t={float(sec.get('yt_from_top_m', 0.0) or 0.0):.3f} m; J source={sec.get('J_method', 'User override')}",
+            ],
+            [
+                "CR&SH parameters",
+                "READY" if state["crsh_ready"] else "MISSING",
+                "3.8 CR&SH",
+                f"RH={float(ps.get('RH_percent', 0.0) or 0.0):.1f}%; V/S={float(ps.get('V_over_S_in', 0.0) or 0.0):.2f} in; h0={float(ps.get('h0_m', 0.0) or 0.0):.4f} m; basis={ps.get('crsh_drying_perimeter_basis', '-')}",
+            ],
+            [
+                "Span / stage basis",
+                "READY" if state["span_ready"] else "MISSING",
+                "Project / 3 Loads closeout",
+                f"Span L={float(project.get('span_m', 0.0) or 0.0):.3f} m; staged construction loads remain owned by FEA/stage source.",
+            ],
+        ],
+        columns=["Source gate", "Status", "Source page", "Trace / required action"],
+    )
+
+
+def _psloss_tendon_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
+    summary = state.get("adopted_summary") or {}
+    ps = D.setdefault("prestress", {})
+    if not summary:
+        return pd.DataFrame(
+            [["Tendon source", "SOURCE BLOCKED", "-", "Adopt/re-adopt the tendon model before detailed prestress-loss calculation."]],
+            columns=["Item", "Adopted value", "Unit", "Basis / trace"],
+        )
+    tendon_count = float(summary.get("tendon_count", 0.0) or 0.0)
+    force_per = float(summary.get("jacking_force_per_tendon_kN", 0.0) or 0.0)
+    force_total = float(summary.get("jacking_force_total_kN", 0.0) or 0.0)
+    jack_from = "Mixed / see adopted tendon table"
+    adopted = _active_adopted_tendon_model()
+    tendons = adopted.get("tendons", []) if isinstance(adopted, dict) else []
+    jack_values = sorted({str(t.get("jack_from", "")).strip() for t in tendons if str(t.get("jack_from", "")).strip()})
+    if len(jack_values) == 1:
+        jack_from = jack_values[0]
+    elif not jack_values:
+        jack_from = ps.get("jacking_operation_basis", "See adopted tendon table")
+    return pd.DataFrame(
+        [
+            ["Tendon count", summary.get("tendon_count", 0), "tendons", "locked adopted tendon snapshot"],
+            ["Aps per tendon", summary.get("Aps_per_tendon_mm2", 0.0), "mm²", "CSiBridge General tendon table"],
+            ["Aps total", summary.get("Aps_total_mm2", 0.0), "mm²", "sum of adopted tendons"],
+            ["Jacking stress", summary.get("jacking_stress_mpa", 0.0), "MPa", "0.75 fpu unless project source overrides"],
+            ["Jacking force per tendon", force_per, "kN", "tendon axial jacking force; not multiplied by number of jacks"],
+            ["Total jacking force", force_total, "kN", f"{int(tendon_count)} × Pj/tendon; do not double for two-end stressing"],
+            ["Jacking operation / JackFrom", jack_from, "-", "controls friction/anchor-set distribution; not Aps or total axial force"],
+            ["Average dp at end", summary.get("dp_avg_end_m", 0.0), "m", "area-weighted from adopted profile"],
+            ["Average dp at midspan", summary.get("dp_avg_midspan_m", 0.0), "m", "area-weighted from adopted profile"],
+            ["Midspan eccentricity", summary.get("eccentricity_midspan_m", 0.0), "m", "e = dp(midspan) − y_t"],
+            ["Model fingerprint", summary.get("model_fingerprint", state.get("adopted_fingerprint", "-")), "-", "source trace"],
+        ],
+        columns=["Item", "Adopted value", "Unit", "Basis / trace"],
+    )
+
+
+def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
+    ps = D.setdefault("prestress", {})
+    crsh = state.get("crsh", update_crsh_derived_parameters())
+    tf_years = float(ps.get("tf_days", 0.0) or 0.0) / 365.25 if float(ps.get("tf_days", 0.0) or 0.0) > 0.0 else 0.0
+    return pd.DataFrame(
+        [
+            ["RH", f"{float(ps.get('RH_percent', 0.0) or 0.0):.1f}", "%", "3.8 CR&SH user project assumption"],
+            ["ti", f"{float(ps.get('ti_days', 0.0) or 0.0):.0f}", "days", "age at stressing / load transfer basis"],
+            ["tf", f"{float(ps.get('tf_days', 0.0) or 0.0):.0f} ≈ {tf_years:.1f}", "days / years", "final design age"],
+            ["Drying perimeter basis", ps.get("crsh_drying_perimeter_basis", "-"), "-", "outer-only vs outer+inner void trace"],
+            ["u_total", f"{float(crsh.get('u_total_m', 0.0) or 0.0):.2f}", "m", "derived from selected drying perimeter basis"],
+            ["V/S", f"{float(crsh.get('V_over_S_in', 0.0) or 0.0):.2f}", "in", "AASHTO empirical creep/shrinkage factor input"],
+            ["V/S", f"{float(crsh.get('V_over_S_m', 0.0) or 0.0):.4f}", "m", "SI report value"],
+            ["h0", f"{float(crsh.get('h0_m', 0.0) or 0.0):.4f}", "m", "h0 = 2Ac/u_total = 2(V/S)"],
+        ],
+        columns=["Parameter", "Adopted value", "Unit", "Source / trace"],
+    )
+
+
+def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[str, Any]:
+    """Render PSLOSS.1 source gate and return the source state."""
+    state = _psloss_source_gate_state()
+    if not compact:
+        code_basis_card(
+            "Prestress Losses Source Gate",
+            "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
+            "PSLOSS.1 connects only locked adopted tendon data, adopted section properties, CR&SH parameters, and span/stage basis. Detailed loss equations remain a later milestone.",
+        )
+        st.markdown(
+            '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
+            unsafe_allow_html=True,
+        )
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        card("LOSS CALCULATION", state["overall_status"], "Detailed formulas are blocked until all source gates are ready." if not state["ready"] else "Ready for next loss-calculation milestone.", state["overall_mode"])
+    with c2:
+        tstat = state["tendon_status"]
+        card("TENDON SOURCE", tstat.get("status", "PENDING"), tstat.get("message", "Adopt tendon model."), tstat.get("mode", "warn"))
+    with c3:
+        card("SECTION SOURCE", "READY" if state["section_ready"] else "MISSING", "Adopted section properties for design", "pass" if state["section_ready"] else "warn")
+    with c4:
+        card("CR&SH SOURCE", "READY" if state["crsh_ready"] else "MISSING", "Consumed from 3.8 CR&SH", "pass" if state["crsh_ready"] else "warn")
+
+    show_engineering_table(_psloss_source_gate_rows(state))
+    st.markdown(
+        '<div class="warn-box"><b>Jacking-force interpretation:</b> Pj/tendon is the tendon axial jacking force. One-end versus two-end stressing controls the friction/anchor-set distribution and JackFrom trace; it must not double Aps,total or total axial prestressing force.</div>',
+        unsafe_allow_html=True,
+    )
+    if not compact:
+        st.markdown("### Adopted prestress input summary")
+        show_engineering_table(_psloss_tendon_summary_rows(state))
+        st.markdown("### Time-dependent parameter handoff from 3.8 CR&SH")
+        show_engineering_table(_psloss_crsh_handoff_rows(state))
+        with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
+            show_engineering_table(pd.DataFrame([
+                ["Detailed friction loss", "BLOCKED until source gate ready", "Use adopted tendon profile and JackFrom; do not use raw working import."],
+                ["Anchor set", "BLOCKED until source gate ready", "Equivalent loss may be user/project input, but source and jacking-end basis must be explicit."],
+                ["Elastic shortening", "BLOCKED until source gate ready", "fcgp must be tied to actual stressing/load-transfer stage, not blindly to completed-span self-weight."],
+                ["Creep / shrinkage", "INPUT HANDOFF READY" if state["crsh_ready"] else "MISSING", "RH, V/S, h0, ti/tf from 3.8 CR&SH."],
+                ["Relaxation", "FUTURE INPUT", "Low-relaxation strand basis to be confirmed in detailed calculation milestone."],
+            ], columns=["Loss component", "Current PSLOSS.1 status", "Required engineering check"]))
+    return state
+
+
+def render_report_qa_prestress_losses_handoff_snapshot() -> None:
+    """Read-only Report / QA snapshot for PSLOSS.1."""
+    st.markdown("### 4 Prestress Losses — Report / QA source-gate handoff")
+    state = _psloss_source_gate_state()
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        card("Loss source gate", state["overall_status"], "Report / QA snapshot only; no loss solver rerun.", state["overall_mode"])
+    with c2:
+        card("Tendon", state["tendon_status"].get("status", "PENDING"), state["tendon_status"].get("message", "Adopt tendon model."), state["tendon_status"].get("mode", "warn"))
+    with c3:
+        card("Section", "READY" if state["section_ready"] else "MISSING", "Adopted section properties", "pass" if state["section_ready"] else "warn")
+    with c4:
+        card("CR&SH", "READY" if state["crsh_ready"] else "MISSING", "3.8 parameter handoff", "pass" if state["crsh_ready"] else "warn")
+    show_engineering_table(_psloss_source_gate_rows(state))
+
 def _render_tendon_adoption_cards(model: dict[str, Any]) -> None:
     tl = D.setdefault("tendon_layout", {})
     status = tendon_model_status(model, tl)
@@ -4627,16 +4832,11 @@ def page_bridge_geometry(sub: str) -> None:
 def page_prestress_losses(sub: str) -> None:
     st.subheader(get_workspace("4 Prestress Losses")["title"])
     m, p = D["materials"], D["prestress"]
-    summary = prestress_loss_summary(prestress_inputs())
     if sub == "4.1 General":
-        code_basis_card("Prestress losses code basis", "AASHTO LRFD 2020 Section 5, Art. 5.9.3", "M4.2 will connect adopted tendon/section data; M4.3 will implement loss equations through the unit-safe wrapper layer.")
-        st.markdown("Prestress losses are evaluated as instantaneous and time-dependent losses. The app calculates equivalent average losses for global section design and uses final prestress force as a model consistency check.")
-        c1, c2, c3, c4 = st.columns(4)
-        with c1: card("fpi", f"{m['fpi_mpa']:.1f} MPa", "Initial jacking stress")
-        with c2: card("Total Loss", f"{summary['total_loss_mpa']:.1f} MPa", "All loss components")
-        with c3: card("fpe", f"{summary['fpe_mpa']:.1f} MPa", "Effective stress", "pass")
-        with c4: card("P_eff", f"{summary['Peff_kn']:,.0f} kN", "fpe × Aps,total")
-    elif sub == "4.2 Friction":
+        render_prestress_losses_source_gate_panel()
+        return
+    summary = prestress_loss_summary(prestress_inputs())
+    if sub == "4.2 Friction":
         st.latex(r"\Delta f_{pF,eq}=f_{pi}\left[1-e^{-\mu\alpha}\right],\qquad \alpha_{total}=\sqrt{\alpha_{vert}^{2}+\alpha_{horiz}^{2}}")
         df, avg, pct = friction_loss_table(p["tendon_friction_groups"], m["fpi_mpa"], p["mu_external"])
         st.dataframe(df.style.format({"α_vert (rad)": "{:.4f}", "α_horiz (rad)": "{:.4f}", "α_total (rad)": "{:.4f}", "ΔfpF,eq (MPa)": "{:.2f}", "Loss (%)": "{:.2f}"}), use_container_width=True)
@@ -4671,7 +4871,8 @@ def page_prestress_losses(sub: str) -> None:
         st.dataframe(loss_df.style.format({"Value (MPa)": "{:.2f}"}), use_container_width=True)
         st.download_button("Download loss table CSV", loss_df.to_csv(index=False).encode("utf-8"), "prestress_losses.csv", "text/csv")
     else:
-        report_trace_table("4 Prestress Losses", [("Friction", "App calculation", "Formula and table ready", "READY"), ("Anchor set", "User equivalent input", "Trace placeholder ready", "READY"), ("Elastic shortening", "App calculation", "Formula ready", "READY"), ("Creep/Shrinkage", "AASHTO factors", "Unit warning active", "READY"), ("Effective prestress", "App calculation", "Loss table ready", "READY")])
+        code_basis_card("4 Prestress Losses QA / Report Preview", "AASHTO LRFD 2020 Section 5, Art. 5.9.3", "Read-only source-gate snapshot for downstream prestress-loss calculation. This page does not run a detailed loss solver.")
+        render_prestress_losses_source_gate_panel(compact=True)
 
 
 def page_fea_results(sub: str) -> None:
@@ -4819,10 +5020,12 @@ def page_report_qa(sub: str) -> None:
             rows.append([label, ws["title"], ", ".join(ws["subpages"][:-1])])
         st.dataframe(pd.DataFrame(rows, columns=["App workspace", "Report title", "Report subsections"]), use_container_width=True, hide_index=True)
         render_report_qa_loads_handoff_snapshot()
+        render_report_qa_prestress_losses_handoff_snapshot()
     else:
         ld = load_derived()
+        psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial LOADS.40 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.1 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -4851,14 +5054,22 @@ def page_report_qa(sub: str) -> None:
 - EQ coefficient trace: Cs = {ld['eq_Cs']:.4f}; numeric EQ force remains EQX/EQY = Cs × W in the external FEA model.
 - CR&SH remains a downstream parameter handoff to Prestress Losses / staged FEA, not a direct load pattern.
 
-## LOADS.40 Notes
-- Report / QA now displays the Loads closeout and FEA handoff snapshot in Report Preview.
-- The Loads closeout panel is read-only and does not create duplicate inputs.
+## Prestress Losses Source Gate
+- 4 Prestress Losses status = {psloss_state['overall_status']}.
+- Tendon source = {psloss_state['tendon_status'].get('status', 'PENDING')}; adopted tendon fingerprint = {psloss_state.get('adopted_fingerprint') or '-'}.
+- Section source ready = {psloss_state['section_ready']}.
+- CR&SH source ready = {psloss_state['crsh_ready']}.
+- Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
+
+## PSLOSS.1 Notes
+- Report / QA now displays the Prestress Losses source gate together with the Loads handoff snapshot.
+- Detailed prestress-loss equations are intentionally not changed in this milestone.
+- The source gate blocks detailed loss calculation unless tendon, section, CR&SH, and span/stage sources are ready.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, and EQ was not changed.
-- Existing M1/M3 engineering kernels are preserved for prestress losses and AASHTO LRFD 2020 Section 5 shear/torsion checks.
+- Existing legacy prestress-loss preview page formulas were not changed.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_m2_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss1_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------

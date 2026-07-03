@@ -123,3 +123,6 @@ Current milestone focus:
 - COMMERCIAL.LOADS.39: Added a FEA handoff status legend, transfer-control checklist, and print-safe handoff styling for 3.10 FEA Load Input Summary without changing load formulas.
 
 - COMMERCIAL.LOADS.40: Closed the Loads workspace for the current load-source scope by adding a Loads closeout and Report/QA handoff panel to 3.10 FEA Load Input Summary, surfacing the same read-only Loads handoff snapshot in Report / QA, and preserving all load formulas.
+
+
+- COMMERCIAL.PSLOSS.1: Added a source-gated Prestress Losses input handoff that reads locked adopted tendon data, adopted section properties, CR&SH parameters, and span/stage basis before detailed loss calculation; clarified that jacking force is tendon axial force and must not be doubled for two-end stressing.

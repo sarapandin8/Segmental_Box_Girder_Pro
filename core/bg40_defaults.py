@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.60-commercial-loads40-loads-closeout-reportqa-handoff",
+        "schema_version": "0.4.61-commercial-psloss1-source-gate-handoff",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -234,6 +234,9 @@ BG40_DEFAULT = {
         "dp_avg_end_m": 1.245,
         "dp_avg_midspan_m": 2.075,
         "eccentricity_midspan_m": 1.236,
+        "jacking_operation_basis": "One-end stressing / JackFrom = Start",
+        "jacking_force_interpretation": "Jacking force is tendon axial force per tendon. Do not double the total prestressing force when a tendon is stressed from two ends; stressing end controls friction/anchor-set distribution, not Aps or total axial force.",
+        "loss_source_gate_status": "SOURCE GATE REQUIRED",
     },
     "tendon_layout": {
         "active_bridge_object": "B2_SPAN1",

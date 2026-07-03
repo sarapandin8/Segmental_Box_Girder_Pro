@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.60-commercial-loads40-loads-closeout-reportqa-handoff"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.61-commercial-psloss1-source-gate-handoff"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -691,7 +691,7 @@ def test_loads40_loads_closeout_and_reportqa_handoff():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.LOADS.40" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.60-commercial-loads40-loads-closeout-reportqa-handoff"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.61-commercial-psloss1-source-gate-handoff"' in validation_src
     assert "render_loads_workspace_closeout_panel" in src
     assert "Loads workspace closeout and Report / QA handoff" in src
     assert "Closed for load-source scope" in src
@@ -700,3 +700,24 @@ def test_loads40_loads_closeout_and_reportqa_handoff():
     assert "Report / QA now consumes the Loads closeout rows" in src
     assert "does not rerun load calculations" in src
     assert "Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, and EQ was not changed" in src
+
+
+
+def test_psloss1_source_gate_and_jacking_force_guard():
+    src = _src()
+    defaults = (APP_SOURCE.resolve().parents[0] / "core" / "bg40_defaults.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.PSLOSS.1" in readme
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.61-commercial-psloss1-source-gate-handoff"' in validation_src
+    assert "render_prestress_losses_source_gate_panel" in src
+    assert "Prestress Losses Source Gate" in src
+    assert "SOURCE BLOCKED" in src
+    assert "READY FOR LOSS CALCULATION" in src
+    assert "Adopted tendon source" in src
+    assert "CR&SH parameters" in src
+    assert "Jacking-force interpretation" in src
+    assert "do not double" in src.lower()
+    assert "render_report_qa_prestress_losses_handoff_snapshot" in src
+    assert "jacking_operation_basis" in defaults
+    assert "jacking_force_interpretation" in defaults
