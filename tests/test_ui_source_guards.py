@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.62-commercial-psloss2-stressing-basis-gate"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.63-commercial-psloss3-readiness-register"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -691,7 +691,7 @@ def test_loads40_loads_closeout_and_reportqa_handoff():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.LOADS.40" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.62-commercial-psloss2-stressing-basis-gate"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.63-commercial-psloss3-readiness-register"' in validation_src
     assert "render_loads_workspace_closeout_panel" in src
     assert "Loads workspace closeout and Report / QA handoff" in src
     assert "Closed for load-source scope" in src
@@ -699,7 +699,7 @@ def test_loads40_loads_closeout_and_reportqa_handoff():
     assert "3 Loads — Report / QA handoff" in src
     assert "Report / QA now consumes the Loads closeout rows" in src
     assert "does not rerun load calculations" in src
-    assert "Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, and EQ was not changed" in src
+    assert "Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed" in src
 
 
 
@@ -709,7 +709,7 @@ def test_psloss1_source_gate_and_jacking_force_guard():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.62-commercial-psloss2-stressing-basis-gate"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.63-commercial-psloss3-readiness-register"' in validation_src
     assert "render_prestress_losses_source_gate_panel" in src
     assert "Prestress Losses Source Gate" in src
     assert "SOURCE BLOCKED" in src
@@ -729,7 +729,7 @@ def test_psloss2_stressing_basis_gate_and_tendon_action():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.2" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.62-commercial-psloss2-stressing-basis-gate"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.63-commercial-psloss3-readiness-register"' in validation_src
     assert "_psloss_stressing_basis_state" in src
     assert "STRESSING BASIS" in src
     assert "Tendon adoption action required" in src
@@ -741,3 +741,22 @@ def test_psloss2_stressing_basis_gate_and_tendon_action():
     assert "do not double Aps,total" in src or "must not double Aps,total" in src
     assert "stressing_basis_gate_status" in defaults
     assert "stressing_mode_basis" in defaults
+
+
+def test_psloss3_adopted_tendon_and_formula_readiness_register():
+    src = _src()
+    defaults = (APP_SOURCE.resolve().parents[0] / "core" / "bg40_defaults.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.PSLOSS.3" in readme
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.63-commercial-psloss3-readiness-register"' in validation_src
+    assert "_psloss_adopted_tendon_readiness_rows" in src
+    assert "_psloss_formula_readiness_rows" in src
+    assert "PSLOSS.3 calculation-readiness snapshot" in src
+    assert "Adopted tendon source readiness" in src
+    assert "Loss calculation readiness register" in src
+    assert "READY FOR FORMULA MILESTONE" in src
+    assert "STAGE REVIEW REQUIRED" in src
+    assert "effective-prestress formulas" in src
+    assert "loss_calculation_readiness_status" in defaults
+    assert "loss_readiness_basis" in defaults

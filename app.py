@@ -3860,13 +3860,13 @@ def _psloss_stressing_basis_state(adopted_model: dict[str, Any], tendon_locked: 
 
 
 def _psloss_source_gate_state() -> dict[str, Any]:
-    """Build the PSLOSS.2 read-only source gate for detailed loss calculation.
+    """Build the PSLOSS.3 read-only source gate for detailed loss calculation.
 
     Prestress Losses must consume locked/adopted sources only.  Working tendon
     imports, keyed fallback values, and diagnostic previews are deliberately kept
-    out of the detailed-loss readiness status.  PSLOSS.2 adds an explicit
-    JackFrom / stressing-basis gate before any friction or anchor-set formulas
-    can be accepted.
+    out of the detailed-loss readiness status.  PSLOSS.3 adds an adopted
+    tendon summary and calculation-readiness register before any friction or
+    anchor-set formulas can be accepted.
     """
     tl = D.setdefault("tendon_layout", {})
     ps = D.setdefault("prestress", {})
@@ -3963,7 +3963,7 @@ def _psloss_stressing_basis_rows(state: dict[str, Any]) -> pd.DataFrame:
         [
             ["JackFrom source", stressing.get("jack_from_display", "-"), stressing.get("status", "BLOCKED"), stressing.get("source", "2.4 tendon adoption required")],
             ["Stressing mode", stressing.get("stressing_mode", "-"), stressing.get("status", "BLOCKED"), stressing.get("message", "Confirm stressing basis.")],
-            ["Friction path basis", stressing.get("friction_path_basis", "-"), "FUTURE INPUT", "Used by future friction-loss calculation; no formula runs in PSLOSS.2."],
+            ["Friction path basis", stressing.get("friction_path_basis", "-"), "FUTURE INPUT", "Used by future friction-loss calculation; no formula runs in PSLOSS.3."],
             ["Anchor-set distribution basis", stressing.get("anchor_set_basis", "-"), "FUTURE INPUT", "Used by future anchor-set calculation; equivalent loss remains separately scoped."],
             ["Pj/tendon policy", stressing.get("force_policy", "Pj/tendon is axial tendon force."), "LOCKED RULE", "Do not multiply force by number of jacks."],
             ["Two-end stressing safeguard", stressing.get("two_end_policy", "Two-end stressing does not double total force."), "LOCKED RULE", "Controls friction/anchor-set distribution only."],
@@ -4041,14 +4041,150 @@ def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
     )
 
 
+
+
+def _psloss_adopted_tendon_readiness_rows(state: dict[str, Any]) -> pd.DataFrame:
+    """PSLOSS.3 readiness rows focused on the adopted tendon snapshot.
+
+    This register is intentionally source-only.  It confirms whether the future
+    loss solver has the tendon profile, jacking force, stressing-side basis,
+    and eccentricity data it needs; it does not calculate losses.
+    """
+    summary = state.get("adopted_summary") or {}
+    stressing = state.get("stressing_basis", {})
+    locked = bool(state.get("tendon_locked"))
+    if not locked or not summary:
+        return pd.DataFrame(
+            [
+                ["Adopted tendon snapshot", "BLOCKED", "2.4 Tendon Layout Reference", "Adopt/re-adopt the tendon model before any detailed loss formula can consume tendon values."],
+                ["Tendon profile path", "BLOCKED", "Adopted vertical + horizontal tendon model", "Friction loss needs adopted station-by-station profile, not working import preview."],
+                ["Jacking force basis", "BLOCKED", "Adopted General tendon table", "Pj/tendon and total Pj stay blocked until tendon source is locked."],
+                ["Stressing / JackFrom basis", "BLOCKED", "Adopted General tendon table JackFrom field", "One-end/two-end/mixed stressing must be explicit before friction and anchor-set distribution."],
+                ["Eccentricity basis", "BLOCKED", "Adopted profile + adopted section y_t", "dp/end, dp/midspan, and e_midspan stay blocked until tendon source is locked."],
+            ],
+            columns=["Readiness item", "Status", "Source owner", "Required action / source rule"],
+        )
+
+    tendon_count = int(summary.get("tendon_count", 0) or 0)
+    aps_total = float(summary.get("Aps_total_mm2", 0.0) or 0.0)
+    force_per = float(summary.get("jacking_force_per_tendon_kN", 0.0) or 0.0)
+    force_total = float(summary.get("jacking_force_total_kN", 0.0) or 0.0)
+    e_mid = float(summary.get("eccentricity_midspan_m", 0.0) or 0.0)
+    return pd.DataFrame(
+        [
+            ["Adopted tendon snapshot", "READY", "2.4 Adopted Tendon Data", f"Locked snapshot contains {tendon_count} tendons; fingerprint = {state.get('adopted_fingerprint') or summary.get('model_fingerprint', '-')}"],
+            ["Tendon profile path", "READY", "Adopted vertical + horizontal tendon model", "Future friction loss must read the adopted profile and tendon-by-tendon stations only."],
+            ["Jacking force basis", "READY", "Adopted General tendon table", f"Pj/tendon = {force_per:.0f} kN; total Pj = {force_total:.0f} kN; Aps,total = {aps_total:.0f} mm²."],
+            ["Stressing / JackFrom basis", stressing.get("status", "REVIEW"), "Adopted General tendon table JackFrom field", stressing.get("message", "Confirm stressing basis before friction and anchor-set formulas.")],
+            ["Eccentricity basis", "READY", "Adopted profile + adopted section y_t", f"e_midspan = {e_mid:.3f} m; used later for stress/loss coupling trace only."],
+        ],
+        columns=["Readiness item", "Status", "Source owner", "Required action / source rule"],
+    )
+
+
+def _psloss_formula_readiness_rows(state: dict[str, Any]) -> pd.DataFrame:
+    """Report-ready PSLOSS.3 component readiness register.
+
+    The row status tells the next milestone what can be calculated safely.  It
+    deliberately does not run friction, anchor set, elastic shortening, creep,
+    shrinkage, or relaxation equations.
+    """
+    source_ready = bool(state.get("ready"))
+    tendon_ready = bool(state.get("tendon_locked"))
+    stressing_ready = bool(state.get("stressing_basis", {}).get("ready"))
+    section_ready = bool(state.get("section_ready"))
+    crsh_ready = bool(state.get("crsh_ready"))
+    span_ready = bool(state.get("span_ready"))
+
+    friction_ready = source_ready and stressing_ready
+    anchor_ready = source_ready and stressing_ready
+    es_ready = tendon_ready and section_ready and span_ready
+    crsh_component_ready = section_ready and crsh_ready
+    return pd.DataFrame(
+        [
+            [
+                "Friction loss",
+                "READY FOR FORMULA MILESTONE" if friction_ready else "SOURCE BLOCKED",
+                "Adopted tendon profile + JackFrom/stressing basis + span path",
+                "Use tendon-by-tendon adopted station profile; do not use working import preview or averaged JackFrom.",
+            ],
+            [
+                "Anchor set",
+                "READY FOR FORMULA MILESTONE" if anchor_ready else "SOURCE BLOCKED",
+                "Adopted JackFrom/stressing basis + project anchor-set input",
+                "Anchor-set distribution depends on stressing end; two-end stressing does not double Pj.",
+            ],
+            [
+                "Elastic shortening",
+                "STAGE REVIEW REQUIRED" if es_ready else "SOURCE BLOCKED",
+                "Adopted section + tendon source + actual stressing/load-transfer stage",
+                "fcgp must reflect the actual span-by-span stressing stage; completed-span self-weight must not be assumed automatically.",
+            ],
+            [
+                "Creep / shrinkage",
+                "READY FOR FORMULA MILESTONE" if crsh_component_ready else "SOURCE BLOCKED",
+                "3.8 CR&SH RH, V/S, h0, ti/tf + adopted section geometry",
+                "Use CR&SH handoff only; do not create duplicate RH or V/S inputs in 4 Prestress Losses.",
+            ],
+            [
+                "Relaxation",
+                "FUTURE INPUT REVIEW",
+                "Prestressing strand class / low-relaxation basis",
+                "Confirm strand relaxation class and source before final effective-prestress summary.",
+            ],
+            [
+                "Effective prestress summary",
+                "BLOCKED UNTIL COMPONENTS RUN",
+                "Future component result table",
+                "Do not report final effective prestress until detailed component losses are calculated and adopted.",
+            ],
+        ],
+        columns=["Loss component", "Readiness status", "Required adopted source", "Required engineer check"],
+    )
+
+
+def _psloss3_readiness_cards(state: dict[str, Any]) -> None:
+    """Compact PSLOSS.3 cards for adopted-source readiness."""
+    summary = state.get("adopted_summary") or {}
+    stressing = state.get("stressing_basis", {})
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        card(
+            "ADOPTED TENDON SUMMARY",
+            "LOCKED" if state.get("tendon_locked") else "BLOCKED",
+            f"{summary.get('tendon_count', 0)} tendons · Aps,total {float(summary.get('Aps_total_mm2', 0.0) or 0.0):.0f} mm²" if summary else "Adopt tendon model first",
+            "pass" if state.get("tendon_locked") else "warn",
+        )
+    with c2:
+        card(
+            "JACKING FORCE POLICY",
+            "LOCKED RULE",
+            "Pj/tendon is axial force; two-end stressing does not double total Pj",
+            "neutral",
+        )
+    with c3:
+        card(
+            "STRESSING TRACE",
+            stressing.get("status", "BLOCKED"),
+            stressing.get("stressing_mode", "Confirm JackFrom"),
+            stressing.get("mode", "warn"),
+        )
+    with c4:
+        card(
+            "NEXT STEP",
+            "FORMULA ENGINE" if state.get("ready") else "ADOPT SOURCE FIRST",
+            "Proceed only after all source gates are ready" if not state.get("ready") else "Friction/anchor set can be scoped next",
+            "pass" if state.get("ready") else "warn",
+        )
+
 def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[str, Any]:
-    """Render PSLOSS.2 source gate and return the source state."""
+    """Render PSLOSS.3 source gate and return the source state."""
     state = _psloss_source_gate_state()
     if not compact:
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.2 connects locked adopted tendon data, JackFrom / stressing-basis trace, adopted section properties, CR&SH parameters, and span/stage basis. Detailed loss equations remain a later milestone.",
+            "PSLOSS.3 connects locked adopted tendon data, JackFrom / stressing-basis trace, adopted section properties, CR&SH parameters, and span/stage basis; it then summarizes calculation readiness without running detailed loss formulas.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
@@ -4079,27 +4215,31 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         unsafe_allow_html=True,
     )
     if not compact:
+        st.markdown("### PSLOSS.3 calculation-readiness snapshot")
+        _psloss3_readiness_cards(state)
         st.markdown("### Tendon adoption and blocked-input checklist")
         show_engineering_table(_psloss_blocked_tendon_checklist_rows(state))
+        st.markdown("### Adopted tendon source readiness")
+        show_engineering_table(_psloss_adopted_tendon_readiness_rows(state))
         st.markdown("### Stressing basis / JackFrom gate")
         show_engineering_table(_psloss_stressing_basis_rows(state))
         st.markdown("### Adopted prestress input summary")
         show_engineering_table(_psloss_tendon_summary_rows(state))
         st.markdown("### Time-dependent parameter handoff from 3.8 CR&SH")
         show_engineering_table(_psloss_crsh_handoff_rows(state))
+        st.markdown("### Loss calculation readiness register")
+        show_engineering_table(_psloss_formula_readiness_rows(state))
         with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
-            show_engineering_table(pd.DataFrame([
-                ["Detailed friction loss", "BLOCKED until source and stressing gates are ready", "Use adopted tendon profile and tendon-by-tendon JackFrom; do not use raw working import."],
-                ["Anchor set", "BLOCKED until source and stressing gates are ready", "Equivalent loss may be user/project input, but source and jacking-end basis must be explicit."],
-                ["Elastic shortening", "BLOCKED until source gate ready", "fcgp must be tied to actual stressing/load-transfer stage, not blindly to completed-span self-weight."],
-                ["Creep / shrinkage", "INPUT HANDOFF READY" if state["crsh_ready"] else "MISSING", "RH, V/S, h0, ti/tf from 3.8 CR&SH."],
-                ["Relaxation", "FUTURE INPUT", "Low-relaxation strand basis to be confirmed in detailed calculation milestone."],
-            ], columns=["Loss component", "Current PSLOSS.2 status", "Required engineering check"]))
+            st.markdown(
+                '<div class="note-box"><b>PSLOSS.3 rule:</b> this page creates a calculation-readiness register only. It does not run friction, anchor-set, elastic-shortening, creep/shrinkage, relaxation, or effective-prestress formulas.</div>',
+                unsafe_allow_html=True,
+            )
+            show_engineering_table(_psloss_formula_readiness_rows(state))
     return state
 
 
 def render_report_qa_prestress_losses_handoff_snapshot() -> None:
-    """Read-only Report / QA snapshot for PSLOSS.2."""
+    """Read-only Report / QA snapshot for PSLOSS.3."""
     st.markdown("### 4 Prestress Losses — Report / QA source-gate handoff")
     state = _psloss_source_gate_state()
     c1, c2, c3, c4, c5 = st.columns(5)
@@ -4115,6 +4255,9 @@ def render_report_qa_prestress_losses_handoff_snapshot() -> None:
     with c5:
         card("CR&SH", "READY" if state["crsh_ready"] else "MISSING", "3.8 parameter handoff", "pass" if state["crsh_ready"] else "warn")
     show_engineering_table(_psloss_source_gate_rows(state))
+    st.markdown("#### Adopted tendon and formula-readiness snapshot")
+    show_engineering_table(_psloss_adopted_tendon_readiness_rows(state))
+    show_engineering_table(_psloss_formula_readiness_rows(state))
 
 def _render_tendon_adoption_cards(model: dict[str, Any]) -> None:
     tl = D.setdefault("tendon_layout", {})
@@ -5174,7 +5317,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.2 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.3 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -5211,15 +5354,16 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.2 Notes
-- Report / QA now displays the Prestress Losses source gate, stressing-basis gate, and Loads handoff snapshot.
+## PSLOSS.3 Notes
+- Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, and Loads handoff snapshot.
 - Detailed prestress-loss equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
-- Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, and EQ was not changed.
+- PSLOSS.3 adds an adopted tendon readiness register and loss-component calculation-readiness register for the next formula milestone.
+- Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - Existing legacy prestress-loss preview page formulas were not changed.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss2_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss3_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------
