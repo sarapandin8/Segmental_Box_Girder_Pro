@@ -46,7 +46,7 @@ WORKSPACES = [
             "3.7 Wind",
             "3.8 CR&SH",
             "3.9 EQ",
-            "3.10 FEA Summary",
+            "3.10 FEA Load Input Summary",
             "QA / Report Preview",
         ],
     },

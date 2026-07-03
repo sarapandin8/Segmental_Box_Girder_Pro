@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.56-commercial-loads36-eq-ui-polish-schema-adoption"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.57-commercial-loads37-fea-load-input-summary"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -134,7 +134,7 @@ def test_ui1_global_engineering_figure_system_is_present():
 def test_m3a_no_duplicate_sdl_summary_input_pattern():
     src = _src()
     assert 'D["load_components"]["sdl_components"] = edited.to_dict("records")' in src
-    assert "FEA summary reads from the same load schema" in src
+    assert "FEA Load Input Summary reads from the same load schema" in src
 
 
 def test_m3c_aashto_ir_controls_are_present_once_in_eq_page():
@@ -192,7 +192,7 @@ def test_m3f_workspace_reorganization_is_present():
     assert '"label": "2 Bridge Geometry / Section Properties"' in schema_src
     assert '"label": "3 Loads"' in schema_src
     assert '"2.2 Geometry and Analysis Model"' in schema_src
-    assert '"3.10 FEA Summary"' in schema_src
+    assert '"3.10 FEA Load Input Summary"' in schema_src
     assert '"1 Criteria / Loads"' not in schema_src
     assert '"2 Bridge Model"' not in schema_src
     assert '"3 Section Properties"' not in schema_src
@@ -633,3 +633,19 @@ def test_loads36_eq_ui_polish_schema_and_adoption_clarity():
     assert "render_eq_response_spectrum_canvas" in src
     assert "DPT Equivalent-Static Response Spectrum" in src
     assert "Coefficient trace only — numeric EQ force generated in FEA model" in defaults
+
+
+def test_loads37_fea_load_input_summary_renaming_and_handoff_table():
+    src = _src()
+    schema_src = (APP_SOURCE.resolve().parents[0] / "core" / "report_schema.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.37" in readme
+    assert "3.10 FEA Load Input Summary" in schema_src
+    assert "3.10 FEA Load Input Summary" in src
+    assert "3.10 FEA Summary" in src  # migration alias for old UI/session state
+    assert "single handoff table for load patterns, coefficients, and parameter traces" in src
+    assert "FEA action type" in src
+    assert "Source page" in src
+    assert "EQX/EQY = Cs × W" in src
+    assert "Do not duplicate self-weight" in src
+    assert "CR&SH" in src and "Long-term parameter handoff" in src

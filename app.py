@@ -1683,8 +1683,13 @@ def page_criteria_loads(sub: str) -> None:
 def page_loads(sub: str) -> None:
     st.subheader(get_workspace("3 Loads")["title"])
     section_title("3 Loads — FEA load input generator")
-    st.markdown('<div class="note-box"><b>One-source rule:</b> each load is entered once in the report-driven schema. Report Preview, FEA Load Summary, QA checks, and Save/Load JSON read from the same source.</div>', unsafe_allow_html=True)
-    load_tab_labels = ["3.1 Dead Load", "3.2 SDL", "3.3 LL + IM", "3.4 LF / 3.5 HF", "3.6 CF", "3.7 Wind", "3.8 CR&SH", "3.9 EQ", "3.10 FEA Summary"]
+    st.markdown('<div class="note-box"><b>One-source rule:</b> each load is entered once in the report-driven schema. Report Preview, FEA Load Input Summary, QA checks, and Save/Load JSON read from the same source.</div>', unsafe_allow_html=True)
+    load_tab_labels = ["3.1 Dead Load", "3.2 SDL", "3.3 LL + IM", "3.4 LF / 3.5 HF", "3.6 CF", "3.7 Wind", "3.8 CR&SH", "3.9 EQ", "3.10 FEA Load Input Summary"]
+    # Migration alias for older project/UI state that used the shorter, ambiguous label.
+    if st.session_state.get("loads_inline_subpage") == "3.10 FEA Summary":
+        st.session_state.loads_inline_subpage = "3.10 FEA Load Input Summary"
+    if sub == "3.10 FEA Summary":
+        sub = "3.10 FEA Load Input Summary"
     if st.session_state.get("loads_inline_subpage") not in load_tab_labels:
         st.session_state.loads_inline_subpage = sub if sub in load_tab_labels else load_tab_labels[0]
     selected_load_subpage = st.radio(
@@ -1785,7 +1790,7 @@ def page_loads(sub: str) -> None:
         ], columns=["Load Pattern", "Load model", "Value", "Unit", "Direction", "Application", "Source"]))
 
     if selected_load_subpage == "3.4 LF / 3.5 HF":
-        code_basis_card("3.4 Longitudinal Force (LF) and 3.5 Hunting / Nosing Force (HF)", "EN 1991-2 Art. 6.5.3 and Art. 6.5.2", "LF is longitudinal braking/traction at rail level. HF is the EN nosing force Qsk, concentrated transverse at top of rail.")
+        code_basis_card("3.4 Longitudinal Force (LF) and 3.5 Hunting / Nosing Force (HF)", "EN 1991-2 Art. 6.5.3 and EN 1991-2 Art. 6.5.2", "LF is longitudinal braking/traction at rail level. HF is the EN nosing force Qsk, concentrated transverse at top of rail.")
         components.html(rail_horizontal_forces_diagram_svg(), height=430, scrolling=False)
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -1823,7 +1828,7 @@ def page_loads(sub: str) -> None:
             "EN 1991-2 Art. 6.5.1",
             "Code-assisted CF input assistant. Straight track is treated as zero CF; curved finite-radius track calculates f, C, assessment status, and FEA adoption trace from one source.",
         )
-        st.markdown('<div class="note-box"><b>CF one-source rule:</b> CF inputs below feed the calculation trace, result cards, FEA adoption status, FEA Summary, Save/Load JSON, and future report export. V is in km/h, R is in m, and C is dimensionless. For <b>Straight track</b>, R = ∞ and CF = 0.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="note-box"><b>CF one-source rule:</b> CF inputs below feed the calculation trace, result cards, FEA adoption status, FEA Load Input Summary, Save/Load JSON, and future report export. V is in km/h, R is in m, and C is dimensionless. For <b>Straight track</b>, R = ∞ and CF = 0.</div>', unsafe_allow_html=True)
 
         rail = D["rail_loads"]
         span = float(D["project"].get("span_m", 40.0))
@@ -2475,22 +2480,50 @@ def page_loads(sub: str) -> None:
             st.markdown('<div class="warn-box"><b>Manual source warning:</b> results are calculated from user-entered Ss/S1 and are not verified against the DPT location database.</div>', unsafe_allow_html=True)
         st.markdown('<div class="warn-box"><b>Scope note:</b> DPT 1301/1302-61 is a building seismic design standard. In this bridge app it is used as Thai project seismic parameter basis, consistent with the BG40 report criteria.</div>', unsafe_allow_html=True)
 
-    if selected_load_subpage == "3.10 FEA Summary":
+    if selected_load_subpage == "3.10 FEA Load Input Summary":
         ld = load_derived()
+        lc = D["load_components"]
+        rail = D.get("rail_loads", {})
+        section_title("3.10 FEA Load Input Summary")
+        st.markdown(
+            '<div class="note-box"><b>Purpose:</b> this page is the single handoff table for load patterns, coefficients, and parameter traces to be entered or mapped in the external FEA program. It is not a separate calculator and it does not create duplicate load inputs.</div>',
+            unsafe_allow_html=True,
+        )
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            card("SUMMARY STATUS", "READY", "Loads are collected from the report-driven schema", "pass")
+        with c2:
+            card("SOURCE RULE", "ONE-SOURCE", "No duplicate FEA input fields are created here", "pass")
+        with c3:
+            card("EQ FORCE POLICY", "COEFFICIENT ONLY", "EQX/EQY force remains Cs × W in FEA", "warn")
+        with c4:
+            card("CR&SH", "HANDOFF", "Parameters are consumed by Prestress Losses", "neutral")
+
         rows = [
-            ["DL", "DL", "Self-weight from γc", "Auto", "-", "Gravity", "FEA self-weight", "FEA auto / QA preview"],
-            ["SDL", "SDL", f"BG40 R10 SDL schedule · {ld['sdl_track_basis']}", ld["sdl_selected_adopted_kn_m"], "kN/m", "Gravity", "Along span", "Selected track basis + editable table"],
-            ["LL+IM", "LL+IM", "EN 1991-2 Art. 6.4.3/6.4.5", f"U20 × {format_engineering_value(D['load_components']['dynamic_factor_design'], 'factor')}", "factor", "Vertical", "Railway load model", "App calc + adopted"],
-            ["LF", "LF", "EN 1991-2 Art. 6.5.3", f"{ld['LF_design_kn']:.0f} / {ld['LF_design_kn_m']:.1f}", "kN / kN/m", "Longitudinal", "Rail level", "App calculated"],
-            ["HF", "Qsk", "EN 1991-2 Art. 6.5.2", f"{ld['hf_HF_adopted_kn']:.0f}", "kN", "Transverse", "Top of rail concentrated", "App decision"],
-            ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", str(D.get("rail_loads", {}).get("cf_application_level", "Rail level")), str(ld.get("cf_fea_adoption_status", ld.get("cf_assessment", "App calculated")))],
-            ["WS", "WS", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure", "App calculated"],
-            ["WS+WL", "WS+WL", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_WL_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure + train", "App calculated"],
-            ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO LRFD 2020 bridge R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", str(D['load_components'].get('seismic_fea_adoption_mode', EQ_COEFFICIENT_TRACE_MODE))],
-            ["CR&SH", "CR/SH", "AASHTO LRFD Art. 5.9.5", "parameters", "-", "Long-term", "Prestress loss module", "Declared in 3.8 / consumed by 4"],
+            {"Load case / item": "DL", "FEA symbol": "DL / Self-weight", "Adopted value": "FEA auto", "Unit": "-", "FEA action type": "Generated in FEA", "Direction": "Gravity", "Application / mapping": "Self-weight from model material density", "Adoption status": "FEA model owns numeric load", "Source page": "3.1 Dead Load", "Notes": "No duplicate DL table is generated by the app."},
+            {"Load case / item": "SDL", "FEA symbol": "SDL", "Adopted value": f"{float(ld['sdl_selected_adopted_kn_m']):.2f}", "Unit": "kN/m", "FEA action type": "Line load", "Direction": "Gravity", "Application / mapping": "Along span / selected track basis", "Adoption status": "Adopted as FEA load", "Source page": "3.2 SDL", "Notes": f"{ld['sdl_track_basis']} · editable component table."},
+            {"Load case / item": "LL + IM", "FEA symbol": "LL+IM", "Adopted value": f"U20 × {format_engineering_value(lc['dynamic_factor_design'], 'factor')}", "Unit": "factor", "FEA action type": "Moving load factor", "Direction": "Vertical", "Application / mapping": "Railway load model", "Adoption status": "Adopted as traffic-load basis", "Source page": "3.3 LL + IM", "Notes": "EN dynamic factor/project adopted value."},
+            {"Load case / item": "LF", "FEA symbol": "LF", "Adopted value": f"{float(ld['LF_design_kn']):.0f} / {float(ld['LF_design_kn_m']):.1f}", "Unit": "kN / kN/m", "FEA action type": "Longitudinal load", "Direction": "Longitudinal", "Application / mapping": "Rail level / span basis", "Adoption status": "Adopted as FEA load", "Source page": "3.4 LF / 3.5 HF", "Notes": "Max of traction/braking route."},
+            {"Load case / item": "HF", "FEA symbol": "HF / Qsk", "Adopted value": f"{float(ld['hf_HF_adopted_kn']):.0f}", "Unit": "kN", "FEA action type": "Concentrated lateral load", "Direction": "Transverse", "Application / mapping": "Top of rail", "Adoption status": "Adopted as FEA load", "Source page": "3.4 LF / 3.5 HF", "Notes": str(ld.get("hf_decision_basis", "App decision"))},
+            {"Load case / item": "CF", "FEA symbol": "CF / C", "Adopted value": f"{float(ld['cf_C_percent']):.2f}", "Unit": "% of LL", "FEA action type": "Traffic lateral coefficient", "Direction": "Radial / transverse", "Application / mapping": str(rail.get("cf_application_level", "Rail level")), "Adoption status": str(ld.get("cf_fea_adoption_status", ld.get("cf_assessment", "App calculated"))), "Source page": "3.6 CF", "Notes": str(ld.get("cf_fea_adoption_note", ld.get("cf_assessment_note", "")))},
+            {"Load case / item": "Wind on structure", "FEA symbol": "WS", "Adopted value": f"{float(ld['WSsuper_kn_m']):.2f}", "Unit": "kN/m", "FEA action type": "Transverse line load", "Direction": "Wind transverse", "Application / mapping": "Superstructure", "Adoption status": "Adopted as FEA load", "Source page": "3.7 Wind", "Notes": "EN 1991-1-4 + DPT 1311-50 trace."},
+            {"Load case / item": "Wind on structure + train", "FEA symbol": "WS+WL", "Adopted value": f"{float(ld['WSsuper_WL_kn_m']):.2f}", "Unit": "kN/m", "FEA action type": "Transverse line load", "Direction": "Wind transverse", "Application / mapping": "Superstructure + train envelope", "Adoption status": "Adopted as FEA load", "Source page": "3.7 Wind", "Notes": "Train silhouette included in wind reference area."},
+            {"Load case / item": "Earthquake", "FEA symbol": "EQX / EQY", "Adopted value": f"Cs = {float(ld['eq_Cs']):.4f}", "Unit": "coefficient", "FEA action type": "Equivalent-static coefficient", "Direction": "X/Y independent horizontal", "Application / mapping": "FEA seismic weight / mass source", "Adoption status": str(lc.get("seismic_fea_adoption_mode", EQ_COEFFICIENT_TRACE_MODE)), "Source page": "3.9 EQ", "Notes": f"Numeric force is not generated here; EQX/EQY = Cs × W, I/R={float(lc['seismic_I']):.2f}/{float(lc['seismic_R']):.1f}."},
+            {"Load case / item": "Creep / shrinkage", "FEA symbol": "CR&SH", "Adopted value": "parameters", "Unit": "-", "FEA action type": "Long-term parameter handoff", "Direction": "Long-term prestress/time effects", "Application / mapping": "Prestress Losses / FEA staged construction", "Adoption status": "Consumed by downstream module", "Source page": "3.8 CR&SH", "Notes": "Not a direct load pattern; keep source trace for losses/report."},
         ]
-        show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Symbol", "Code Basis", "Value", "Unit", "Direction", "Application", "Source"]))
-        st.markdown('<div class="note-box"><b>Report/export rule:</b> this FEA summary reads from the same load schema edited above. No duplicate input fields are used.</div>', unsafe_allow_html=True)
+        summary_df = pd.DataFrame(rows)
+        show_engineering_table(summary_df)
+        st.markdown(
+            '<div class="note-box"><b>Report/export rule:</b> this FEA Load Input Summary reads from the same load schema edited in 3.1–3.9. Values shown as coefficients or parameters must remain coefficients/parameters unless the external FEA model supplies the missing source, such as seismic weight W.</div>',
+            unsafe_allow_html=True,
+        )
+        with st.expander("FEA handoff notes / source guard", expanded=False):
+            show_engineering_table(pd.DataFrame([
+                ["DL", "Do not duplicate self-weight if the FEA model already generates self-weight from material density."],
+                ["EQ", "This app exports Cs and source trace only. Numeric EQ force requires W from the FEA mass/seismic-weight source."],
+                ["CR&SH", "This is a long-term parameter handoff, not a direct equivalent nodal/line load."],
+                ["All rows", "If a load is overridden in FEA, document the override in the FEA model/report rather than creating a second input source here."],
+            ], columns=["Item", "Guard / required action"]))
 
 
 def page_bridge_model(sub: str) -> None:

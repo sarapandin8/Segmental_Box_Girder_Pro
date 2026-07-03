@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.36
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.37
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -43,6 +43,7 @@ This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.LOADS.34
 - COMMERCIAL.LOADS.35
 - COMMERCIAL.LOADS.36
+- COMMERCIAL.LOADS.37
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -111,3 +112,5 @@ Current milestone focus:
 - COMMERCIAL.LOADS.35: Added EQ result summary cards, one-source trace, and FEA adoption panel for Cs/EQX/EQY coefficient export while updating bridge R-factor wording to AASHTO LRFD 9th Edition (2020).
 
 - COMMERCIAL.LOADS.36: Polished EQ schema/status display, clarified coefficient-trace FEA adoption and numeric-force ownership, and wrapped the DPT response spectrum in a report-ready canvas figure without changing EQ formulas.
+
+- COMMERCIAL.LOADS.37: Renamed 3.10 to FEA Load Input Summary and upgraded the page into a source-of-truth load handoff table for DL, SDL, LL+IM, LF/HF, CF, Wind, EQ coefficient trace, and CR&SH parameters.
