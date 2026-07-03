@@ -849,11 +849,13 @@ def load_derived() -> dict[str, Any]:
     lc["wind_vb_m_s"] = float(ws["vb_m_s"])
     lc["wind_c_ws"] = float(ws["C_ws"])
     lc["wind_c_ws_wl"] = float(ws["C_ws_wl"])
-    cf_track_condition = str(rail.get("cf_track_condition", "Large-radius curve / near-straight"))
-    if cf_track_condition == "Straight / very large radius":
-        cf_track_condition = "Large-radius curve / near-straight"
+    cf_track_condition = str(rail.get("cf_track_condition", "Curved track / finite radius"))
+    if cf_track_condition in {"Straight / very large radius", "Large-radius curve / near-straight", "Curved track"}:
+        cf_track_condition = "Curved track / finite radius"
+    elif cf_track_condition == "Straight track":
+        cf_track_condition = "Straight track / no horizontal curve"
     cf_threshold_percent = float(rail.get("cf_assessment_threshold_percent", 2.0))
-    cf_is_straight = cf_track_condition == "Straight track"
+    cf_is_straight = cf_track_condition == "Straight track / no horizontal curve"
     if cf_is_straight:
         cf = {"f": 1.0, "C_basic": 0.0, "C_reduced": 0.0, "C_percent": 0.0}
         cf_include_in_fea = False
@@ -1564,27 +1566,29 @@ def page_loads(sub: str) -> None:
         code_basis_card(
             "3.6 Centrifugal Force (CF)",
             "EN 1991-2 Art. 6.5.1",
-            "Code-assisted CF input assistant. Straight track is treated as zero CF; finite-radius cases calculate f, C, assessment status, and FEA adoption trace from one source.",
+            "Code-assisted CF input assistant. Straight track is treated as zero CF; curved finite-radius track calculates f, C, assessment status, and FEA adoption trace from one source.",
         )
         st.markdown('<div class="note-box"><b>CF one-source rule:</b> CF inputs below feed the calculation trace, result cards, FEA adoption status, FEA Summary, Save/Load JSON, and future report export. V is in km/h, R is in m, and C is dimensionless. For <b>Straight track</b>, R = ∞ and CF = 0.</div>', unsafe_allow_html=True)
 
         rail = D["rail_loads"]
         span = float(D["project"].get("span_m", 40.0))
-        condition_options = ["Straight track", "Large-radius curve / near-straight", "Curved track"]
-        if rail.get("cf_track_condition") == "Straight / very large radius":
-            rail["cf_track_condition"] = "Large-radius curve / near-straight"
+        condition_options = ["Straight track / no horizontal curve", "Curved track / finite radius"]
+        if rail.get("cf_track_condition") in {"Straight / very large radius", "Large-radius curve / near-straight", "Curved track"}:
+            rail["cf_track_condition"] = "Curved track / finite radius"
+        elif rail.get("cf_track_condition") == "Straight track":
+            rail["cf_track_condition"] = "Straight track / no horizontal curve"
         if rail.get("cf_track_condition") not in condition_options:
-            rail["cf_track_condition"] = "Large-radius curve / near-straight"
+            rail["cf_track_condition"] = "Curved track / finite radius"
         c1, c2 = st.columns([1, 1])
         with c1:
             rail["cf_track_condition"] = st.selectbox(
-                "Track curvature condition",
+                "Track alignment condition",
                 condition_options,
-                index=condition_options.index(str(rail.get("cf_track_condition", "Large-radius curve / near-straight"))),
+                index=condition_options.index(str(rail.get("cf_track_condition", "Curved track / finite radius"))),
                 key="cf_track_condition_selector",
-                help="Straight track sets R = infinity and CF = 0. Large-radius/curved track keeps the finite-radius EN calculation.",
+                help="Straight track sets R = infinity and CF = 0. Curved track uses the finite-radius EN calculation; a very large radius is simply a curved-track case with a small result.",
             )
-        cf_is_straight_ui = str(rail.get("cf_track_condition")) == "Straight track"
+        cf_is_straight_ui = str(rail.get("cf_track_condition")) == "Straight track / no horizontal curve"
         if cf_is_straight_ui:
             rail["cf_include_in_fea"] = False
         with c2:
@@ -1603,7 +1607,7 @@ def page_loads(sub: str) -> None:
         with c2:
             if cf_is_straight_ui:
                 st.text_input("Curve radius R (m)", value="∞  (straight track)", disabled=True)
-                st.caption("Straight track: R = ∞, so centrifugal force is zero.")
+                st.caption("Straight track / no horizontal curve: R = ∞, so centrifugal force is zero.")
             else:
                 editable_value(["rail_loads", "radius_m"], "Curve radius R (m)", 100.0)
         with c3:
@@ -1631,7 +1635,7 @@ def page_loads(sub: str) -> None:
         if ld["cf_is_straight"]:
             st.latex(r"R = \infty \quad \Rightarrow \quad C=\frac{V^2 f}{127R}=0")
             st.latex(r"CF = 0.00\%\;\text{of vertical live load}")
-            st.markdown('<div class="note-box"><b>Straight-track logic:</b> no finite-radius centrifugal action is generated. The app therefore sets C = 0 and prevents FEA adoption for CF.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="note-box"><b>Straight-track logic:</b> no horizontal curve is present; therefore no finite-radius centrifugal action is generated. The app sets C = 0 and prevents FEA adoption for CF.</div>', unsafe_allow_html=True)
         else:
             st.latex(r"C=\frac{V^2f}{127R}")
             st.latex(r"f=1-\left(\frac{V-120}{1000}\right)\left(\frac{814}{V}+1.75\right)\left(1-\sqrt{\frac{2.88}{L_f}}\right)\quad (f\ge 0.35)")
@@ -1655,7 +1659,7 @@ def page_loads(sub: str) -> None:
         ]
         show_engineering_table(pd.DataFrame(adoption_rows, columns=["Item", "Value", "Trace"]), hide_index=True)
         if ld["cf_is_straight"]:
-            st.markdown('<div class="note-box"><b>Straight-track status:</b> CF is zero because R = ∞. The app does not adopt a separate CF horizontal FEA load.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="note-box"><b>Straight-track status:</b> CF is zero because there is no horizontal curve (R = ∞). The app does not adopt a separate CF horizontal FEA load.</div>', unsafe_allow_html=True)
         elif bool(rail.get("cf_include_in_fea", False)):
             st.markdown('<div class="warn-box"><b>FEA adoption note:</b> CF is adopted as a factor to be applied to the selected vertical railway live-load model. A numeric kN/m or point-load CF action requires the governing vertical live-load distribution from the FEA load model.</div>', unsafe_allow_html=True)
         else:

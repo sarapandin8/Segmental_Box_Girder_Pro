@@ -273,7 +273,7 @@ BG40_DEFAULT = {
         "speed_kmh": 160.0,
         "radius_m": 10000.0,
         "Lf_m": 40.0,
-        "cf_track_condition": "Large-radius curve / near-straight",
+        "cf_track_condition": "Curved track / finite radius",
         "cf_assessment_threshold_percent": 2.0,
         "cf_include_in_fea": False,
         "cf_application_level": "Rail level",
