@@ -118,3 +118,6 @@ Current milestone focus:
 
 
 - COMMERCIAL.LOADS.38: Polished 3.10 FEA Load Input Summary as a wrapped commercial handoff sheet with HANDOFF READY status, compact adopted value/basis wording, explicit quantity types, and row-level required FEA actions without changing load formulas.
+
+
+- COMMERCIAL.LOADS.39: Added a FEA handoff status legend, transfer-control checklist, and print-safe handoff styling for 3.10 FEA Load Input Summary without changing load formulas.

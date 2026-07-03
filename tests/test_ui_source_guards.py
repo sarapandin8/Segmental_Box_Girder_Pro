@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.58-commercial-loads38-fea-load-summary-table-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.59-commercial-loads39-fea-load-summary-legend-checklist"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -664,3 +664,22 @@ def test_loads38_fea_load_input_summary_table_polish():
     assert "Do not enter W here" in src
     assert "not as an additive duplicate of WS" in src
     assert "This table is display-only" in src
+
+
+def test_loads39_fea_load_input_summary_legend_and_checklist():
+    src = _src()
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.39" in readme
+    assert "render_fea_handoff_status_legend" in src
+    assert "Handoff status legend" in src
+    assert "FEA-owned" in src
+    assert "Adopted envelope" in src
+    assert "Coefficient trace" in src
+    assert "render_fea_load_input_review_checklist" in src
+    assert "FEA input review checklist" in src
+    assert "Map load patterns" in src
+    assert "Confirm directions" in src
+    assert "Preserve source ownership" in src
+    assert "Document overrides" in src
+    assert "page-break-inside:avoid" in src
+    assert "does not create new load inputs" in src
