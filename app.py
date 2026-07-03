@@ -849,18 +849,28 @@ def load_derived() -> dict[str, Any]:
     lc["wind_vb_m_s"] = float(ws["vb_m_s"])
     lc["wind_c_ws"] = float(ws["C_ws"])
     lc["wind_c_ws_wl"] = float(ws["C_ws_wl"])
-    cf = en_centrifugal_percentage(float(rail["speed_kmh"]), float(rail["radius_m"]), float(rail["Lf_m"]))
+    cf_track_condition = str(rail.get("cf_track_condition", "Large-radius curve / near-straight"))
+    if cf_track_condition == "Straight / very large radius":
+        cf_track_condition = "Large-radius curve / near-straight"
     cf_threshold_percent = float(rail.get("cf_assessment_threshold_percent", 2.0))
-    cf_include_in_fea = bool(rail.get("cf_include_in_fea", False))
-    if not cf_include_in_fea:
-        cf_assessment = "Factor-only / not adopted in FEA"
-        cf_assessment_note = "reported for traceability"
-    elif float(cf.get("C_percent", 0.0)) <= cf_threshold_percent:
-        cf_assessment = "Small / below threshold"
-        cf_assessment_note = f"≤ {cf_threshold_percent:.2f}% project threshold"
+    cf_is_straight = cf_track_condition == "Straight track"
+    if cf_is_straight:
+        cf = {"f": 1.0, "C_basic": 0.0, "C_reduced": 0.0, "C_percent": 0.0}
+        cf_include_in_fea = False
+        cf_assessment = "Zero / straight track"
+        cf_assessment_note = "R = ∞; CF not applicable"
     else:
-        cf_assessment = "Review for FEA adoption"
-        cf_assessment_note = f"> {cf_threshold_percent:.2f}% project threshold"
+        cf = en_centrifugal_percentage(float(rail["speed_kmh"]), float(rail["radius_m"]), float(rail["Lf_m"]))
+        cf_include_in_fea = bool(rail.get("cf_include_in_fea", False))
+        if not cf_include_in_fea:
+            cf_assessment = "Factor-only / not adopted in FEA"
+            cf_assessment_note = "reported for traceability"
+        elif float(cf.get("C_percent", 0.0)) <= cf_threshold_percent:
+            cf_assessment = "Small / below threshold"
+            cf_assessment_note = f"≤ {cf_threshold_percent:.2f}% project threshold"
+        else:
+            cf_assessment = "Review for FEA adoption"
+            cf_assessment_note = f"> {cf_threshold_percent:.2f}% project threshold"
     try:
         if lc.get("seismic_region") == "Bangkok Basin" and int(lc.get("seismic_bangkok_zone", 0) or 0) > 0:
             eq = dpt_bangkok_basin_spectrum(
@@ -910,6 +920,8 @@ def load_derived() -> dict[str, Any]:
         **{f"eq_{k}": v for k, v in eq.items()},
         **{f"cf_{k}": v for k, v in cf.items()},
         "cf_assessment_threshold_percent": cf_threshold_percent,
+        "cf_track_condition": cf_track_condition,
+        "cf_is_straight": cf_is_straight,
         "cf_include_in_fea": cf_include_in_fea,
         "cf_assessment": cf_assessment,
         "cf_assessment_note": cf_assessment_note,
@@ -1552,30 +1564,36 @@ def page_loads(sub: str) -> None:
         code_basis_card(
             "3.6 Centrifugal Force (CF)",
             "EN 1991-2 Art. 6.5.1",
-            "Code-assisted CF input assistant. User enters project-specific speed/radius/loaded length; the app calculates f, C, assessment status, and the FEA adoption trace from one source.",
+            "Code-assisted CF input assistant. Straight track is treated as zero CF; finite-radius cases calculate f, C, assessment status, and FEA adoption trace from one source.",
         )
-        st.markdown('<div class="note-box"><b>CF one-source rule:</b> CF inputs below feed the calculation trace, result cards, FEA adoption status, FEA Summary, Save/Load JSON, and future report export. V is in km/h, R is in m, and C is dimensionless.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="note-box"><b>CF one-source rule:</b> CF inputs below feed the calculation trace, result cards, FEA adoption status, FEA Summary, Save/Load JSON, and future report export. V is in km/h, R is in m, and C is dimensionless. For <b>Straight track</b>, R = ∞ and CF = 0.</div>', unsafe_allow_html=True)
 
         rail = D["rail_loads"]
         span = float(D["project"].get("span_m", 40.0))
-        condition_options = ["Straight / very large radius", "Curved track"]
+        condition_options = ["Straight track", "Large-radius curve / near-straight", "Curved track"]
+        if rail.get("cf_track_condition") == "Straight / very large radius":
+            rail["cf_track_condition"] = "Large-radius curve / near-straight"
         if rail.get("cf_track_condition") not in condition_options:
-            rail["cf_track_condition"] = "Straight / very large radius"
+            rail["cf_track_condition"] = "Large-radius curve / near-straight"
         c1, c2 = st.columns([1, 1])
         with c1:
             rail["cf_track_condition"] = st.selectbox(
                 "Track curvature condition",
                 condition_options,
-                index=condition_options.index(str(rail.get("cf_track_condition", "Straight / very large radius"))),
+                index=condition_options.index(str(rail.get("cf_track_condition", "Large-radius curve / near-straight"))),
                 key="cf_track_condition_selector",
-                help="Use Curved track when horizontal curvature should generate centrifugal action. Use Straight / very large radius when CF is reported only for traceability.",
+                help="Straight track sets R = infinity and CF = 0. Large-radius/curved track keeps the finite-radius EN calculation.",
             )
+        cf_is_straight_ui = str(rail.get("cf_track_condition")) == "Straight track"
+        if cf_is_straight_ui:
+            rail["cf_include_in_fea"] = False
         with c2:
             rail["cf_include_in_fea"] = st.checkbox(
                 "Include CF in FEA adoption summary",
-                value=bool(rail.get("cf_include_in_fea", False)),
+                value=False if cf_is_straight_ui else bool(rail.get("cf_include_in_fea", False)),
                 key="cf_include_in_fea_checkbox",
-                help="When unchecked, CF remains a report/check factor and is not adopted as a separate FEA horizontal action.",
+                help="Disabled for straight track because centrifugal force is zero when R = infinity.",
+                disabled=cf_is_straight_ui,
             )
 
         st.markdown("#### Project-specific CF inputs")
@@ -1583,7 +1601,11 @@ def page_loads(sub: str) -> None:
         with c1:
             editable_value(["rail_loads", "speed_kmh"], "Design speed V (km/h)", 10.0)
         with c2:
-            editable_value(["rail_loads", "radius_m"], "Curve radius R (m)", 100.0)
+            if cf_is_straight_ui:
+                st.text_input("Curve radius R (m)", value="∞  (straight track)", disabled=True)
+                st.caption("Straight track: R = ∞, so centrifugal force is zero.")
+            else:
+                editable_value(["rail_loads", "radius_m"], "Curve radius R (m)", 100.0)
         with c3:
             editable_value(["rail_loads", "Lf_m"], "Loaded length Lf (m)", 1.0)
         with c4:
@@ -1597,35 +1619,48 @@ def page_loads(sub: str) -> None:
         st.markdown("#### Result summary")
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            card("Reduction factor f", f"{ld['cf_f']:.4f}", "EN reduction factor")
+            card("Reduction factor f", "N/A" if ld["cf_is_straight"] else f"{ld['cf_f']:.4f}", "zero CF for straight track" if ld["cf_is_straight"] else "EN reduction factor")
         with c2:
-            card("CF factor C", f"{ld['cf_C_reduced']:.5f}", "dimensionless")
+            card("CF factor C", f"{ld['cf_C_reduced']:.5f}", "R = ∞" if ld["cf_is_straight"] else "dimensionless")
         with c3:
-            card("CF / LL", f"{ld['cf_C_percent']:.2f}%", "excluding impact")
+            card("CF / LL", f"{ld['cf_C_percent']:.2f}%", "straight track" if ld["cf_is_straight"] else "excluding impact")
         with c4:
-            card("Assessment", str(ld["cf_assessment"]), str(ld["cf_assessment_note"]), "pass" if (not ld["cf_include_in_fea"] or ld["cf_C_percent"] <= threshold) else "warn")
+            card("Assessment", str(ld["cf_assessment"]), str(ld["cf_assessment_note"]), "pass" if (ld["cf_is_straight"] or not ld["cf_include_in_fea"] or ld["cf_C_percent"] <= threshold) else "warn")
 
         st.markdown("#### Calculation trace")
-        st.latex(r"C=\frac{V^2f}{127R}")
-        st.latex(r"f=1-\left(\frac{V-120}{1000}\right)\left(\frac{814}{V}+1.75\right)\left(1-\sqrt{\frac{2.88}{L_f}}\right)\quad (f\ge 0.35)")
-        st.latex(fr"f={ld['cf_f']:.4f},\qquad C=\frac{{{D['rail_loads']['speed_kmh']:.0f}^2({ld['cf_f']:.2f})}}{{127({D['rail_loads']['radius_m']:.0f})}}={ld['cf_C_reduced']:.5f}")
-        st.markdown('<div class="note-box"><b>Unit trace:</b> use V in km/h, R in m, and Lf in m for the EN centrifugal expression above. The resulting C is a dimensionless fraction of the vertical live load and excludes impact unless an adopted project rule states otherwise.</div>', unsafe_allow_html=True)
+        if ld["cf_is_straight"]:
+            st.latex(r"R = \infty \quad \Rightarrow \quad C=\frac{V^2 f}{127R}=0")
+            st.latex(r"CF = 0.00\%\;\text{of vertical live load}")
+            st.markdown('<div class="note-box"><b>Straight-track logic:</b> no finite-radius centrifugal action is generated. The app therefore sets C = 0 and prevents FEA adoption for CF.</div>', unsafe_allow_html=True)
+        else:
+            st.latex(r"C=\frac{V^2f}{127R}")
+            st.latex(r"f=1-\left(\frac{V-120}{1000}\right)\left(\frac{814}{V}+1.75\right)\left(1-\sqrt{\frac{2.88}{L_f}}\right)\quad (f\ge 0.35)")
+            st.latex(fr"f={ld['cf_f']:.4f},\qquad C=\frac{{{D['rail_loads']['speed_kmh']:.0f}^2({ld['cf_f']:.2f})}}{{127({D['rail_loads']['radius_m']:.0f})}}={ld['cf_C_reduced']:.5f}")
+            st.markdown('<div class="note-box"><b>Unit trace:</b> use V in km/h, R in m, and Lf in m for the EN centrifugal expression above. The resulting C is a dimensionless fraction of the vertical live load and excludes impact unless an adopted project rule states otherwise.</div>', unsafe_allow_html=True)
 
         st.markdown("#### FEA adoption")
-        adoption_mode = "Adopted as horizontal radial/transverse action factor" if bool(rail.get("cf_include_in_fea", False)) else "Factor only — not adopted as FEA load"
+        if ld["cf_is_straight"]:
+            adoption_mode = "Zero for straight track — not adopted as FEA load"
+        else:
+            adoption_mode = "Adopted as horizontal radial/transverse action factor" if bool(rail.get("cf_include_in_fea", False)) else "Factor only — not adopted as FEA load"
         rail["cf_adoption_mode"] = adoption_mode
+        direction_value = "Not applicable for straight track" if ld["cf_is_straight"] else str(rail.get("cf_direction", "Radial / transverse to track"))
+        direction_trace = "No radial direction because R = infinity" if ld["cf_is_straight"] else "Horizontal radial action normal to curved track"
         adoption_rows = [
-            ["Track condition", str(rail.get("cf_track_condition", "-")), "User selection / project assumption"],
-            ["Direction", str(rail.get("cf_direction", "Radial / transverse to track")), "Horizontal radial action normal to curved track"],
-            ["Application level", str(rail.get("cf_application_level", "Rail level")), "Typical FEA application reference unless project-specific model states otherwise"],
-            ["Adopted CF factor", f"{ld['cf_C_reduced']:.5f} = {ld['cf_C_percent']:.2f}% of LL", "Multiply by vertical train live-load effect"],
+            ["Track condition", str(ld.get("cf_track_condition", rail.get("cf_track_condition", "-"))), "User selection / project assumption"],
+            ["Direction", direction_value, direction_trace],
+            ["Application level", "Not applicable" if ld["cf_is_straight"] else str(rail.get("cf_application_level", "Rail level")), "No CF load for straight track" if ld["cf_is_straight"] else "Typical FEA application reference unless project-specific model states otherwise"],
+            ["Adopted CF factor", f"{ld['cf_C_reduced']:.5f} = {ld['cf_C_percent']:.2f}% of LL", "Zero for straight track" if ld["cf_is_straight"] else "Multiply by vertical train live-load effect"],
             ["FEA adoption", adoption_mode, "Explicit user-controlled adoption status"],
         ]
         show_engineering_table(pd.DataFrame(adoption_rows, columns=["Item", "Value", "Trace"]), hide_index=True)
-        if bool(rail.get("cf_include_in_fea", False)):
+        if ld["cf_is_straight"]:
+            st.markdown('<div class="note-box"><b>Straight-track status:</b> CF is zero because R = ∞. The app does not adopt a separate CF horizontal FEA load.</div>', unsafe_allow_html=True)
+        elif bool(rail.get("cf_include_in_fea", False)):
             st.markdown('<div class="warn-box"><b>FEA adoption note:</b> CF is adopted as a factor to be applied to the selected vertical railway live-load model. A numeric kN/m or point-load CF action requires the governing vertical live-load distribution from the FEA load model.</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="note-box"><b>Factor-only status:</b> CF is calculated and reported for traceability, but no separate CF horizontal FEA load is adopted from this page.</div>', unsafe_allow_html=True)
+
 
     if selected_load_subpage == "3.7 Wind":
         code_basis_card(

@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.48-commercial-loads28-cf-code-assisted-fea-adoption"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.49-commercial-loads29-cf-straight-track-zero"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -508,7 +508,7 @@ def test_code1_aashto_2020_section5_unit_safe_basis_ui_is_present():
 def test_loads23_en_factors_no_duplicate_report_images():
     src = _src()
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "COMMERCIAL.LOADS.28" in readme
+    assert "COMMERCIAL.LOADS.29" in readme
     assert "wind_group_map_figure_card" in src
     assert "clean color reference map" in src
     assert "fig_ze_bridge_reference.svg" in src
@@ -526,12 +526,16 @@ def test_loads23_en_factors_no_duplicate_report_images():
     assert 'show_report_image("fig_ws_factor_table_and_ze.png"' not in src
 
 
-def test_loads28_cf_code_assisted_fea_adoption_panel():
+def test_loads29_cf_straight_track_zero_force_logic():
     src = _src()
     readme = README_SOURCE.read_text(encoding="utf-8")
-    assert "COMMERCIAL.LOADS.28" in readme
+    assert "COMMERCIAL.LOADS.29" in readme
     assert "CF one-source rule" in src
     assert "Track curvature condition" in src
+    assert "Straight track" in src
+    assert "Large-radius curve / near-straight" in src
+    assert "R = ∞" in src
+    assert "Zero for straight track" in src
     assert "Include CF in FEA adoption summary" in src
     assert "Assessment threshold (% LL)" in src
     assert "Reduction factor f" in src
