@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.59-commercial-loads39-fea-load-summary-legend-checklist"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.60-commercial-loads40-loads-closeout-reportqa-handoff"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -683,3 +683,20 @@ def test_loads39_fea_load_input_summary_legend_and_checklist():
     assert "Document overrides" in src
     assert "page-break-inside:avoid" in src
     assert "does not create new load inputs" in src
+
+
+
+def test_loads40_loads_closeout_and_reportqa_handoff():
+    src = _src()
+    validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.40" in readme
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.60-commercial-loads40-loads-closeout-reportqa-handoff"' in validation_src
+    assert "render_loads_workspace_closeout_panel" in src
+    assert "Loads workspace closeout and Report / QA handoff" in src
+    assert "Closed for load-source scope" in src
+    assert "render_report_qa_loads_handoff_snapshot" in src
+    assert "3 Loads — Report / QA handoff" in src
+    assert "Report / QA now consumes the Loads closeout rows" in src
+    assert "does not rerun load calculations" in src
+    assert "Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, and EQ was not changed" in src

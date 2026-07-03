@@ -121,3 +121,5 @@ Current milestone focus:
 
 
 - COMMERCIAL.LOADS.39: Added a FEA handoff status legend, transfer-control checklist, and print-safe handoff styling for 3.10 FEA Load Input Summary without changing load formulas.
+
+- COMMERCIAL.LOADS.40: Closed the Loads workspace for the current load-source scope by adding a Loads closeout and Report/QA handoff panel to 3.10 FEA Load Input Summary, surfacing the same read-only Loads handoff snapshot in Report / QA, and preserving all load formulas.

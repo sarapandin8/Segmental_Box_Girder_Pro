@@ -313,6 +313,25 @@ hr {margin: 1rem 0;}
 @media (max-width: 640px) {.fea-legend-grid,.fea-checklist-grid {grid-template-columns:1fr;}}
 @media print {.fea-handoff-table,.fea-legend-panel,.fea-checklist-grid,.note-box {page-break-inside:avoid; break-inside:avoid;} .fea-handoff-table td {font-size:0.72rem;} .fea-handoff-table th {font-size:0.66rem;}}
 
+.loads-closeout-panel {border:1px solid #d5e6ff; border-radius:16px; background:linear-gradient(135deg,#ffffff 0%,#f8fbff 100%); padding:14px 16px; margin:14px 0 16px 0; box-shadow:0 8px 22px rgba(15,23,42,0.045);}
+.loads-closeout-title {font-size:0.78rem; letter-spacing:0.10em; text-transform:uppercase; color:#092454; font-weight:950; margin-bottom:10px;}
+.loads-closeout-grid {display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px;}
+.loads-closeout-card {border:1px solid #d5e6ff; border-radius:14px; background:#ffffff; padding:12px 13px; min-height:96px;}
+.loads-closeout-card.pass {background:#f0fff4; border-color:#b8edd0;}
+.loads-closeout-card.warn {background:#fff7ed; border-color:#fed7aa;}
+.loads-closeout-kicker {font-size:0.69rem; letter-spacing:0.11em; text-transform:uppercase; color:#667085; font-weight:950;}
+.loads-closeout-value {font-size:1.02rem; color:#092454; font-weight:950; margin-top:5px; line-height:1.18;}
+.loads-closeout-note {font-size:0.78rem; color:#475467; margin-top:6px; line-height:1.26;}
+.loads-qa-table {width:100%; border-collapse:separate; border-spacing:0; border:1px solid #d5e6ff; border-radius:14px; overflow:hidden; background:#ffffff; margin:10px 0 14px 0; box-shadow:0 6px 18px rgba(15,23,42,0.035);}
+.loads-qa-table th {background:#f3f8ff; color:#092454; text-align:left; font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; padding:9px 10px; border-bottom:1px solid #d5e6ff;}
+.loads-qa-table td {vertical-align:top; padding:10px 10px; border-bottom:1px solid #eef4ff; color:#173455; font-size:0.82rem; line-height:1.28;}
+.loads-qa-table tr:last-child td {border-bottom:0;}
+.loads-qa-status {display:inline-block; border-radius:999px; padding:3px 8px; font-size:0.70rem; font-weight:900; border:1px solid #a7e6bc; background:#dffbe8; color:#126b37; white-space:nowrap;}
+.loads-qa-status.review {border-color:#fed7aa; background:#fff7ed; color:#b54708;}
+@media (max-width: 1100px) {.loads-closeout-grid {grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width: 640px) {.loads-closeout-grid {grid-template-columns:1fr;}}
+@media print {.loads-closeout-panel,.loads-qa-table {page-break-inside:avoid; break-inside:avoid;} .loads-qa-table td {font-size:0.72rem;} .loads-qa-table th {font-size:0.66rem;}}
+
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -535,6 +554,128 @@ def render_fea_load_input_review_checklist() -> None:
         )
     html.append("</div>")
     st.markdown("".join(html), unsafe_allow_html=True)
+
+
+
+def _loads_closeout_rows() -> list[dict[str, str]]:
+    """Return the Loads workspace closeout status rows for 3.10 and Report / QA."""
+    ld = load_derived()
+    cf_status = str(ld.get("cf_fea_adoption_status", "Factor-only / not adopted in FEA"))
+    cf_handoff = "FEA adopted" if "adopted" in cf_status.lower() and "not" not in cf_status.lower() else "Trace only"
+    return [
+        {
+            "page": "3.1 DL",
+            "closeout": "Closed",
+            "handoff": "FEA-owned self-weight",
+            "report_qa": "Document material density and confirm no duplicate DL load pattern.",
+        },
+        {
+            "page": "3.2 SDL",
+            "closeout": "Closed",
+            "handoff": f"Adopted SDL = {float(ld['sdl_selected_adopted_kn_m']):.2f} kN/m",
+            "report_qa": "Map as permanent line load and retain component-table trace.",
+        },
+        {
+            "page": "3.3 LL + IM",
+            "closeout": "Closed",
+            "handoff": "Traffic model basis",
+            "report_qa": "Confirm U20 loading and dynamic factor are matched in the FEA moving-load model.",
+        },
+        {
+            "page": "3.4 LF / 3.5 HF",
+            "closeout": "Closed",
+            "handoff": f"LF = {float(ld['LF_design_kn']):.0f} kN; HF = {float(ld['hf_HF_adopted_kn']):.0f} kN",
+            "report_qa": "Map longitudinal and transverse rail actions with correct rail-level directions.",
+        },
+        {
+            "page": "3.6 CF",
+            "closeout": "Closed",
+            "handoff": f"{cf_handoff} · {float(ld['cf_C_percent']):.2f}% LL",
+            "report_qa": "Keep CF adoption separate from engineering assessment and combination logic.",
+        },
+        {
+            "page": "3.7 Wind",
+            "closeout": "Closed",
+            "handoff": f"WS = {float(ld['WSsuper_kn_m']):.2f} kN/m; WS+WL = {float(ld['WSsuper_WL_kn_m']):.2f} kN/m",
+            "report_qa": "Use WS and WS+WL as separate alternatives/envelopes; do not automatically stack them.",
+        },
+        {
+            "page": "3.8 CR&SH",
+            "closeout": "Closed",
+            "handoff": "Parameter handoff",
+            "report_qa": "Consumed by Prestress Losses / staged FEA; not a direct load pattern.",
+        },
+        {
+            "page": "3.9 EQ",
+            "closeout": "Closed",
+            "handoff": f"Cs = {float(ld['eq_Cs']):.4f} coefficient trace",
+            "report_qa": "Numeric EQ force remains EQX/EQY = Cs × W using FEA-owned seismic mass W.",
+        },
+        {
+            "page": "3.10 FEA Load Input Summary",
+            "closeout": "Handoff ready",
+            "handoff": "Single FEA load input register",
+            "report_qa": "This table is the Loads workspace source passed to Report / QA; no new input source is created.",
+        },
+    ]
+
+
+def render_loads_closeout_table(rows: list[dict[str, str]]) -> None:
+    """Render a compact closeout table with clear report/QA handoff wording."""
+    html = [
+        "<table class='loads-qa-table'>",
+        "<thead><tr><th>Loads page</th><th>Closeout status</th><th>Report / QA handoff</th><th>Required report / FEA guard</th></tr></thead><tbody>",
+    ]
+    for row in rows:
+        page = escape(str(row.get("page", "-")))
+        closeout = escape(str(row.get("closeout", "REVIEW")))
+        status_cls = "" if closeout.lower() in {"closed", "handoff ready"} else " review"
+        handoff = escape(str(row.get("handoff", "-")))
+        report_qa = escape(str(row.get("report_qa", "-")))
+        html.append(
+            f"<tr><td><b>{page}</b></td><td><span class='loads-qa-status{status_cls}'>{closeout}</span></td><td>{handoff}</td><td>{report_qa}</td></tr>"
+        )
+    html.append("</tbody></table>")
+    st.markdown("".join(html), unsafe_allow_html=True)
+
+
+def render_loads_workspace_closeout_panel() -> None:
+    """Render the Loads closeout / Report-QA handoff block."""
+    html = [
+        "<div class='loads-closeout-panel'>",
+        "<div class='loads-closeout-title'>Loads workspace closeout and Report / QA handoff</div>",
+        "<div class='loads-closeout-grid'>",
+        "<div class='loads-closeout-card pass'><div class='loads-closeout-kicker'>Loads status</div><div class='loads-closeout-value'>Closed for load-source scope</div><div class='loads-closeout-note'>3.1–3.9 feed the single 3.10 FEA load input register.</div></div>",
+        "<div class='loads-closeout-card pass'><div class='loads-closeout-kicker'>Report / QA handoff</div><div class='loads-closeout-value'>Ready</div><div class='loads-closeout-note'>Report / QA now consumes the Loads closeout rows and FEA handoff table.</div></div>",
+        "<div class='loads-closeout-card warn'><div class='loads-closeout-kicker'>FEA ownership guard</div><div class='loads-closeout-value'>No duplicate W / DL</div><div class='loads-closeout-note'>DL and seismic weight remain owned by the external FEA model.</div></div>",
+        "<div class='loads-closeout-card'><div class='loads-closeout-kicker'>Next workflow owner</div><div class='loads-closeout-value'>Report / QA + downstream modules</div><div class='loads-closeout-note'>CR&SH goes to Prestress Losses; load patterns go to FEA mapping.</div></div>",
+        "</div></div>",
+    ]
+    st.markdown("".join(html), unsafe_allow_html=True)
+    render_loads_closeout_table(_loads_closeout_rows())
+    st.markdown(
+        '<div class="note-box"><b>Closeout rule:</b> 3 Loads is closed for the current report-driven load-source scope. Future edits should be separate milestones and must not create second inputs for values already owned by the load schema, FEA model, or downstream Prestress Losses workflow.</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_report_qa_loads_handoff_snapshot() -> None:
+    """Show the Loads closeout package inside Report / QA."""
+    section_title("3 Loads — Report / QA handoff")
+    st.markdown(
+        '<div class="note-box"><b>Read-only handoff:</b> Report / QA reads the Loads workspace closeout rows and FEA Load Input Summary. It does not rerun load calculations and does not create load inputs.</div>',
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        card("LOADS CLOSEOUT", "CLOSED", "3.1–3.9 consolidated in 3.10", "pass")
+    with c2:
+        card("FEA INPUT REGISTER", "HANDOFF READY", "Single report-controlled mapping table", "pass")
+    with c3:
+        card("EQ POLICY", "COEFFICIENT TRACE", "EQ force generated by FEA-owned W", "warn")
+    with c4:
+        card("CR&SH", "DOWNSTREAM", "Consumed by Prestress Losses / staged FEA", "neutral")
+    render_loads_closeout_table(_loads_closeout_rows())
 
 
 def show_report_image(filename: str, caption: str, *, use_column_width: bool = True) -> None:
@@ -2773,8 +2914,9 @@ def page_loads(sub: str) -> None:
         render_fea_handoff_status_legend()
         st.markdown("### FEA input review checklist")
         render_fea_load_input_review_checklist()
+        render_loads_workspace_closeout_panel()
         st.markdown(
-            '<div class="note-box"><b>Report/export rule:</b> this FEA Load Input Summary reads from the same load schema edited in 3.1–3.9. Values shown as coefficients or parameters must remain coefficients/parameters unless the external FEA model supplies the missing source, such as seismic weight W. The checklist above is a transfer-control aid and does not create new load inputs.</div>',
+            '<div class="note-box"><b>Report/export rule:</b> this FEA Load Input Summary reads from the same load schema edited in 3.1–3.9. Values shown as coefficients or parameters must remain coefficients/parameters unless the external FEA model supplies the missing source, such as seismic weight W. The checklist and closeout panel above are transfer-control aids and do not create new load inputs; this page does not create new load inputs.</div>',
             unsafe_allow_html=True,
         )
         with st.expander("FEA handoff notes / source guard", expanded=False):
@@ -4676,9 +4818,11 @@ def page_report_qa(sub: str) -> None:
             ws = get_workspace(label)
             rows.append([label, ws["title"], ", ".join(ws["subpages"][:-1])])
         st.dataframe(pd.DataFrame(rows, columns=["App workspace", "Report title", "Report subsections"]), use_container_width=True, hide_index=True)
+        render_report_qa_loads_handoff_snapshot()
     else:
+        ld = load_derived()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial M2.2 Summary
+# Segmental Box Girder Pro — Commercial LOADS.40 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -4698,11 +4842,20 @@ def page_report_qa(sub: str) -> None:
 - Warnings: {counts['WARNING']}
 - Information items: {counts['INFO']}
 
-## M2 Notes
-- UI uses report-driven workspaces 1–9 without displaying the word Chapter in the sidebar; Loads are separated as a dedicated workspace and Geometry/Section Properties are combined.
-- Status wording distinguishes R10 baseline values from checks calculated by the active app engine.
-- FEA data is clearly labeled as a baseline summary until full station-by-station import is implemented.
-- Existing M1 engineering kernels are preserved for prestress losses and AASHTO LRFD 2020 Section 5 shear/torsion checks.
+## Loads Workspace Closeout
+- 3 Loads status = Closed for current load-source scope.
+- 3.10 FEA Load Input Summary = single handoff register for FEA load mapping and Report / QA.
+- SDL adopted value = {ld['sdl_selected_adopted_kn_m']:.2f} kN/m.
+- LF / HF = {ld['LF_design_kn']:.0f} kN / {ld['hf_HF_adopted_kn']:.0f} kN.
+- Wind WS / WS+WL = {ld['WSsuper_kn_m']:.2f} / {ld['WSsuper_WL_kn_m']:.2f} kN/m.
+- EQ coefficient trace: Cs = {ld['eq_Cs']:.4f}; numeric EQ force remains EQX/EQY = Cs × W in the external FEA model.
+- CR&SH remains a downstream parameter handoff to Prestress Losses / staged FEA, not a direct load pattern.
+
+## LOADS.40 Notes
+- Report / QA now displays the Loads closeout and FEA handoff snapshot in Report Preview.
+- The Loads closeout panel is read-only and does not create duplicate inputs.
+- Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, and EQ was not changed.
+- Existing M1/M3 engineering kernels are preserved for prestress losses and AASHTO LRFD 2020 Section 5 shear/torsion checks.
 """
         st.markdown(report_md)
         st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_m2_summary.md", "text/markdown", use_container_width=True)
