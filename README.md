@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.31
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.32
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -38,6 +38,7 @@ This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.LOADS.29
 - COMMERCIAL.LOADS.30
 - COMMERCIAL.LOADS.31
+- COMMERCIAL.LOADS.32
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -96,3 +97,5 @@ Current milestone focus:
 - Simplify CF alignment UI to two meaningful modes: Straight track / no horizontal curve and Curved track / finite radius, migrating old large-radius values into the finite-radius curved-track calculation.
 
 - Split CF engineering assessment from FEA adoption status so threshold compliance remains visible even when CF is reported as factor-only/not adopted.
+
+- COMMERCIAL.LOADS.32: Polished straight-track CF mode by hiding finite-radius inputs, threshold, FEA adoption checkbox, and Adopt span as Lf controls when straight track is selected; result cards and zero-force FEA trace remain visible.

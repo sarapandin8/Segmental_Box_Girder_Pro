@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.51-commercial-loads31-cf-assessment-adoption-split"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.52-commercial-loads32-cf-straight-input-polish"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -558,3 +558,13 @@ def test_loads31_cf_assessment_adoption_status_split():
     assert "Factor-only / not adopted in FEA" in src
     assert "Adopted in FEA summary" in src
     assert "cf_fea_adoption_mode" in src
+
+def test_loads32_cf_straight_mode_hides_irrelevant_inputs():
+    src = _src()
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.32" in readme
+    assert "Straight-track input mode" in src
+    assert "No finite-radius CF inputs are active" in src
+    assert "design speed V, curve radius R, loaded length Lf, assessment threshold, and Adopt span as Lf are hidden" in src
+    assert "finite-radius CF inputs are not required" in src
+    assert "Use only when the project explicitly adopts the finite-radius centrifugal action" in src

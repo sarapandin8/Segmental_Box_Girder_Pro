@@ -1610,32 +1610,34 @@ def page_loads(sub: str) -> None:
         cf_is_straight_ui = str(rail.get("cf_track_condition")) == "Straight track / no horizontal curve"
         if cf_is_straight_ui:
             rail["cf_include_in_fea"] = False
-        with c2:
-            rail["cf_include_in_fea"] = st.checkbox(
-                "Include CF in FEA adoption summary",
-                value=False if cf_is_straight_ui else bool(rail.get("cf_include_in_fea", False)),
-                key="cf_include_in_fea_checkbox",
-                help="Disabled for straight track because centrifugal force is zero when R = infinity.",
-                disabled=cf_is_straight_ui,
-            )
+            with c2:
+                st.markdown('<div class="note-box"><b>Straight-track input mode:</b> finite-radius CF inputs are not required. The app sets R = ∞, C = 0, and disables CF FEA adoption.</div>', unsafe_allow_html=True)
+        else:
+            with c2:
+                rail["cf_include_in_fea"] = st.checkbox(
+                    "Include CF in FEA adoption summary",
+                    value=bool(rail.get("cf_include_in_fea", False)),
+                    key="cf_include_in_fea_checkbox",
+                    help="Use only when the project explicitly adopts the finite-radius centrifugal action into the FEA load summary.",
+                )
 
-        st.markdown("#### Project-specific CF inputs")
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            editable_value(["rail_loads", "speed_kmh"], "Design speed V (km/h)", 10.0)
-        with c2:
-            if cf_is_straight_ui:
-                st.text_input("Curve radius R (m)", value="∞  (straight track)", disabled=True)
-                st.caption("Straight track / no horizontal curve: R = ∞, so centrifugal force is zero.")
-            else:
+        if cf_is_straight_ui:
+            st.markdown("#### Straight-track CF input status")
+            st.markdown('<div class="note-box"><b>No finite-radius CF inputs are active:</b> design speed V, curve radius R, loaded length Lf, assessment threshold, and Adopt span as Lf are hidden because CF = 0 for straight track.</div>', unsafe_allow_html=True)
+        else:
+            st.markdown("#### Project-specific CF inputs")
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                editable_value(["rail_loads", "speed_kmh"], "Design speed V (km/h)", 10.0)
+            with c2:
                 editable_value(["rail_loads", "radius_m"], "Curve radius R (m)", 100.0)
-        with c3:
-            editable_value(["rail_loads", "Lf_m"], "Loaded length Lf (m)", 1.0)
-        with c4:
-            editable_value(["rail_loads", "cf_assessment_threshold_percent"], "Assessment threshold (% LL)", 0.25, "%.2f")
-            if st.button("Adopt span as Lf", key="cf_adopt_span_lf"):
-                rail["Lf_m"] = span
-                st.rerun()
+            with c3:
+                editable_value(["rail_loads", "Lf_m"], "Loaded length Lf (m)", 1.0)
+            with c4:
+                editable_value(["rail_loads", "cf_assessment_threshold_percent"], "Assessment threshold (% LL)", 0.25, "%.2f")
+                if st.button("Adopt span as Lf", key="cf_adopt_span_lf"):
+                    rail["Lf_m"] = span
+                    st.rerun()
 
         ld = load_derived()
         threshold = float(ld["cf_assessment_threshold_percent"])
