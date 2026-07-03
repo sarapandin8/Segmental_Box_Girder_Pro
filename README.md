@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.26
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.27
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -33,6 +33,7 @@ This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.LOADS.24
 - COMMERCIAL.LOADS.25
 - COMMERCIAL.LOADS.26
+- COMMERCIAL.LOADS.27
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -81,3 +82,5 @@ Current milestone focus:
 - Replace the WS/WL wind application model card image with the user-provided refined bridge/train figure and enlarge the display height for better readability.
 
 - Replace the bridge wind-direction reference card image with the user-provided refined EN Figure 8.2 style sketch and enlarge the display height for readability.
+
+- Clarify the WS/WL wind application figure note so V is explicitly identified as an associated vertical reference effect, not wind velocity.

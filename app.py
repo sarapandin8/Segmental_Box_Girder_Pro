@@ -1737,7 +1737,7 @@ def page_loads(sub: str) -> None:
                     "fig_ws_bridge_cross_section_load.png",
                     "WS / WL wind application model",
                     "User-provided refined WS/WL wind application sketch",
-                    "Shows wind on superstructure (WS), train envelope wind (WL), D, D/4, and the associated reference V effect.",
+                    "Shows wind on superstructure (WS), train envelope wind (WL), D, D/4, and the associated vertical reference effect V. Note: V in this sketch is not wind velocity; wind velocity is handled by V50, vb,0, and vb in the calculation table.",
                     max_height_px=360,
                 )
             ze_bridge_reference_card(
