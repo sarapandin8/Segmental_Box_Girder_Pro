@@ -126,3 +126,5 @@ Current milestone focus:
 
 
 - COMMERCIAL.PSLOSS.1: Added a source-gated Prestress Losses input handoff that reads locked adopted tendon data, adopted section properties, CR&SH parameters, and span/stage basis before detailed loss calculation; clarified that jacking force is tendon axial force and must not be doubled for two-end stressing.
+
+- COMMERCIAL.PSLOSS.2: Added a tendon-adoption action panel, blocked prestress-input checklist, and explicit JackFrom / stressing-basis gate so future friction and anchor-set losses can distinguish one-end, two-end, mixed, or missing stressing traces without doubling total jacking force.

@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.61-commercial-psloss1-source-gate-handoff"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.62-commercial-psloss2-stressing-basis-gate"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -691,7 +691,7 @@ def test_loads40_loads_closeout_and_reportqa_handoff():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.LOADS.40" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.61-commercial-psloss1-source-gate-handoff"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.62-commercial-psloss2-stressing-basis-gate"' in validation_src
     assert "render_loads_workspace_closeout_panel" in src
     assert "Loads workspace closeout and Report / QA handoff" in src
     assert "Closed for load-source scope" in src
@@ -709,7 +709,7 @@ def test_psloss1_source_gate_and_jacking_force_guard():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.61-commercial-psloss1-source-gate-handoff"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.62-commercial-psloss2-stressing-basis-gate"' in validation_src
     assert "render_prestress_losses_source_gate_panel" in src
     assert "Prestress Losses Source Gate" in src
     assert "SOURCE BLOCKED" in src
@@ -721,3 +721,23 @@ def test_psloss1_source_gate_and_jacking_force_guard():
     assert "render_report_qa_prestress_losses_handoff_snapshot" in src
     assert "jacking_operation_basis" in defaults
     assert "jacking_force_interpretation" in defaults
+
+
+def test_psloss2_stressing_basis_gate_and_tendon_action():
+    src = _src()
+    defaults = (APP_SOURCE.resolve().parents[0] / "core" / "bg40_defaults.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.PSLOSS.2" in readme
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.62-commercial-psloss2-stressing-basis-gate"' in validation_src
+    assert "_psloss_stressing_basis_state" in src
+    assert "STRESSING BASIS" in src
+    assert "Tendon adoption action required" in src
+    assert "Tendon adoption and blocked-input checklist" in src
+    assert "Stressing basis / JackFrom gate" in src
+    assert "One-end stressing" in src
+    assert "Two-end stressing" in src
+    assert "Mixed one-end stressing by tendon" in src
+    assert "do not double Aps,total" in src or "must not double Aps,total" in src
+    assert "stressing_basis_gate_status" in defaults
+    assert "stressing_mode_basis" in defaults

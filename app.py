@@ -3764,12 +3764,109 @@ def _active_adopted_tendon_model() -> dict[str, Any]:
 
 
 
+def _normalise_jack_from(value: Any) -> str:
+    """Return a compact JackFrom label from CSiBridge / project text."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    key = raw.lower().replace("_", " ").replace("-", " ")
+    if any(token in key for token in ("both", "two end", "two ends", "both ends")):
+        return "Both ends"
+    if key.startswith("start") or key in {"s", "left", "begin", "beginning"}:
+        return "Start"
+    if key.startswith("end") or key in {"e", "right"}:
+        return "End"
+    return raw
+
+
+def _psloss_stressing_basis_state(adopted_model: dict[str, Any], tendon_locked: bool) -> dict[str, Any]:
+    """Evaluate the JackFrom / stressing-end source gate for future loss formulas.
+
+    The gate deliberately separates tendon axial force from stressing operation.
+    Two-end stressing changes friction and anchor-set distribution, but it never
+    doubles Aps,total or total axial jacking force.
+    """
+    ps = D.setdefault("prestress", {})
+    tendons = adopted_model.get("tendons", []) if isinstance(adopted_model, dict) else []
+    jack_values = [_normalise_jack_from(t.get("jack_from")) for t in tendons if isinstance(t, dict)]
+    jack_values = [v for v in jack_values if v]
+    unique = sorted(set(jack_values), key=lambda v: {"Start": 0, "End": 1, "Both ends": 2}.get(v, 9))
+    jack_display = ", ".join(unique) if unique else "-"
+
+    if not tendon_locked:
+        status = "BLOCKED"
+        mode = "warn"
+        stressing_mode = "Blocked until tendon model is adopted"
+        friction_basis = "No adopted tendon profile / JackFrom source"
+        anchor_basis = "No adopted stressing-end source"
+        ready = False
+        message = "Adopt the tendon model before checking one-end/two-end stressing basis."
+    elif not unique:
+        status = "MISSING"
+        mode = "warn"
+        stressing_mode = "JackFrom not found in adopted tendon snapshot"
+        friction_basis = "Cannot route friction loss until JackFrom is known"
+        anchor_basis = "Cannot route anchor-set distribution until JackFrom is known"
+        ready = False
+        message = "Adopted tendon source exists but JackFrom / stressing-end metadata is missing."
+    elif unique == ["Both ends"]:
+        status = "READY"
+        mode = "pass"
+        stressing_mode = "Two-end stressing"
+        friction_basis = "Future friction solver must split tendon path from both ends"
+        anchor_basis = "Anchor-set distribution applies from both stressing ends"
+        ready = True
+        message = "Two-end stressing is explicit; use it for loss distribution only, not total force doubling."
+    elif len(unique) == 1 and unique[0] in {"Start", "End"}:
+        status = "READY"
+        mode = "pass"
+        stressing_mode = f"One-end stressing from {unique[0]}"
+        friction_basis = f"Future friction solver starts from {unique[0]} end for each tendon"
+        anchor_basis = f"Anchor-set effect starts from {unique[0]} end"
+        ready = True
+        message = "One-end stressing basis is explicit."
+    elif set(unique).issubset({"Start", "End"}):
+        status = "REVIEW"
+        mode = "warn"
+        stressing_mode = "Mixed one-end stressing by tendon"
+        friction_basis = "Use each tendon row JackFrom; do not average ends globally"
+        anchor_basis = "Anchor-set distribution must be tendon-specific"
+        ready = True
+        message = "Mixed Start/End JackFrom is explicit but requires tendon-by-tendon review."
+    else:
+        status = "REVIEW"
+        mode = "warn"
+        stressing_mode = "Project-specific / mixed stressing text"
+        friction_basis = "Review adopted tendon table before detailed loss calculation"
+        anchor_basis = "Review jacking-end basis before anchor-set calculation"
+        ready = True
+        message = "JackFrom source exists but needs engineering review."
+
+    return {
+        "status": status,
+        "mode": mode,
+        "ready": ready,
+        "message": message,
+        "jack_from_values": unique,
+        "jack_from_display": jack_display,
+        "stressing_mode": stressing_mode,
+        "friction_path_basis": friction_basis,
+        "anchor_set_basis": anchor_basis,
+        "force_policy": "Pj/tendon is axial force per tendon; total Pj = number of adopted tendons × Pj/tendon.",
+        "two_end_policy": "Two-end stressing controls loss distribution only; it must not double Aps,total or total prestressing force.",
+        "source": "Adopted CSiBridge General tendon table JackFrom field" if tendon_locked else "2.4 tendon adoption required",
+        "default_basis": ps.get("jacking_operation_basis", "Project JackFrom basis not set"),
+    }
+
+
 def _psloss_source_gate_state() -> dict[str, Any]:
-    """Build the PSLOSS.1 read-only source gate for detailed loss calculation.
+    """Build the PSLOSS.2 read-only source gate for detailed loss calculation.
 
     Prestress Losses must consume locked/adopted sources only.  Working tendon
     imports, keyed fallback values, and diagnostic previews are deliberately kept
-    out of the detailed-loss readiness status.
+    out of the detailed-loss readiness status.  PSLOSS.2 adds an explicit
+    JackFrom / stressing-basis gate before any friction or anchor-set formulas
+    can be accepted.
     """
     tl = D.setdefault("tendon_layout", {})
     ps = D.setdefault("prestress", {})
@@ -3787,6 +3884,7 @@ def _psloss_source_gate_state() -> dict[str, Any]:
             y_t_from_top_m=float(sec.get("yt_from_top_m", 0.0) or 0.0),
         ) if tendon_locked else {}
 
+    stressing_basis = _psloss_stressing_basis_state(adopted_model, tendon_locked)
     section_ready = all(float(sec.get(k, 0.0) or 0.0) > 0.0 for k in ("Ac_m2", "I33_m4", "I22_m4", "yt_from_top_m"))
     crsh = update_crsh_derived_parameters()
     crsh_ready = (
@@ -3797,7 +3895,7 @@ def _psloss_source_gate_state() -> dict[str, Any]:
         and float(ps.get("h0_m", 0.0) or 0.0) > 0.0
     )
     span_ready = float(project.get("span_m", 0.0) or 0.0) > 0.0
-    ready = tendon_locked and section_ready and crsh_ready and span_ready
+    ready = tendon_locked and stressing_basis["ready"] and section_ready and crsh_ready and span_ready
 
     return {
         "overall_status": "READY FOR LOSS CALCULATION" if ready else "SOURCE BLOCKED",
@@ -3805,6 +3903,7 @@ def _psloss_source_gate_state() -> dict[str, Any]:
         "ready": ready,
         "tendon_locked": tendon_locked,
         "tendon_status": tendon_status,
+        "stressing_basis": stressing_basis,
         "adopted_summary": adopted_summary,
         "working_fingerprint": tendon_model_fingerprint(working_model),
         "adopted_fingerprint": str(tl.get("adopted_model_fingerprint") or tendon_model_fingerprint(adopted_model) or ""),
@@ -3820,6 +3919,7 @@ def _psloss_source_gate_rows(state: dict[str, Any]) -> pd.DataFrame:
     sec = D.setdefault("section", {})
     project = D.setdefault("project", {})
     tendon_status = state["tendon_status"]
+    stressing = state["stressing_basis"]
     return pd.DataFrame(
         [
             [
@@ -3827,6 +3927,12 @@ def _psloss_source_gate_rows(state: dict[str, Any]) -> pd.DataFrame:
                 tendon_status.get("status", "PENDING"),
                 "2.4 Tendon Layout Reference → Adopted Tendon Data",
                 tendon_status.get("message", "Adopt imported tendon model before detailed losses."),
+            ],
+            [
+                "Stressing basis / JackFrom",
+                stressing.get("status", "BLOCKED"),
+                stressing.get("source", "2.4 tendon adoption required"),
+                stressing.get("message", "Confirm one-end / two-end stressing before friction and anchor-set calculations."),
             ],
             [
                 "Section properties",
@@ -3849,6 +3955,34 @@ def _psloss_source_gate_rows(state: dict[str, Any]) -> pd.DataFrame:
         ],
         columns=["Source gate", "Status", "Source page", "Trace / required action"],
     )
+
+
+def _psloss_stressing_basis_rows(state: dict[str, Any]) -> pd.DataFrame:
+    stressing = state.get("stressing_basis", {})
+    return pd.DataFrame(
+        [
+            ["JackFrom source", stressing.get("jack_from_display", "-"), stressing.get("status", "BLOCKED"), stressing.get("source", "2.4 tendon adoption required")],
+            ["Stressing mode", stressing.get("stressing_mode", "-"), stressing.get("status", "BLOCKED"), stressing.get("message", "Confirm stressing basis.")],
+            ["Friction path basis", stressing.get("friction_path_basis", "-"), "FUTURE INPUT", "Used by future friction-loss calculation; no formula runs in PSLOSS.2."],
+            ["Anchor-set distribution basis", stressing.get("anchor_set_basis", "-"), "FUTURE INPUT", "Used by future anchor-set calculation; equivalent loss remains separately scoped."],
+            ["Pj/tendon policy", stressing.get("force_policy", "Pj/tendon is axial tendon force."), "LOCKED RULE", "Do not multiply force by number of jacks."],
+            ["Two-end stressing safeguard", stressing.get("two_end_policy", "Two-end stressing does not double total force."), "LOCKED RULE", "Controls friction/anchor-set distribution only."],
+        ],
+        columns=["Item", "Value", "Status", "Basis / required action"],
+    )
+
+
+def _psloss_blocked_tendon_checklist_rows(state: dict[str, Any]) -> pd.DataFrame:
+    blocked = not bool(state.get("adopted_summary"))
+    rows = [
+        ["Adopted tendon snapshot", "BLOCKED" if blocked else "READY", "Go to 2.4 Tendon Layout Reference → Adopted Tendon Data and adopt/re-adopt the tendon model." if blocked else "Locked adopted tendon snapshot is available."],
+        ["Tendon profile", "BLOCKED" if blocked else "READY", "Import / verify General, Vertical, and Horizontal tendon tables." if blocked else "Profile rows are read from the adopted snapshot."],
+        ["Aps,total", "BLOCKED" if blocked else "READY", "No adopted tendon source; do not use keyed fallback Aps for detailed losses." if blocked else "Read from adopted General tendon table summary."],
+        ["Jacking force", "BLOCKED" if blocked else "READY", "No adopted tendon source; Pj/tendon and total Pj remain blocked." if blocked else "Pj/tendon is axial force; total Pj is not doubled for two-end stressing."],
+        ["JackFrom / stressing end", "BLOCKED" if blocked else state.get("stressing_basis", {}).get("status", "READY"), "Adopted General tendon table must define Start / End / Both ends before friction and anchor-set losses." if blocked else state.get("stressing_basis", {}).get("message", "Stressing basis is available.")],
+        ["Midspan eccentricity", "BLOCKED" if blocked else "READY", "No adopted tendon source; dp and eccentricity remain blocked." if blocked else "Read from adopted tendon profile and adopted section y_t."],
+    ]
+    return pd.DataFrame(rows, columns=["Prestress input", "Status", "Required action / source rule"])
 
 
 def _psloss_tendon_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
@@ -3908,27 +4042,35 @@ def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
 
 
 def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[str, Any]:
-    """Render PSLOSS.1 source gate and return the source state."""
+    """Render PSLOSS.2 source gate and return the source state."""
     state = _psloss_source_gate_state()
     if not compact:
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.1 connects only locked adopted tendon data, adopted section properties, CR&SH parameters, and span/stage basis. Detailed loss equations remain a later milestone.",
+            "PSLOSS.2 connects locked adopted tendon data, JackFrom / stressing-basis trace, adopted section properties, CR&SH parameters, and span/stage basis. Detailed loss equations remain a later milestone.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
             unsafe_allow_html=True,
         )
-    c1, c2, c3, c4 = st.columns(4)
+        if not state["tendon_locked"]:
+            st.markdown(
+                '<div class="warn-box"><b>Tendon adoption action required:</b> go to <b>2.4 Tendon Layout Reference → Import / Mapping</b>, import the General / Vertical / Horizontal tendon tables, review the tendon QA, then open <b>Adopted Tendon Data</b> and press <b>Adopt / Re-adopt tendon model as design source</b>. Prestress-loss values stay blocked until that source is locked.</div>',
+                unsafe_allow_html=True,
+            )
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         card("LOSS CALCULATION", state["overall_status"], "Detailed formulas are blocked until all source gates are ready." if not state["ready"] else "Ready for next loss-calculation milestone.", state["overall_mode"])
     with c2:
         tstat = state["tendon_status"]
         card("TENDON SOURCE", tstat.get("status", "PENDING"), tstat.get("message", "Adopt tendon model."), tstat.get("mode", "warn"))
     with c3:
-        card("SECTION SOURCE", "READY" if state["section_ready"] else "MISSING", "Adopted section properties for design", "pass" if state["section_ready"] else "warn")
+        sstat = state["stressing_basis"]
+        card("STRESSING BASIS", sstat.get("status", "BLOCKED"), sstat.get("stressing_mode", "Confirm JackFrom"), sstat.get("mode", "warn"))
     with c4:
+        card("SECTION SOURCE", "READY" if state["section_ready"] else "MISSING", "Adopted section properties for design", "pass" if state["section_ready"] else "warn")
+    with c5:
         card("CR&SH SOURCE", "READY" if state["crsh_ready"] else "MISSING", "Consumed from 3.8 CR&SH", "pass" if state["crsh_ready"] else "warn")
 
     show_engineering_table(_psloss_source_gate_rows(state))
@@ -3937,33 +4079,40 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         unsafe_allow_html=True,
     )
     if not compact:
+        st.markdown("### Tendon adoption and blocked-input checklist")
+        show_engineering_table(_psloss_blocked_tendon_checklist_rows(state))
+        st.markdown("### Stressing basis / JackFrom gate")
+        show_engineering_table(_psloss_stressing_basis_rows(state))
         st.markdown("### Adopted prestress input summary")
         show_engineering_table(_psloss_tendon_summary_rows(state))
         st.markdown("### Time-dependent parameter handoff from 3.8 CR&SH")
         show_engineering_table(_psloss_crsh_handoff_rows(state))
         with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
             show_engineering_table(pd.DataFrame([
-                ["Detailed friction loss", "BLOCKED until source gate ready", "Use adopted tendon profile and JackFrom; do not use raw working import."],
-                ["Anchor set", "BLOCKED until source gate ready", "Equivalent loss may be user/project input, but source and jacking-end basis must be explicit."],
+                ["Detailed friction loss", "BLOCKED until source and stressing gates are ready", "Use adopted tendon profile and tendon-by-tendon JackFrom; do not use raw working import."],
+                ["Anchor set", "BLOCKED until source and stressing gates are ready", "Equivalent loss may be user/project input, but source and jacking-end basis must be explicit."],
                 ["Elastic shortening", "BLOCKED until source gate ready", "fcgp must be tied to actual stressing/load-transfer stage, not blindly to completed-span self-weight."],
                 ["Creep / shrinkage", "INPUT HANDOFF READY" if state["crsh_ready"] else "MISSING", "RH, V/S, h0, ti/tf from 3.8 CR&SH."],
                 ["Relaxation", "FUTURE INPUT", "Low-relaxation strand basis to be confirmed in detailed calculation milestone."],
-            ], columns=["Loss component", "Current PSLOSS.1 status", "Required engineering check"]))
+            ], columns=["Loss component", "Current PSLOSS.2 status", "Required engineering check"]))
     return state
 
 
 def render_report_qa_prestress_losses_handoff_snapshot() -> None:
-    """Read-only Report / QA snapshot for PSLOSS.1."""
+    """Read-only Report / QA snapshot for PSLOSS.2."""
     st.markdown("### 4 Prestress Losses — Report / QA source-gate handoff")
     state = _psloss_source_gate_state()
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         card("Loss source gate", state["overall_status"], "Report / QA snapshot only; no loss solver rerun.", state["overall_mode"])
     with c2:
         card("Tendon", state["tendon_status"].get("status", "PENDING"), state["tendon_status"].get("message", "Adopt tendon model."), state["tendon_status"].get("mode", "warn"))
     with c3:
-        card("Section", "READY" if state["section_ready"] else "MISSING", "Adopted section properties", "pass" if state["section_ready"] else "warn")
+        sstat = state["stressing_basis"]
+        card("Stressing", sstat.get("status", "BLOCKED"), sstat.get("stressing_mode", "Confirm JackFrom"), sstat.get("mode", "warn"))
     with c4:
+        card("Section", "READY" if state["section_ready"] else "MISSING", "Adopted section properties", "pass" if state["section_ready"] else "warn")
+    with c5:
         card("CR&SH", "READY" if state["crsh_ready"] else "MISSING", "3.8 parameter handoff", "pass" if state["crsh_ready"] else "warn")
     show_engineering_table(_psloss_source_gate_rows(state))
 
@@ -5025,7 +5174,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.1 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.2 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -5059,17 +5208,18 @@ def page_report_qa(sub: str) -> None:
 - Tendon source = {psloss_state['tendon_status'].get('status', 'PENDING')}; adopted tendon fingerprint = {psloss_state.get('adopted_fingerprint') or '-'}.
 - Section source ready = {psloss_state['section_ready']}.
 - CR&SH source ready = {psloss_state['crsh_ready']}.
+- Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.1 Notes
-- Report / QA now displays the Prestress Losses source gate together with the Loads handoff snapshot.
+## PSLOSS.2 Notes
+- Report / QA now displays the Prestress Losses source gate, stressing-basis gate, and Loads handoff snapshot.
 - Detailed prestress-loss equations are intentionally not changed in this milestone.
-- The source gate blocks detailed loss calculation unless tendon, section, CR&SH, and span/stage sources are ready.
+- The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, and EQ was not changed.
 - Existing legacy prestress-loss preview page formulas were not changed.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss1_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss2_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------
