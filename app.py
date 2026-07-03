@@ -723,7 +723,7 @@ def render_aashto_2020_unit_safe_basis_panel() -> None:
         ["0.19√f′c", 0.19, "ksi expression", stress_mpa_from_ksi_sqrt_fc(0.19, fc_mpa), "MPa", "Example stress from ksi-based √f′c expression"],
     ]
     show_engineering_table(pd.DataFrame(demo_rows, columns=["Input", "SI value", "SI unit", "Converted / result", "AASHTO unit", "Trace note"]))
-    st.markdown("<div class='warn-box'><b>Non-Section-5 note:</b> the existing seismic R-factor helper still references the app&apos;s bridge seismic R table until a 2020 Section 3 source is provided. This does not control concrete/PT Section 5 design checks.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='warn-box'><b>Non-Section-5 note:</b> the seismic R-factor helper references the app&apos;s AASHTO LRFD 9th Edition (2020) bridge R table. This does not control concrete/PT Section 5 design checks.</div>", unsafe_allow_html=True)
 
 def code_basis_card(title: str, code_basis: str, note: str = "") -> None:
     st.markdown(
@@ -1080,6 +1080,82 @@ def editable_value(path: list[str], label: str, step: float = 1.0, fmt: str | No
     ref[key] = st.number_input(label, **kwargs)
 
 
+
+def render_eq_result_summary_and_fea_adoption(lc: dict[str, Any], ld: dict[str, Any], *, location_label: str, region_label: str) -> None:
+    """Render the EQ result cards and one-source FEA adoption trace.
+
+    EQ in this Loads workspace is exported as a report-controlled seismic
+    coefficient unless the user explicitly adopts it as an FEA coefficient.
+    Numeric lateral forces require the seismic weight / mass definition from
+    the external FEA model, so the app keeps that source visible instead of
+    inventing a duplicated weight input here.
+    """
+    modes = ["Parameter only / coefficient trace", "Adopted as EQ coefficient for FEA summary"]
+    current_mode = str(lc.get("seismic_fea_adoption_mode", modes[0]))
+    if current_mode not in modes:
+        current_mode = modes[0]
+    lc["seismic_fea_adoption_mode"] = current_mode
+    lc.setdefault("seismic_weight_source", "FEA mass / seismic weight W from analysis model")
+    lc.setdefault("seismic_direction_basis", "EQX and EQY independent horizontal directions")
+    lc["seismic_adopted_coefficient_Cs"] = float(ld.get("eq_Cs", 0.0) or 0.0)
+
+    st.markdown("### EQ result summary")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        card("DPT LOOKUP", location_label, region_label, "pass" if "Manual" not in region_label else "warn")
+    with c2:
+        card("DESIGN SPECTRUM", f"SDS={float(ld.get('eq_SDS', 0.0)):.3f} g", f"SD1={float(ld.get('eq_SD1', 0.0)):.3f} g")
+    with c3:
+        card("ANALYSIS RESULT", f"Sa(T)={float(ld.get('eq_Sa', 0.0)):.4f} g", f"T={float(lc.get('seismic_T_s', 0.0)):.3f} s")
+    with c4:
+        card("SEISMIC COEFFICIENT", f"Cs={float(ld.get('eq_Cs', 0.0)):.4f}", f"I/R={float(lc.get('seismic_I', 0.0)):.2f}/{float(lc.get('seismic_R', 0.0)):.1f}")
+    with c5:
+        adoption_mode = "pass" if current_mode.startswith("Adopted") else ""
+        card("FEA ADOPTION", "Adopted" if current_mode.startswith("Adopted") else "Parameter-only", current_mode, adoption_mode)
+
+    st.markdown("### FEA adoption")
+    a1, a2, a3 = st.columns([1.2, 1.2, 1.4])
+    with a1:
+        current_mode = st.selectbox("EQ FEA adoption mode", modes, index=modes.index(current_mode), key="eq_fea_adoption_mode")
+        lc["seismic_fea_adoption_mode"] = current_mode
+    with a2:
+        lc["seismic_direction_basis"] = st.selectbox(
+            "Direction basis",
+            ["EQX and EQY independent horizontal directions", "EQX only", "EQY only"],
+            index=["EQX and EQY independent horizontal directions", "EQX only", "EQY only"].index(str(lc.get("seismic_direction_basis", "EQX and EQY independent horizontal directions"))) if str(lc.get("seismic_direction_basis", "EQX and EQY independent horizontal directions")) in ["EQX and EQY independent horizontal directions", "EQX only", "EQY only"] else 0,
+            key="eq_direction_basis",
+        )
+    with a3:
+        lc["seismic_weight_source"] = st.text_input("Seismic weight / mass source", value=str(lc.get("seismic_weight_source", "FEA mass / seismic weight W from analysis model")), key="eq_seismic_weight_source")
+
+    adopted_text = "Cs adopted as FEA coefficient" if current_mode.startswith("Adopted") else "Coefficient trace only — numeric EQ loads generated in FEA model"
+    rows = [
+        ["Adopted coefficient Cs", f"{float(ld.get('eq_Cs', 0.0)):.4f}", "Equivalent static coefficient from one-source EQ calculation"],
+        ["EQX basis", "EQX = Cs × W" if "EQX" in lc["seismic_direction_basis"] else "Not selected", "W from selected seismic weight / mass source"],
+        ["EQY basis", "EQY = Cs × W" if "EQY" in lc["seismic_direction_basis"] else "Not selected", "W from selected seismic weight / mass source"],
+        ["Seismic weight W", lc["seismic_weight_source"], "No duplicate W input is created in Loads"],
+        ["Application", "Longitudinal and transverse global seismic directions", "Coordinate-direction sign and load pattern names are assigned in the FEA model"],
+        ["FEA adoption status", adopted_text, "Explicit user-controlled adoption status"],
+    ]
+    show_engineering_table(pd.DataFrame(rows, columns=["Item", "Value", "Trace"]))
+    st.markdown('<div class="note-box"><b>FEA export rule:</b> this page exports the adopted seismic coefficient <b>Cs</b> and its source trace. Numeric equivalent-static forces require the seismic weight / mass definition from the FEA model: <b>EQX = Cs × W</b> and <b>EQY = Cs × W</b>.</div>', unsafe_allow_html=True)
+
+    st.markdown("### EQ one-source trace")
+    show_engineering_table(pd.DataFrame([
+        ["User input", "Province / district", f"{lc.get('seismic_province_th', '-')} / {lc.get('seismic_district_th', '-')}", "DPT lookup key"],
+        ["User input", "Soil class", lc.get("seismic_soil_class", "-"), "Site class used for Fa/Fv"],
+        ["User input", "Operational category", lc.get("seismic_operational_category", "-"), "AASHTO LRFD 2020 bridge category"],
+        ["User input", "Substructure system", lc.get("seismic_substructure_label", "-"), "AASHTO LRFD 2020 R table"],
+        ["User input", "Analysis period T", f"{float(lc.get('seismic_T_s', 0.0)):.3f} s", "FEA / project period input"],
+        ["Derived", "Ss / S1", f"{float(lc.get('seismic_Ss_g', 0.0)):.3f} / {float(lc.get('seismic_S1_g', 0.0)):.3f} g", "DPT database or manual source"],
+        ["Derived", "Fa / Fv", f"{float(ld.get('eq_Fa', 0.0)):.2f} / {float(ld.get('eq_Fv', 0.0)):.2f}", "DPT site factors"],
+        ["Derived", "SDS / SD1", f"{float(ld.get('eq_SDS', 0.0)):.4f} / {float(ld.get('eq_SD1', 0.0)):.4f} g", "Design spectrum values"],
+        ["Derived", "Sa(T)", f"{float(ld.get('eq_Sa', 0.0)):.4f} g", "Equivalent-static spectrum route"],
+        ["Derived", "Cs", f"{float(ld.get('eq_Cs', 0.0)):.4f}", "Sa(T) × I / R with minimum check"],
+        ["FEA adoption", "Status", lc.get("seismic_fea_adoption_mode", "Parameter only / coefficient trace"), "One-source adoption trace"],
+    ], columns=["Type", "Item", "Value", "Source / trace"]))
+
+
 def render_aashto_bridge_seismic_controls(lc: dict[str, Any]) -> dict[str, Any]:
     """Render one-source I/R controls for the EQ page.
 
@@ -1090,7 +1166,7 @@ def render_aashto_bridge_seismic_controls(lc: dict[str, Any]) -> dict[str, Any]:
     """
     st.markdown("#### AASHTO bridge seismic parameters — I/R selection")
     st.markdown(
-        '<div class="note-box"><b>Bridge seismic basis:</b> DPT 1301/1302-61 supplies the Thai response spectrum and importance factor basis. AASHTO LRFD 2014 Table 3.10.7.1-1 is used here to recommend the bridge substructure response modification factor <b>R</b>. The owner / authority having jurisdiction shall confirm the bridge operational category.</div>',
+        '<div class="note-box"><b>Bridge seismic basis:</b> DPT 1301/1302-61 supplies the Thai response spectrum and importance factor basis. AASHTO LRFD 2020 Table 3.10.7.1-1 is used here to recommend the bridge substructure response modification factor <b>R</b>. The owner / authority having jurisdiction shall confirm the bridge operational category.</div>',
         unsafe_allow_html=True,
     )
 
@@ -1104,7 +1180,7 @@ def render_aashto_bridge_seismic_controls(lc: dict[str, Any]) -> dict[str, Any]:
     if sub_label_current not in sub_labels:
         sub_label_current = substructure_label_from_key("single_column_or_pier")
 
-    r_modes = ["Auto from AASHTO LRFD 2014 Table 3.10.7.1-1", "Manual R override"]
+    r_modes = ["Auto from AASHTO LRFD 2020 Table 3.10.7.1-1", "Manual R override"]
     r_mode_current = lc.get("seismic_R_mode", r_modes[0])
     if r_mode_current not in r_modes:
         r_mode_current = r_modes[0]
@@ -2200,7 +2276,7 @@ def page_loads(sub: str) -> None:
         with tc2:
             st.metric("Active I", f"{float(lc['seismic_I']):.2f}", help=lc.get("seismic_I_source", "Project/DPT basis"))
         with tc3:
-            st.metric("Active R", f"{float(lc['seismic_R']):.1f}", help=lc.get("seismic_R_source", "AASHTO LRFD bridge R basis"))
+            st.metric("Active R", f"{float(lc['seismic_R']):.1f}", help=lc.get("seismic_R_source", "AASHTO LRFD 2020 bridge R basis"))
 
         region_lookup = resolve_location_region(province, lc["seismic_district_th"])
         if region_lookup.get("found") and region_lookup.get("region") == "Bangkok Basin":
@@ -2215,6 +2291,7 @@ def page_loads(sub: str) -> None:
             with c3:
                 st.metric("I/R", f"{float(lc['seismic_I']):.2f} / {float(lc['seismic_R']):.1f}", help="One-source controls above feed Cs in this branch.")
             ld = load_derived()
+            render_eq_result_summary_and_fea_adoption(lc, ld, location_label=f"Zone {int(lc['seismic_bangkok_zone'])}", region_label="Bangkok Basin")
             st.latex(r"S_a(T)=\text{interpolated from DPT Table 1.4-5 (5\% damping) or Table 1.4-4 (2.5\% damping)}")
             st.latex(r"C_s=S_a\left(\frac{I}{R}\right)\quad\text{with}\quad C_s\ge0.01")
             st.latex(fr"S_a({D['load_components']['seismic_T_s']:.3f})={ld['eq_Sa']:.4f}\,g")
@@ -2252,6 +2329,7 @@ def page_loads(sub: str) -> None:
             with c3:
                 st.metric("I/R", f"{float(lc['seismic_I']):.2f} / {float(lc['seismic_R']):.1f}", help="One-source controls above feed Cs in this branch.")
             ld = load_derived()
+            render_eq_result_summary_and_fea_adoption(lc, ld, location_label=f"อ.{region_lookup['district_th']} จ.{region_lookup['province_th']}", region_label="General Thailand")
             st.latex(r"S_{MS}=F_aS_S,\qquad S_{M1}=F_vS_1")
             st.latex(r"S_{DS}=\frac{2}{3}S_{MS},\qquad S_{D1}=\frac{2}{3}S_{M1}")
             st.latex(r"C_s=S_a\left(\frac{I}{R}\right)\quad\text{with}\quad C_s\ge0.01")
@@ -2288,6 +2366,7 @@ def page_loads(sub: str) -> None:
             with c3:
                 st.metric("I/R", f"{float(lc['seismic_I']):.2f} / {float(lc['seismic_R']):.1f}", help="One-source controls above feed Cs in this branch.")
             ld = load_derived()
+            render_eq_result_summary_and_fea_adoption(lc, ld, location_label="Manual Ss/S1", region_label="Manual / not found")
             st.latex(r"S_{MS}=F_aS_S,\qquad S_{M1}=F_vS_1")
             st.latex(r"C_s=S_a\left(\frac{I}{R}\right)")
             st.markdown('<div class="warn-box"><b>Manual source warning:</b> results are calculated from user-entered Ss/S1 and are not verified against the DPT location database.</div>', unsafe_allow_html=True)
@@ -2304,7 +2383,7 @@ def page_loads(sub: str) -> None:
             ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", str(D.get("rail_loads", {}).get("cf_application_level", "Rail level")), str(ld.get("cf_fea_adoption_status", ld.get("cf_assessment", "App calculated")))],
             ["WS", "WS", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure", "App calculated"],
             ["WS+WL", "WS+WL", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_WL_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure + train", "App calculated"],
-            ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO bridge R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", "DPT lookup + AASHTO R + app calculated"],
+            ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO LRFD 2020 bridge R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", str(D['load_components'].get('seismic_fea_adoption_mode', 'Parameter only / coefficient trace'))],
             ["CR&SH", "CR/SH", "AASHTO LRFD Art. 5.9.5", "parameters", "-", "Long-term", "Prestress loss module", "Declared in 3.8 / consumed by 4"],
         ]
         show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Symbol", "Code Basis", "Value", "Unit", "Direction", "Application", "Source"]))

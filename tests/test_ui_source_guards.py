@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.54-commercial-loads34-crsh-drying-basis-guidance"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.55-commercial-loads35-eq-summary-fea-adoption"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -74,7 +74,7 @@ def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation
     assert "1.3.7 Wind Load" in readme
     assert "DPT seismic database" in readme
     assert "Bangkok Basin Zone 1–10" in readme
-    assert "AASHTO LRFD 2014 Table 3.10.7.1-1" in readme
+    assert "AASHTO LRFD 2020 Table 3.10.7.1-1" in readme
     assert "EN 1991-1-4" in readme
     assert "Table 2.5" in readme
     assert "Full station-by-station FEA import remains pending" in readme
@@ -145,7 +145,7 @@ def test_m3c_aashto_ir_controls_are_present_once_in_eq_page():
     assert "eq_importance_factor_preset" in src
     assert "eq_manual_response_modification_factor" in src
     assert "seismic_R_source" in src
-    assert "AASHTO LRFD 2014 Table 3.10.7.1-1" in src
+    assert "AASHTO LRFD 2020 Table 3.10.7.1-1" in src
 
 def test_m3c_aashto_reference_data_files_exist():
     root = APP_SOURCE.resolve().parents[0]
@@ -601,3 +601,18 @@ def test_loads34_crsh_drying_perimeter_guidance_and_tf_years():
     assert "tf_days / 365.25" in src
     assert "tf_years" in src
     assert "≈ {tf_years:.1f} yr" in src
+
+
+def test_loads35_eq_summary_and_fea_adoption_panel():
+    src = _src()
+    defaults = (APP_SOURCE.resolve().parents[0] / "core" / "bg40_defaults.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.35" in readme
+    assert "render_eq_result_summary_and_fea_adoption" in src
+    assert "EQ result summary" in src
+    assert "FEA adoption" in src
+    assert "EQX = Cs × W" in src
+    assert "EQY = Cs × W" in src
+    assert "AASHTO LRFD 2020 Table 3.10.7.1-1" in src
+    assert "seismic_fea_adoption_mode" in defaults
+    assert "seismic_weight_source" in defaults

@@ -17,7 +17,7 @@ DEFAULT_CODE_BASIS: dict[str, Any] = {
     "reference_file": AASHTO_2020_SECTION5_SOURCE,
     "internal_units": APP_INTERNAL_UNITS,
     "unit_policy": "Store/display SI only; wrap AASHTO kip/ksi/in/ft equations with explicit internal conversion.",
-    "legacy_note": "AASHTO LRFD 2014 references are superseded for concrete/prestressed-concrete Section 5 design unless explicitly marked as historical or non-Section-5 reference.",
+    "legacy_note": "AASHTO LRFD 9th Edition (2020) is the active governing bridge design-code basis unless a project-specific legacy reference is explicitly documented.",
 }
 
 AASHTO_SECTION5_ARTICLE_MAP: list[dict[str, str]] = [

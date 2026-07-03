@@ -5,7 +5,7 @@
 Add bridge-specific `R` recommendation controls to the DPT EQ workflow without sacrificing traceability. The app now uses:
 
 - DPT 1301/1302-61 for Thai seismic spectrum and `Cs = Sa(I/R)` calculation.
-- AASHTO LRFD 2014 Table 3.10.7.1-1 for bridge substructure response modification factor `R` guidance.
+- AASHTO LRFD 2020 Table 3.10.7.1-1 for bridge substructure response modification factor `R` guidance.
 - Project/DPT basis for importance factor `I`.
 
 ## Source separation

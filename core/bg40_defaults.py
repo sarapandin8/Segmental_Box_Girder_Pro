@@ -32,7 +32,7 @@ BG40_DEFAULT = {
         "reference_file": "SECTION 5 CONCRETE STRUCTURES(1).pdf",
         "internal_units": "kN, m, MPa, mm",
         "unit_policy": "Store/display SI only; wrap AASHTO kip/ksi/in/ft equations with explicit internal conversion.",
-        "legacy_note": "AASHTO LRFD 2014 references are superseded for concrete/prestressed-concrete Section 5 design unless explicitly marked as historical or non-Section-5 reference."
+        "legacy_note": "AASHTO LRFD 9th Edition (2020) is the active governing bridge design-code basis unless a project-specific legacy reference is explicitly documented."
     },
     "criteria": {
         "standards": [
@@ -140,12 +140,16 @@ BG40_DEFAULT = {
         "seismic_operational_category": "Essential",
         "seismic_substructure_key": "single_column_or_pier",
         "seismic_substructure_label": "Single column / single pier",
-        "seismic_R_mode": "Auto from AASHTO LRFD 2014 Table 3.10.7.1-1",
+        "seismic_R_mode": "Auto from AASHTO LRFD 2020 Table 3.10.7.1-1",
         "seismic_importance_preset_key": "bg40_default",
         "seismic_I": 1.25,
         "seismic_R": 2.0,
-        "seismic_R_source": "AASHTO LRFD 2014 Table 3.10.7.1-1 — Essential Bridge / Single column or pier",
+        "seismic_R_source": "AASHTO LRFD 2020 Table 3.10.7.1-1 — Essential Bridge / Single column or pier",
         "seismic_I_source": "BG40 project default / project importance basis",
+        "seismic_fea_adoption_mode": "Parameter only / coefficient trace",
+        "seismic_direction_basis": "EQX and EQY independent horizontal directions",
+        "seismic_weight_source": "FEA mass / seismic weight W from analysis model",
+        "seismic_adopted_coefficient_Cs": 0.0,
     },
     "bridge_model": {
         "bridge_type": "Precast Segmental PT Box Girder - Simple Span",

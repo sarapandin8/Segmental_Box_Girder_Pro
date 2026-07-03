@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.34
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.35
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -41,6 +41,7 @@ This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.LOADS.32
 - COMMERCIAL.LOADS.33
 - COMMERCIAL.LOADS.34
+- COMMERCIAL.LOADS.35
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -54,7 +55,7 @@ Retained basis / reference notes
 - Table 2.5
 - DPT seismic database
 - Bangkok Basin Zone 1–10
-- AASHTO LRFD 2014 Table 3.10.7.1-1
+- AASHTO LRFD 2020 Table 3.10.7.1-1
 - Full station-by-station FEA import remains pending
 - Coordinate-driven section properties
 - AASHTO LRFD Bridge Design Specifications, 9th Edition, 2020
@@ -105,3 +106,5 @@ Current milestone focus:
 - COMMERCIAL.LOADS.33: Upgraded 3.8 CR&SH to a minimal-input assistant with RH/age/drying-basis inputs, geometry-derived u_total, V/S and h0 trace, AASHTO unit conversion preview, and Prestress Losses handoff panel.
 
 - COMMERCIAL.LOADS.34: Added CR&SH drying perimeter basis guidance for outer-only versus outer-plus-inner-void drying surfaces and displayed final design age in years while preserving existing derived-geometry and Prestress Losses handoff logic.
+
+- COMMERCIAL.LOADS.35: Added EQ result summary cards, one-source trace, and FEA adoption panel for Cs/EQX/EQY coefficient export while updating bridge R-factor wording to AASHTO LRFD 9th Edition (2020).
