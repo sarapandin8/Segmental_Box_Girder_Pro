@@ -212,6 +212,8 @@ BG40_DEFAULT = {
         "u_outer_m": 25.98,
         "u_inner_m": 11.55,
         "u_total_m": 37.53,
+        "crsh_drying_perimeter_basis": "Outer + inner void perimeter",
+        "crsh_Ac_m2": 5.698,
         "V_over_S_m": 0.1518,
         "V_over_S_mm": 151.8,
         "V_over_S_in": 5.98,

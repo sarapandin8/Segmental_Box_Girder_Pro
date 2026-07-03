@@ -948,7 +948,64 @@ def load_derived() -> dict[str, Any]:
         "cf_fea_adoption_mode": cf_fea_adoption_mode,
     }
 
+
+def update_crsh_derived_parameters() -> dict[str, Any]:
+    """Derive creep/shrinkage geometry values from the active section data.
+
+    User inputs should remain limited to project assumptions such as RH, ages,
+    and the drying-perimeter basis.  The geometry-dependent V/S values are
+    recalculated from one source before they are consumed by Prestress Losses.
+    """
+    p = D["prestress"]
+    sec = D["section"]
+
+    # Migration / default for older project JSON files.
+    basis = str(p.get("crsh_drying_perimeter_basis", "Outer + inner void perimeter"))
+    if basis not in {"Outer perimeter only", "Outer + inner void perimeter"}:
+        basis = "Outer + inner void perimeter"
+    p["crsh_drying_perimeter_basis"] = basis
+
+    Ac_m2 = float(sec.get("Ac_m2", p.get("crsh_Ac_m2", 0.0)) or 0.0)
+    u_outer_m = float(p.get("u_outer_m", 0.0) or 0.0)
+    u_inner_m = float(p.get("u_inner_m", 0.0) or 0.0)
+    include_inner = basis == "Outer + inner void perimeter"
+    u_total_m = u_outer_m + (u_inner_m if include_inner else 0.0)
+
+    if Ac_m2 > 0.0 and u_total_m > 0.0:
+        vs_m = Ac_m2 / u_total_m
+    else:
+        vs_m = float(p.get("V_over_S_m", 0.0) or 0.0)
+    vs_mm = vs_m * 1000.0
+    vs_in = vs_m * 39.37007874015748
+    h0_m = 2.0 * vs_m
+    h0_in = h0_m * 39.37007874015748
+
+    p["crsh_Ac_m2"] = Ac_m2
+    p["u_total_m"] = u_total_m
+    p["V_over_S_m"] = vs_m
+    p["V_over_S_mm"] = vs_mm
+    p["V_over_S_in"] = vs_in
+    p["h0_m"] = h0_m
+    p["h0_in"] = h0_in
+
+    return {
+        "basis": basis,
+        "include_inner": include_inner,
+        "Ac_m2": Ac_m2,
+        "u_outer_m": u_outer_m,
+        "u_inner_m": u_inner_m,
+        "u_total_m": u_total_m,
+        "V_over_S_m": vs_m,
+        "V_over_S_mm": vs_mm,
+        "V_over_S_in": vs_in,
+        "h0_m": h0_m,
+        "h0_in": h0_in,
+        "time_interval_days": float(p.get("tf_days", 0.0) or 0.0) - float(p.get("ti_days", 0.0) or 0.0),
+        "geometry_source": "Section Properties Ac with report/section drying perimeters",
+    }
+
 def prestress_inputs() -> dict[str, Any]:
+    update_crsh_derived_parameters()
     m = D["materials"]
     p = D["prestress"]
     return {
@@ -2013,18 +2070,93 @@ def page_loads(sub: str) -> None:
             show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Description", "Resultant Force", "Unit", "Line Load", "Line Unit", "Direction", "Application"]))
             st.markdown('<div class="note-box"><b>FEA export rule:</b> WS and WS+WL are exported as equivalent transverse line loads along the wind-loaded span. The resultant forces shown above are calculated only once from the editable parameter table.</div>', unsafe_allow_html=True)
     if selected_load_subpage == "3.8 CR&SH":
-        code_basis_card("1.3.8 Creep and Shrinkage Parameters", "AASHTO LRFD 2020 Section 5, Art. 5.9.3 / 5.4.2.3", "Parameters declared here are consumed by 4 Prestress Losses; formulas are wrapped with SI↔AASHTO unit conversion.")
+        code_basis_card("3.8 Creep and Shrinkage Parameters", "AASHTO LRFD 2020 Section 5, Art. 5.9.3 / 5.4.2.3", "Minimal-input CR&SH assistant: user enters only project-specific assumptions; the app derives drying geometry, V/S, h0, AASHTO unit conversions, and the Prestress Losses handoff from one source.")
         p = D["prestress"]
-        st.dataframe(pd.DataFrame([
-            ["RH", p["RH_percent"], "%", "Project design assumption"],
-            ["ti", p["ti_days"], "days", "Age at stressing"],
-            ["tf", p["tf_days"], "days", "Final design age"],
-            ["u_outer", p["u_outer_m"], "m", "External perimeter"],
-            ["u_inner", p["u_inner_m"], "m", "Internal void perimeter"],
-            ["V/S", p["V_over_S_m"], "m", f"{p['V_over_S_mm']} mm = {p['V_over_S_in']} in"],
-            ["h0", p["h0_m"], "m", "2Ac/u_total"],
-        ], columns=["Parameter", "Value", "Unit", "Remarks"]), use_container_width=True, hide_index=True)
-        st.markdown('<div class="warn-box"><b>Unit warning:</b> AASHTO empirical creep/shrinkage factors use V/S in inches and concrete strength in ksi for intermediate factors.</div>', unsafe_allow_html=True)
+        m = D["materials"]
+
+        st.markdown('<div class="note-box"><b>CR&SH one-source rule:</b> RH, age assumptions, and drying-perimeter basis are the only primary user inputs here. Geometry-dependent values are derived automatically from Section Properties and drying perimeter data, then consumed by <b>4 Prestress Losses</b>, Save/Load JSON, and future report export.</div>', unsafe_allow_html=True)
+
+        st.markdown("### CR&SH input assistant")
+        c1, c2, c3, c4 = st.columns([0.9, 0.9, 0.9, 1.5])
+        with c1:
+            editable_value(["prestress", "RH_percent"], "Relative humidity RH (%)", 1.0, "%.1f")
+        with c2:
+            editable_value(["prestress", "ti_days"], "Age at stressing ti (days)", 1.0, "%.1f")
+        with c3:
+            editable_value(["prestress", "tf_days"], "Final design age tf (days)", 1.0, "%.1f")
+        with c4:
+            basis_options = ["Outer perimeter only", "Outer + inner void perimeter"]
+            basis_current = str(p.get("crsh_drying_perimeter_basis", "Outer + inner void perimeter"))
+            if basis_current not in basis_options:
+                basis_current = "Outer + inner void perimeter"
+            p["crsh_drying_perimeter_basis"] = st.selectbox(
+                "Drying perimeter basis",
+                basis_options,
+                index=basis_options.index(basis_current),
+                key="crsh_drying_perimeter_basis",
+                help="Use outer + inner void only when the internal void surface is exposed to drying and should be included in the notional drying perimeter.",
+            )
+
+        crsh = update_crsh_derived_parameters()
+        creep_preview = aashto_creep_coefficient(float(p["RH_percent"]), float(p["V_over_S_in"]), float(m["fc_mpa"]), float(p["ti_days"]))
+        shrink_preview = aashto_shrinkage_strain(float(p["RH_percent"]), float(p["V_over_S_in"]), float(m["fc_mpa"]))
+
+        st.markdown("### Result summary")
+        r1, r2, r3, r4 = st.columns(4)
+        with r1:
+            card("RH / age inputs", f"{p['RH_percent']:.1f}%", f"ti = {p['ti_days']:.0f} d · tf = {p['tf_days']:.0f} d")
+        with r2:
+            card("Drying perimeter basis", "Outer + inner" if crsh["include_inner"] else "Outer only", f"u_total = {crsh['u_total_m']:.2f} m")
+        with r3:
+            card("V/S for AASHTO", f"{crsh['V_over_S_in']:.2f} in", f"{crsh['V_over_S_m']:.4f} m = {crsh['V_over_S_mm']:.1f} mm")
+        with r4:
+            card("h0 notional size", f"{crsh['h0_m']:.4f} m", "h0 = 2Ac/u_total = 2(V/S)", "good")
+
+        st.markdown("### Geometry-derived drying parameters")
+        show_engineering_table(pd.DataFrame([
+            ["Concrete area Ac", crsh["Ac_m2"], "m²", "From Section Properties"],
+            ["u_outer", crsh["u_outer_m"], "m", "External drying perimeter"],
+            ["u_inner", crsh["u_inner_m"], "m", "Internal void perimeter; included only when basis = outer + inner void"],
+            ["u_total", crsh["u_total_m"], "m", "u_outer + u_inner" if crsh["include_inner"] else "u_outer only"],
+            ["V/S", crsh["V_over_S_m"], "m", "Ac / u_total"],
+            ["V/S", crsh["V_over_S_in"], "in", "AASHTO empirical factor input"],
+            ["h0", crsh["h0_m"], "m", "2Ac / u_total"],
+            ["Time interval", crsh["time_interval_days"], "days", "tf - ti"],
+        ], columns=["Parameter", "Value", "Unit", "Source / trace"]))
+
+        st.markdown("### Calculation trace")
+        st.latex(r"u_{total}=u_{outer}+u_{inner}\quad\mathrm{or}\quad u_{outer}\;\mathrm{only}")
+        if crsh["include_inner"]:
+            st.latex(fr"u_{{total}}={crsh['u_outer_m']:.2f}+{crsh['u_inner_m']:.2f}={crsh['u_total_m']:.2f}\,\mathrm{{m}}")
+        else:
+            st.latex(fr"u_{{total}}={crsh['u_outer_m']:.2f}\,\mathrm{{m}}")
+        st.latex(r"V/S=\frac{A_c}{u_{total}},\qquad h_0=\frac{2A_c}{u_{total}}=2(V/S)")
+        st.latex(fr"V/S=\frac{{{crsh['Ac_m2']:.3f}}}{{{crsh['u_total_m']:.2f}}}={crsh['V_over_S_m']:.4f}\,\mathrm{{m}}={crsh['V_over_S_in']:.2f}\,\mathrm{{in}}")
+        st.latex(fr"h_0=2({crsh['V_over_S_m']:.4f})={crsh['h0_m']:.4f}\,\mathrm{{m}}={crsh['h0_in']:.2f}\,\mathrm{{in}}")
+        st.markdown('<div class="warn-box"><b>Unit warning:</b> AASHTO empirical creep/shrinkage factors use V/S in inches and concrete strength in ksi for intermediate factors. The app keeps the SI values visible but passes V/S(in) and fc(ksi) to the AASHTO factor functions.</div>', unsafe_allow_html=True)
+
+        st.markdown("### AASHTO unit-conversion / factor preview")
+        show_engineering_table(pd.DataFrame([
+            ["fc", m["fc_mpa"], "MPa", "Project concrete strength"],
+            ["fc", creep_preview["fc_ksi"], "ksi", "Converted for AASHTO empirical factors"],
+            ["RH", p["RH_percent"], "%", "User project assumption"],
+            ["V/S", p["V_over_S_in"], "in", "Derived from Ac/u_total"],
+            ["ks", creep_preview["ks"], "-", "Size factor from V/S(in)"],
+            ["ψ_creep", creep_preview["psi"], "-", "Preview coefficient consumed by Prestress Losses"],
+            ["ε_sh", shrink_preview["microstrain"], "µε", "Preview shrinkage strain consumed by Prestress Losses"],
+        ], columns=["Item", "Value", "Unit", "Source / interpretation"]))
+
+        st.markdown("### Prestress Losses handoff")
+        show_engineering_table(pd.DataFrame([
+            ["RH_percent", f"{p['RH_percent']:.1f}", "%", "4.5 Creep / Shrinkage"],
+            ["ti_days", f"{p['ti_days']:.0f}", "days", "Creep age factor"],
+            ["tf_days", f"{p['tf_days']:.0f}", "days", "Long-term design age / report trace"],
+            ["V_over_S_in", f"{p['V_over_S_in']:.2f}", "in", "AASHTO creep/shrinkage factors"],
+            ["V_over_S_m", f"{p['V_over_S_m']:.4f}", "m", "SI report value"],
+            ["h0_m", f"{p['h0_m']:.4f}", "m", "Notional size report value"],
+            ["drying_perimeter_basis", p["crsh_drying_perimeter_basis"], "-", "Report assumption"],
+        ], columns=["Schema key", "Adopted value", "Unit", "Consumed by / trace"]))
+        st.markdown('<div class="note-box"><b>Override discipline:</b> Ac, u_outer, and u_inner should come from the Section Properties / report geometry source. Users normally edit only RH, ages, and drying-perimeter basis; derived values are recalculated automatically for traceability.</div>', unsafe_allow_html=True)
 
     if selected_load_subpage == "3.9 EQ":
         code_basis_card(
@@ -2167,7 +2299,7 @@ def page_loads(sub: str) -> None:
             ["WS", "WS", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure", "App calculated"],
             ["WS+WL", "WS+WL", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_WL_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure + train", "App calculated"],
             ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO bridge R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", "DPT lookup + AASHTO R + app calculated"],
-            ["CR&SH", "CR/SH", "AASHTO LRFD Art. 5.9.5", "parameters", "-", "Long-term", "Prestress loss module", "Declared in 1.3 / calculated in 4"],
+            ["CR&SH", "CR/SH", "AASHTO LRFD Art. 5.9.5", "parameters", "-", "Long-term", "Prestress loss module", "Declared in 3.8 / consumed by 4"],
         ]
         show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Symbol", "Code Basis", "Value", "Unit", "Direction", "Application", "Source"]))
         st.markdown('<div class="note-box"><b>Report/export rule:</b> this FEA summary reads from the same load schema edited above. No duplicate input fields are used.</div>', unsafe_allow_html=True)

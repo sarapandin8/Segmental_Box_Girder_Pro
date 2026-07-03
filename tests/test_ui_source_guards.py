@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.52-commercial-loads32-cf-straight-input-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.53-commercial-loads33-crsh-minimal-input-geometry-trace"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -568,3 +568,24 @@ def test_loads32_cf_straight_mode_hides_irrelevant_inputs():
     assert "design speed V, curve radius R, loaded length Lf, assessment threshold, and Adopt span as Lf are hidden" in src
     assert "finite-radius CF inputs are not required" in src
     assert "Use only when the project explicitly adopts the finite-radius centrifugal action" in src
+
+
+def test_loads33_crsh_minimal_input_geometry_trace():
+    src = _src()
+    defaults = (APP_SOURCE.parent / "core" / "bg40_defaults.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.33" in readme
+    assert "3.8 Creep and Shrinkage Parameters" in src
+    assert "1.3.8 Creep and Shrinkage Parameters" not in src
+    assert "CR&SH one-source rule" in src
+    assert "CR&SH input assistant" in src
+    assert "Relative humidity RH (%)" in src
+    assert "Drying perimeter basis" in src
+    assert "Outer perimeter only" in src
+    assert "Outer + inner void perimeter" in src
+    assert "update_crsh_derived_parameters" in src
+    assert "V/S=\\frac{A_c}{u_{total}}" in src
+    assert "h_0=\\frac{2A_c}{u_{total}}" in src
+    assert "AASHTO unit-conversion / factor preview" in src
+    assert "Prestress Losses handoff" in src
+    assert "crsh_drying_perimeter_basis" in defaults

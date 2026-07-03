@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.LOADS.32
+# Segmental Box Girder Pro — COMMERCIAL.LOADS.33
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -39,6 +39,7 @@ This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.LOADS.30
 - COMMERCIAL.LOADS.31
 - COMMERCIAL.LOADS.32
+- COMMERCIAL.LOADS.33
 
 Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
@@ -99,3 +100,5 @@ Current milestone focus:
 - Split CF engineering assessment from FEA adoption status so threshold compliance remains visible even when CF is reported as factor-only/not adopted.
 
 - COMMERCIAL.LOADS.32: Polished straight-track CF mode by hiding finite-radius inputs, threshold, FEA adoption checkbox, and Adopt span as Lf controls when straight track is selected; result cards and zero-force FEA trace remain visible.
+
+- COMMERCIAL.LOADS.33: Upgraded 3.8 CR&SH to a minimal-input assistant with RH/age/drying-basis inputs, geometry-derived u_total, V/S and h0 trace, AASHTO unit conversion preview, and Prestress Losses handoff panel.
