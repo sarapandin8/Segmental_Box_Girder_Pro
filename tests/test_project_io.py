@@ -17,6 +17,8 @@ def test_load_project_json_bytes_migrates_schema_and_keeps_project_data() -> Non
     loaded = load_project_json_bytes(raw, "saved_project.json")
     assert loaded["project"]["name"] == "USER_PROJECT"
     assert loaded["meta"]["schema_version"] == PROJECT_SCHEMA_VERSION
+    assert loaded["meta"]["loaded_schema_version"] == "0.3.8-old"
+    assert loaded["meta"]["schema_migration_status"] == "Migrated from 0.3.8-old"
     summary = project_load_summary(loaded)
     assert summary["project"] == "USER_PROJECT"
     assert summary["schema_version"] == PROJECT_SCHEMA_VERSION

@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.21-commercial-code1-aashto-2020-unit-safe-basis",
+        "schema_version": "0.4.56-commercial-loads36-eq-ui-polish-schema-adoption",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -146,7 +146,7 @@ BG40_DEFAULT = {
         "seismic_R": 2.0,
         "seismic_R_source": "AASHTO LRFD 2020 Table 3.10.7.1-1 — Essential Bridge / Single column or pier",
         "seismic_I_source": "BG40 project default / project importance basis",
-        "seismic_fea_adoption_mode": "Parameter only / coefficient trace",
+        "seismic_fea_adoption_mode": "Coefficient trace only — numeric EQ force generated in FEA model",
         "seismic_direction_basis": "EQX and EQY independent horizontal directions",
         "seismic_weight_source": "FEA mass / seismic weight W from analysis model",
         "seismic_adopted_coefficient_Cs": 0.0,

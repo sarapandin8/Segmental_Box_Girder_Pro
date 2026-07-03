@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.55-commercial-loads35-eq-summary-fea-adoption"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.56-commercial-loads36-eq-ui-polish-schema-adoption"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -616,3 +616,20 @@ def test_loads35_eq_summary_and_fea_adoption_panel():
     assert "AASHTO LRFD 2020 Table 3.10.7.1-1" in src
     assert "seismic_fea_adoption_mode" in defaults
     assert "seismic_weight_source" in defaults
+
+
+def test_loads36_eq_ui_polish_schema_and_adoption_clarity():
+    src = _src()
+    defaults = (APP_SOURCE.resolve().parents[0] / "core" / "bg40_defaults.py").read_text(encoding="utf-8")
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.36" in readme
+    assert "render_sidebar_schema_status" in src
+    assert "App schema:" in src
+    assert "Active project schema:" in src
+    assert "COEFFICIENT TRACE" in src
+    assert "NUMERIC EQ FORCE" in src
+    assert "NOT GENERATED HERE" in src
+    assert "No duplicate W input is created in Loads" in src
+    assert "render_eq_response_spectrum_canvas" in src
+    assert "DPT Equivalent-Static Response Spectrum" in src
+    assert "Coefficient trace only — numeric EQ force generated in FEA model" in defaults

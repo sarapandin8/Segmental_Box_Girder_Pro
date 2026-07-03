@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.55-commercial-loads35-eq-summary-fea-adoption"
+PROJECT_SCHEMA_VERSION = "0.4.56-commercial-loads36-eq-ui-polish-schema-adoption"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 
@@ -110,7 +110,16 @@ def ensure_project_schema(project: Dict) -> Dict:
 
     data = migrate_project_code_basis(data)
     meta = data.setdefault("meta", {})
-    # Always promote the schema marker to the active app schema while preserving user-entered engineering data.
+    original_schema = str(meta.get("loaded_schema_version") or meta.get("schema_version") or "-")
+    # Always promote the active project schema marker to the active app schema while
+    # preserving the source schema for traceability. This prevents the sidebar from
+    # showing an old project-file schema as if it were the app runtime schema.
+    if original_schema != PROJECT_SCHEMA_VERSION:
+        meta.setdefault("loaded_schema_version", original_schema)
+        meta["schema_migration_status"] = f"Migrated from {original_schema}"
+    else:
+        meta.setdefault("loaded_schema_version", original_schema)
+        meta["schema_migration_status"] = "Current"
     meta["schema_version"] = PROJECT_SCHEMA_VERSION
     meta.setdefault("app_name", "Segmental Box Girder Pro")
     meta.setdefault("dataset_status", "BG40 R10 report-driven baseline loaded")

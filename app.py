@@ -1081,6 +1081,27 @@ def editable_value(path: list[str], label: str, step: float = 1.0, fmt: str | No
 
 
 
+EQ_COEFFICIENT_TRACE_MODE = "Coefficient trace only — numeric EQ force generated in FEA model"
+EQ_ADOPTED_COEFFICIENT_MODE = "Adopted as EQ coefficient for FEA summary"
+EQ_LEGACY_ADOPTION_MODES = {
+    "Parameter only / coefficient trace": EQ_COEFFICIENT_TRACE_MODE,
+    "Parameter-only": EQ_COEFFICIENT_TRACE_MODE,
+}
+
+
+def _normalize_eq_fea_adoption_mode(value: Any) -> str:
+    """Return the current EQ FEA adoption mode with legacy wording migrated."""
+    text = str(value or EQ_COEFFICIENT_TRACE_MODE)
+    text = EQ_LEGACY_ADOPTION_MODES.get(text, text)
+    if text not in {EQ_COEFFICIENT_TRACE_MODE, EQ_ADOPTED_COEFFICIENT_MODE}:
+        return EQ_COEFFICIENT_TRACE_MODE
+    return text
+
+
+def _eq_adoption_is_adopted(mode: str) -> bool:
+    return str(mode).startswith("Adopted")
+
+
 def render_eq_result_summary_and_fea_adoption(lc: dict[str, Any], ld: dict[str, Any], *, location_label: str, region_label: str) -> None:
     """Render the EQ result cards and one-source FEA adoption trace.
 
@@ -1090,14 +1111,16 @@ def render_eq_result_summary_and_fea_adoption(lc: dict[str, Any], ld: dict[str, 
     the external FEA model, so the app keeps that source visible instead of
     inventing a duplicated weight input here.
     """
-    modes = ["Parameter only / coefficient trace", "Adopted as EQ coefficient for FEA summary"]
-    current_mode = str(lc.get("seismic_fea_adoption_mode", modes[0]))
-    if current_mode not in modes:
-        current_mode = modes[0]
+    modes = [EQ_COEFFICIENT_TRACE_MODE, EQ_ADOPTED_COEFFICIENT_MODE]
+    current_mode = _normalize_eq_fea_adoption_mode(lc.get("seismic_fea_adoption_mode", modes[0]))
     lc["seismic_fea_adoption_mode"] = current_mode
     lc.setdefault("seismic_weight_source", "FEA mass / seismic weight W from analysis model")
     lc.setdefault("seismic_direction_basis", "EQX and EQY independent horizontal directions")
     lc["seismic_adopted_coefficient_Cs"] = float(ld.get("eq_Cs", 0.0) or 0.0)
+
+    adopted = _eq_adoption_is_adopted(current_mode)
+    adoption_value = "ADOPTED COEFFICIENT" if adopted else "COEFFICIENT TRACE"
+    adoption_note = "Cs feeds FEA Summary as a coefficient" if adopted else "Cs reported; numeric EQ force requires W from FEA model"
 
     st.markdown("### EQ result summary")
     c1, c2, c3, c4, c5 = st.columns(5)
@@ -1110,35 +1133,48 @@ def render_eq_result_summary_and_fea_adoption(lc: dict[str, Any], ld: dict[str, 
     with c4:
         card("SEISMIC COEFFICIENT", f"Cs={float(ld.get('eq_Cs', 0.0)):.4f}", f"I/R={float(lc.get('seismic_I', 0.0)):.2f}/{float(lc.get('seismic_R', 0.0)):.1f}")
     with c5:
-        adoption_mode = "pass" if current_mode.startswith("Adopted") else ""
-        card("FEA ADOPTION", "Adopted" if current_mode.startswith("Adopted") else "Parameter-only", current_mode, adoption_mode)
+        card("FEA ADOPTION", adoption_value, adoption_note, "pass" if adopted else "warn")
 
     st.markdown("### FEA adoption")
     a1, a2, a3 = st.columns([1.2, 1.2, 1.4])
     with a1:
         current_mode = st.selectbox("EQ FEA adoption mode", modes, index=modes.index(current_mode), key="eq_fea_adoption_mode")
         lc["seismic_fea_adoption_mode"] = current_mode
+        adopted = _eq_adoption_is_adopted(current_mode)
     with a2:
+        direction_options = ["EQX and EQY independent horizontal directions", "EQX only", "EQY only"]
+        direction_current = str(lc.get("seismic_direction_basis", direction_options[0]))
+        if direction_current not in direction_options:
+            direction_current = direction_options[0]
         lc["seismic_direction_basis"] = st.selectbox(
             "Direction basis",
-            ["EQX and EQY independent horizontal directions", "EQX only", "EQY only"],
-            index=["EQX and EQY independent horizontal directions", "EQX only", "EQY only"].index(str(lc.get("seismic_direction_basis", "EQX and EQY independent horizontal directions"))) if str(lc.get("seismic_direction_basis", "EQX and EQY independent horizontal directions")) in ["EQX and EQY independent horizontal directions", "EQX only", "EQY only"] else 0,
+            direction_options,
+            index=direction_options.index(direction_current),
             key="eq_direction_basis",
         )
     with a3:
         lc["seismic_weight_source"] = st.text_input("Seismic weight / mass source", value=str(lc.get("seismic_weight_source", "FEA mass / seismic weight W from analysis model")), key="eq_seismic_weight_source")
 
-    adopted_text = "Cs adopted as FEA coefficient" if current_mode.startswith("Adopted") else "Coefficient trace only — numeric EQ loads generated in FEA model"
+    f1, f2, f3 = st.columns(3)
+    with f1:
+        card("SEISMIC WEIGHT SOURCE", "FEA MODEL", str(lc["seismic_weight_source"]), "pass")
+    with f2:
+        card("NUMERIC EQ FORCE", "NOT GENERATED HERE", "No duplicate W input is created in Loads", "warn")
+    with f3:
+        card("FEA RULE", "EQX/EQY = Cs × W", str(lc["seismic_direction_basis"]), "pass" if adopted else "warn")
+
+    adopted_text = "Cs adopted as FEA coefficient" if adopted else "Coefficient trace only — numeric EQ loads generated in FEA model"
     rows = [
         ["Adopted coefficient Cs", f"{float(ld.get('eq_Cs', 0.0)):.4f}", "Equivalent static coefficient from one-source EQ calculation"],
         ["EQX basis", "EQX = Cs × W" if "EQX" in lc["seismic_direction_basis"] else "Not selected", "W from selected seismic weight / mass source"],
         ["EQY basis", "EQY = Cs × W" if "EQY" in lc["seismic_direction_basis"] else "Not selected", "W from selected seismic weight / mass source"],
         ["Seismic weight W", lc["seismic_weight_source"], "No duplicate W input is created in Loads"],
+        ["Numeric force generation", "Not generated in this Loads page", "FEA model must define seismic weight / mass before force output"],
         ["Application", "Longitudinal and transverse global seismic directions", "Coordinate-direction sign and load pattern names are assigned in the FEA model"],
         ["FEA adoption status", adopted_text, "Explicit user-controlled adoption status"],
     ]
     show_engineering_table(pd.DataFrame(rows, columns=["Item", "Value", "Trace"]))
-    st.markdown('<div class="note-box"><b>FEA export rule:</b> this page exports the adopted seismic coefficient <b>Cs</b> and its source trace. Numeric equivalent-static forces require the seismic weight / mass definition from the FEA model: <b>EQX = Cs × W</b> and <b>EQY = Cs × W</b>.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="note-box"><b>FEA export rule:</b> this page exports the adopted seismic coefficient <b>Cs</b> and its source trace. Numeric equivalent-static forces require the seismic weight / mass definition from the FEA model: <b>EQX = Cs × W</b> and <b>EQY = Cs × W</b>. This page intentionally does not create a duplicate <b>W</b> input.</div>', unsafe_allow_html=True)
 
     st.markdown("### EQ one-source trace")
     show_engineering_table(pd.DataFrame([
@@ -1152,9 +1188,59 @@ def render_eq_result_summary_and_fea_adoption(lc: dict[str, Any], ld: dict[str, 
         ["Derived", "SDS / SD1", f"{float(ld.get('eq_SDS', 0.0)):.4f} / {float(ld.get('eq_SD1', 0.0)):.4f} g", "Design spectrum values"],
         ["Derived", "Sa(T)", f"{float(ld.get('eq_Sa', 0.0)):.4f} g", "Equivalent-static spectrum route"],
         ["Derived", "Cs", f"{float(ld.get('eq_Cs', 0.0)):.4f}", "Sa(T) × I / R with minimum check"],
-        ["FEA adoption", "Status", lc.get("seismic_fea_adoption_mode", "Parameter only / coefficient trace"), "One-source adoption trace"],
+        ["FEA adoption", "Status", lc.get("seismic_fea_adoption_mode", EQ_COEFFICIENT_TRACE_MODE), "One-source adoption trace"],
     ], columns=["Type", "Item", "Value", "Source / trace"]))
 
+
+def render_eq_response_spectrum_canvas(spec: pd.DataFrame, lc: dict[str, Any], ld: dict[str, Any], *, title: str, region_label: str) -> None:
+    """Render the DPT response spectrum as a report-ready engineering canvas."""
+    T = float(lc.get("seismic_T_s", 0.0))
+    Sa = float(ld.get("eq_Sa", 0.0))
+    view_mode_text, view_mode_note = _figure_view_texts()
+    with st.container(border=True):
+        st.markdown(
+            f"""
+            <div class="canvas-kicker">CANVAS</div>
+            <div class="canvas-head">
+              <div>
+                <div class="canvas-title">DPT Equivalent-Static Response Spectrum</div>
+                <div class="small-muted">General Thailand / Bangkok Basin route remains controlled by the DPT lookup source and the active analysis period.</div>
+              </div>
+              <div class="canvas-pill">EQ coefficient source</div>
+            </div>
+            <div class="canvas-note">
+              The plotted marker is the one-source input period used for <b>Sa(T)</b>; the FEA export remains a coefficient trace until seismic weight <b>W</b> is defined in the FEA model.
+            </div>
+            <div class="canvas-meta-strip">
+              <div class="canvas-station-badge"><span>Input period</span><strong>T = {T:.3f} s</strong></div>
+              <div class="canvas-meta-right">
+                <div class="canvas-view-badge">{view_mode_text} · {view_mode_note}</div>
+                <div class="canvas-dim-badge">Region: {region_label}</div>
+              </div>
+            </div>
+            {_engineering_canvas_legend_html([
+                {"label": "Sa(T)", "kind": "line", "color": "#175cd3"},
+                {"label": "Input period", "kind": "dot", "color": "#be123c"},
+            ])}
+            """,
+            unsafe_allow_html=True,
+        )
+        fig = response_spectrum_figure(spec, T, Sa, title)
+        fig.update_layout(showlegend=False, height=560, margin=dict(l=66, r=28, t=62, b=60))
+        st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
+        st.markdown(
+            '<div class="canvas-caption"><b>Figure 3.9-EQ</b> DPT equivalent-static design response spectrum used to obtain Sa(T) for Cs = Sa(T)·I/R. Numeric EQ force is not generated here because W is owned by the FEA mass/seismic-weight source.</div>',
+            unsafe_allow_html=True,
+        )
+        footer_html = (
+            '<div class="canvas-footer-grid">'
+            + _canvas_footer_card_html("SDS / SD1", f"{float(ld.get('eq_SDS', 0.0)):.3f} / {float(ld.get('eq_SD1', 0.0)):.3f} g", "design spectrum", "pass")
+            + _canvas_footer_card_html("Sa(T)", f"{Sa:.4f} g", f"T = {T:.3f} s", "pass")
+            + _canvas_footer_card_html("Cs", f"{float(ld.get('eq_Cs', 0.0)):.4f}", f"I/R = {float(lc.get('seismic_I', 0.0)):.2f}/{float(lc.get('seismic_R', 0.0)):.1f}", "pass")
+            + _canvas_footer_card_html("FEA force", "Not generated", "EQX/EQY = Cs × W", "warn")
+            + '</div>'
+        )
+        st.markdown(footer_html, unsafe_allow_html=True)
 
 def render_aashto_bridge_seismic_controls(lc: dict[str, Any]) -> dict[str, Any]:
     """Render one-source I/R controls for the EQ page.
@@ -1272,6 +1358,23 @@ def _sync_sidebar_subpage_to_loads_inline() -> None:
             st.session_state.loads_inline_subpage = current_subpage
 
 
+def render_sidebar_schema_status() -> None:
+    """Show app/runtime schema separately from project-file schema trace."""
+    meta = D.get("meta", {}) if isinstance(D, dict) else {}
+    active_schema = str(meta.get("schema_version", "-"))
+    source_schema = str(meta.get("loaded_schema_version", active_schema))
+    migration_status = str(meta.get("schema_migration_status", "Current" if active_schema == PROJECT_SCHEMA_VERSION else "Review"))
+    st.info(f"App schema: {PROJECT_SCHEMA_VERSION}")
+    if active_schema == PROJECT_SCHEMA_VERSION:
+        st.success(f"Active project schema: {active_schema}")
+    else:
+        st.warning(f"Active project schema: {active_schema}")
+    if source_schema and source_schema != active_schema:
+        st.caption(f"Source project schema: {source_schema} · {migration_status}")
+    else:
+        st.caption(f"Migration status: {migration_status}")
+
+
 def render_sidebar() -> None:
     with st.sidebar:
         st.markdown(
@@ -1303,7 +1406,7 @@ def render_sidebar() -> None:
         snap = engineering_snapshot()
         st.info(f"ULS Flexure max DCR: {snap['flexure_max_dcr']:.3f}")
         st.info(f"Shear/Torsion D/C: {snap['transverse_check']['DCR_governing']:.3f}")
-        st.info(f"Schema {PROJECT_SCHEMA_VERSION}")
+        render_sidebar_schema_status()
         st.markdown("---")
         st.markdown("**FIGURE SYSTEM**")
         if "global_figure_view_mode" not in st.session_state or st.session_state.global_figure_view_mode not in FIGURE_VIEW_OPTIONS:
@@ -2297,7 +2400,7 @@ def page_loads(sub: str) -> None:
             st.latex(fr"S_a({D['load_components']['seismic_T_s']:.3f})={ld['eq_Sa']:.4f}\,g")
             st.latex(fr"C_s={ld['eq_Sa']:.4f}\left(\frac{{{D['load_components']['seismic_I']:.2f}}}{{{D['load_components']['seismic_R']:.1f}}}\right)={ld['eq_Cs']:.4f}")
             spec = bangkok_response_spectrum_points(int(lc["seismic_bangkok_zone"]), float(lc.get("seismic_damping_percent", 5.0)))
-            show_plotly(response_spectrum_figure(spec, float(D["load_components"]["seismic_T_s"]), ld["eq_Sa"], f"DPT Bangkok Basin Zone {int(lc['seismic_bangkok_zone'])} — Equivalent static spectrum"))
+            render_eq_response_spectrum_canvas(spec, lc, ld, title=f"DPT Bangkok Basin Zone {int(lc['seismic_bangkok_zone'])} — Equivalent static spectrum", region_label="Bangkok Basin")
             source_text = "Table 1.4-5" if float(lc.get("seismic_damping_percent", 5.0)) == 5.0 else "Table 1.4-4"
             rows = [
                 ["Region", "Bangkok Basin", "Fig. 1.4-5"],
@@ -2337,7 +2440,7 @@ def page_loads(sub: str) -> None:
             st.latex(fr"S_{{D1}}=\frac{{2}}{{3}}({ld['eq_Fv']:.2f})({D['load_components']['seismic_S1_g']:.3f})={ld['eq_SD1']:.4f}\,g")
             st.latex(fr"C_s={ld['eq_Sa']:.4f}\left(\frac{{{D['load_components']['seismic_I']:.2f}}}{{{D['load_components']['seismic_R']:.1f}}}\right)={ld['eq_Cs']:.4f}")
             spec = response_spectrum_points(ld["eq_SDS"], ld["eq_SD1"], t_max=max(2.5, float(D["load_components"]["seismic_T_s"]) * 1.5))
-            show_plotly(response_spectrum_figure(spec, float(D["load_components"]["seismic_T_s"]), ld["eq_Sa"], "DPT equivalent-static design response spectrum — General Thailand workflow"))
+            render_eq_response_spectrum_canvas(spec, lc, ld, title="DPT equivalent-static design response spectrum — General Thailand workflow", region_label="General Thailand")
             rows = [
                 ["Region", "General Thailand", "Table 1.4-1"],
                 ["Ss", lc["seismic_Ss_g"], "g"], ["S1", lc["seismic_S1_g"], "g"],
@@ -2383,7 +2486,7 @@ def page_loads(sub: str) -> None:
             ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", str(D.get("rail_loads", {}).get("cf_application_level", "Rail level")), str(ld.get("cf_fea_adoption_status", ld.get("cf_assessment", "App calculated")))],
             ["WS", "WS", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure", "App calculated"],
             ["WS+WL", "WS+WL", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_WL_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure + train", "App calculated"],
-            ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO LRFD 2020 bridge R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", str(D['load_components'].get('seismic_fea_adoption_mode', 'Parameter only / coefficient trace'))],
+            ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO LRFD 2020 bridge R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", str(D['load_components'].get('seismic_fea_adoption_mode', EQ_COEFFICIENT_TRACE_MODE))],
             ["CR&SH", "CR/SH", "AASHTO LRFD Art. 5.9.5", "parameters", "-", "Long-term", "Prestress loss module", "Declared in 3.8 / consumed by 4"],
         ]
         show_engineering_table(pd.DataFrame(rows, columns=["Load Pattern", "Symbol", "Code Basis", "Value", "Unit", "Direction", "Application", "Source"]))
