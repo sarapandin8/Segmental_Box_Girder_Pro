@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.47-commercial-loads27-ws-wl-v-notation"
+PROJECT_SCHEMA_VERSION = "0.4.48-commercial-loads28-cf-code-assisted-fea-adoption"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 

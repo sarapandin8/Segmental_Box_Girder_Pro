@@ -273,6 +273,12 @@ BG40_DEFAULT = {
         "speed_kmh": 160.0,
         "radius_m": 10000.0,
         "Lf_m": 40.0,
+        "cf_track_condition": "Straight / very large radius",
+        "cf_assessment_threshold_percent": 2.0,
+        "cf_include_in_fea": False,
+        "cf_application_level": "Rail level",
+        "cf_direction": "Radial / transverse to track",
+        "cf_adoption_mode": "Factor only — not adopted as FEA load",
     },
     "uls_flexure": {
         "fps_mpa": 1499.0,

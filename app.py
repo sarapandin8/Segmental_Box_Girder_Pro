@@ -850,6 +850,17 @@ def load_derived() -> dict[str, Any]:
     lc["wind_c_ws"] = float(ws["C_ws"])
     lc["wind_c_ws_wl"] = float(ws["C_ws_wl"])
     cf = en_centrifugal_percentage(float(rail["speed_kmh"]), float(rail["radius_m"]), float(rail["Lf_m"]))
+    cf_threshold_percent = float(rail.get("cf_assessment_threshold_percent", 2.0))
+    cf_include_in_fea = bool(rail.get("cf_include_in_fea", False))
+    if not cf_include_in_fea:
+        cf_assessment = "Factor-only / not adopted in FEA"
+        cf_assessment_note = "reported for traceability"
+    elif float(cf.get("C_percent", 0.0)) <= cf_threshold_percent:
+        cf_assessment = "Small / below threshold"
+        cf_assessment_note = f"≤ {cf_threshold_percent:.2f}% project threshold"
+    else:
+        cf_assessment = "Review for FEA adoption"
+        cf_assessment_note = f"> {cf_threshold_percent:.2f}% project threshold"
     try:
         if lc.get("seismic_region") == "Bangkok Basin" and int(lc.get("seismic_bangkok_zone", 0) or 0) > 0:
             eq = dpt_bangkok_basin_spectrum(
@@ -898,6 +909,10 @@ def load_derived() -> dict[str, Any]:
         **ws,
         **{f"eq_{k}": v for k, v in eq.items()},
         **{f"cf_{k}": v for k, v in cf.items()},
+        "cf_assessment_threshold_percent": cf_threshold_percent,
+        "cf_include_in_fea": cf_include_in_fea,
+        "cf_assessment": cf_assessment,
+        "cf_assessment_note": cf_assessment_note,
     }
 
 def prestress_inputs() -> dict[str, Any]:
@@ -1534,23 +1549,83 @@ def page_loads(sub: str) -> None:
             card("Dynamic factor on HF", "Not applied", "EN nosing force", "pass")
 
     if selected_load_subpage == "3.6 CF":
-        code_basis_card("3.6 Centrifugal Force (CF)", "EN 1991-2 Art. 6.5.1", "Applies where horizontal curvature is relevant. For straight/large-radius spans this is often non-governing but still traceable.")
-        c1, c2, c3 = st.columns(3)
+        code_basis_card(
+            "3.6 Centrifugal Force (CF)",
+            "EN 1991-2 Art. 6.5.1",
+            "Code-assisted CF input assistant. User enters project-specific speed/radius/loaded length; the app calculates f, C, assessment status, and the FEA adoption trace from one source.",
+        )
+        st.markdown('<div class="note-box"><b>CF one-source rule:</b> CF inputs below feed the calculation trace, result cards, FEA adoption status, FEA Summary, Save/Load JSON, and future report export. V is in km/h, R is in m, and C is dimensionless.</div>', unsafe_allow_html=True)
+
+        rail = D["rail_loads"]
+        span = float(D["project"].get("span_m", 40.0))
+        condition_options = ["Straight / very large radius", "Curved track"]
+        if rail.get("cf_track_condition") not in condition_options:
+            rail["cf_track_condition"] = "Straight / very large radius"
+        c1, c2 = st.columns([1, 1])
         with c1:
-            editable_value(["rail_loads", "speed_kmh"], "V (km/h)", 10.0)
+            rail["cf_track_condition"] = st.selectbox(
+                "Track curvature condition",
+                condition_options,
+                index=condition_options.index(str(rail.get("cf_track_condition", "Straight / very large radius"))),
+                key="cf_track_condition_selector",
+                help="Use Curved track when horizontal curvature should generate centrifugal action. Use Straight / very large radius when CF is reported only for traceability.",
+            )
         with c2:
-            editable_value(["rail_loads", "radius_m"], "R (m)", 100.0)
+            rail["cf_include_in_fea"] = st.checkbox(
+                "Include CF in FEA adoption summary",
+                value=bool(rail.get("cf_include_in_fea", False)),
+                key="cf_include_in_fea_checkbox",
+                help="When unchecked, CF remains a report/check factor and is not adopted as a separate FEA horizontal action.",
+            )
+
+        st.markdown("#### Project-specific CF inputs")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            editable_value(["rail_loads", "speed_kmh"], "Design speed V (km/h)", 10.0)
+        with c2:
+            editable_value(["rail_loads", "radius_m"], "Curve radius R (m)", 100.0)
         with c3:
-            editable_value(["rail_loads", "Lf_m"], "Lf (m)", 1.0)
+            editable_value(["rail_loads", "Lf_m"], "Loaded length Lf (m)", 1.0)
+        with c4:
+            editable_value(["rail_loads", "cf_assessment_threshold_percent"], "Assessment threshold (% LL)", 0.25, "%.2f")
+            if st.button("Adopt span as Lf", key="cf_adopt_span_lf"):
+                rail["Lf_m"] = span
+                st.rerun()
+
         ld = load_derived()
+        threshold = float(ld["cf_assessment_threshold_percent"])
+        st.markdown("#### Result summary")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            card("Reduction factor f", f"{ld['cf_f']:.4f}", "EN reduction factor")
+        with c2:
+            card("CF factor C", f"{ld['cf_C_reduced']:.5f}", "dimensionless")
+        with c3:
+            card("CF / LL", f"{ld['cf_C_percent']:.2f}%", "excluding impact")
+        with c4:
+            card("Assessment", str(ld["cf_assessment"]), str(ld["cf_assessment_note"]), "pass" if (not ld["cf_include_in_fea"] or ld["cf_C_percent"] <= threshold) else "warn")
+
+        st.markdown("#### Calculation trace")
         st.latex(r"C=\frac{V^2f}{127R}")
         st.latex(r"f=1-\left(\frac{V-120}{1000}\right)\left(\frac{814}{V}+1.75\right)\left(1-\sqrt{\frac{2.88}{L_f}}\right)\quad (f\ge 0.35)")
         st.latex(fr"f={ld['cf_f']:.4f},\qquad C=\frac{{{D['rail_loads']['speed_kmh']:.0f}^2({ld['cf_f']:.2f})}}{{127({D['rail_loads']['radius_m']:.0f})}}={ld['cf_C_reduced']:.5f}")
-        c1, c2 = st.columns(2)
-        with c1:
-            card("Centrifugal factor", f"{ld['cf_C_percent']:.2f}% of LL", "excluding impact")
-        with c2:
-            card("Assessment", "Not governing" if ld['cf_C_percent'] < 5 else "Review", "large radius / straight-span assumption", "pass" if ld['cf_C_percent'] < 5 else "warn")
+        st.markdown('<div class="note-box"><b>Unit trace:</b> use V in km/h, R in m, and Lf in m for the EN centrifugal expression above. The resulting C is a dimensionless fraction of the vertical live load and excludes impact unless an adopted project rule states otherwise.</div>', unsafe_allow_html=True)
+
+        st.markdown("#### FEA adoption")
+        adoption_mode = "Adopted as horizontal radial/transverse action factor" if bool(rail.get("cf_include_in_fea", False)) else "Factor only — not adopted as FEA load"
+        rail["cf_adoption_mode"] = adoption_mode
+        adoption_rows = [
+            ["Track condition", str(rail.get("cf_track_condition", "-")), "User selection / project assumption"],
+            ["Direction", str(rail.get("cf_direction", "Radial / transverse to track")), "Horizontal radial action normal to curved track"],
+            ["Application level", str(rail.get("cf_application_level", "Rail level")), "Typical FEA application reference unless project-specific model states otherwise"],
+            ["Adopted CF factor", f"{ld['cf_C_reduced']:.5f} = {ld['cf_C_percent']:.2f}% of LL", "Multiply by vertical train live-load effect"],
+            ["FEA adoption", adoption_mode, "Explicit user-controlled adoption status"],
+        ]
+        show_engineering_table(pd.DataFrame(adoption_rows, columns=["Item", "Value", "Trace"]), hide_index=True)
+        if bool(rail.get("cf_include_in_fea", False)):
+            st.markdown('<div class="warn-box"><b>FEA adoption note:</b> CF is adopted as a factor to be applied to the selected vertical railway live-load model. A numeric kN/m or point-load CF action requires the governing vertical live-load distribution from the FEA load model.</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="note-box"><b>Factor-only status:</b> CF is calculated and reported for traceability, but no separate CF horizontal FEA load is adopted from this page.</div>', unsafe_allow_html=True)
 
     if selected_load_subpage == "3.7 Wind":
         code_basis_card(
@@ -2026,7 +2101,7 @@ def page_loads(sub: str) -> None:
             ["LL+IM", "LL+IM", "EN 1991-2 Art. 6.4.3/6.4.5", f"U20 × {format_engineering_value(D['load_components']['dynamic_factor_design'], 'factor')}", "factor", "Vertical", "Railway load model", "App calc + adopted"],
             ["LF", "LF", "EN 1991-2 Art. 6.5.3", f"{ld['LF_design_kn']:.0f} / {ld['LF_design_kn_m']:.1f}", "kN / kN/m", "Longitudinal", "Rail level", "App calculated"],
             ["HF", "Qsk", "EN 1991-2 Art. 6.5.2", f"{ld['hf_HF_adopted_kn']:.0f}", "kN", "Transverse", "Top of rail concentrated", "App decision"],
-            ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", "Curved track only", "App calculated"],
+            ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", str(D.get("rail_loads", {}).get("cf_application_level", "Rail level")), str(ld.get("cf_assessment", "App calculated"))],
             ["WS", "WS", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure", "App calculated"],
             ["WS+WL", "WS+WL", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_WL_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure + train", "App calculated"],
             ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO bridge R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", "DPT lookup + AASHTO R + app calculated"],
