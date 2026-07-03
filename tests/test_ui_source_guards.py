@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.50-commercial-loads30-cf-two-mode-alignment"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.51-commercial-loads31-cf-assessment-adoption-split"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -543,3 +543,18 @@ def test_loads30_cf_two_mode_track_alignment():
     assert "FEA adoption" in src
     assert "Factor-only status" in src
     assert "V in km/h, R in m, and Lf in m" in src
+
+
+def test_loads31_cf_assessment_adoption_status_split():
+    src = _src()
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.LOADS.31" in readme
+    assert "Engineering assessment" in src
+    assert "FEA adoption status" in src
+    assert "cf_engineering_assessment" in src
+    assert "cf_fea_adoption_status" in src
+    assert "Below threshold" in src
+    assert "Above threshold / review" in src
+    assert "Factor-only / not adopted in FEA" in src
+    assert "Adopted in FEA summary" in src
+    assert "cf_fea_adoption_mode" in src

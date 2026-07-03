@@ -859,20 +859,33 @@ def load_derived() -> dict[str, Any]:
     if cf_is_straight:
         cf = {"f": 1.0, "C_basic": 0.0, "C_reduced": 0.0, "C_percent": 0.0}
         cf_include_in_fea = False
-        cf_assessment = "Zero / straight track"
-        cf_assessment_note = "R = ∞; CF not applicable"
+        cf_engineering_assessment = "Zero / straight track"
+        cf_engineering_assessment_note = "R = ∞; CF not applicable"
+        cf_engineering_assessment_mode = "pass"
+        cf_fea_adoption_status = "Not applicable / not adopted"
+        cf_fea_adoption_note = "zero CF for straight track"
+        cf_fea_adoption_mode = ""
     else:
         cf = en_centrifugal_percentage(float(rail["speed_kmh"]), float(rail["radius_m"]), float(rail["Lf_m"]))
         cf_include_in_fea = bool(rail.get("cf_include_in_fea", False))
-        if not cf_include_in_fea:
-            cf_assessment = "Factor-only / not adopted in FEA"
-            cf_assessment_note = "reported for traceability"
-        elif float(cf.get("C_percent", 0.0)) <= cf_threshold_percent:
-            cf_assessment = "Small / below threshold"
-            cf_assessment_note = f"≤ {cf_threshold_percent:.2f}% project threshold"
+        if float(cf.get("C_percent", 0.0)) <= cf_threshold_percent:
+            cf_engineering_assessment = "Below threshold"
+            cf_engineering_assessment_note = f"{float(cf.get('C_percent', 0.0)):.2f}% ≤ {cf_threshold_percent:.2f}% LL"
+            cf_engineering_assessment_mode = "pass"
         else:
-            cf_assessment = "Review for FEA adoption"
-            cf_assessment_note = f"> {cf_threshold_percent:.2f}% project threshold"
+            cf_engineering_assessment = "Above threshold / review"
+            cf_engineering_assessment_note = f"{float(cf.get('C_percent', 0.0)):.2f}% > {cf_threshold_percent:.2f}% LL"
+            cf_engineering_assessment_mode = "warn"
+        if cf_include_in_fea:
+            cf_fea_adoption_status = "Adopted in FEA summary"
+            cf_fea_adoption_note = "horizontal radial/transverse action factor"
+            cf_fea_adoption_mode = "pass"
+        else:
+            cf_fea_adoption_status = "Factor-only / not adopted in FEA"
+            cf_fea_adoption_note = "reported for traceability"
+            cf_fea_adoption_mode = "warn" if float(cf.get("C_percent", 0.0)) > cf_threshold_percent else ""
+    cf_assessment = cf_engineering_assessment
+    cf_assessment_note = cf_engineering_assessment_note
     try:
         if lc.get("seismic_region") == "Bangkok Basin" and int(lc.get("seismic_bangkok_zone", 0) or 0) > 0:
             eq = dpt_bangkok_basin_spectrum(
@@ -927,6 +940,12 @@ def load_derived() -> dict[str, Any]:
         "cf_include_in_fea": cf_include_in_fea,
         "cf_assessment": cf_assessment,
         "cf_assessment_note": cf_assessment_note,
+        "cf_engineering_assessment": cf_engineering_assessment,
+        "cf_engineering_assessment_note": cf_engineering_assessment_note,
+        "cf_engineering_assessment_mode": cf_engineering_assessment_mode,
+        "cf_fea_adoption_status": cf_fea_adoption_status,
+        "cf_fea_adoption_note": cf_fea_adoption_note,
+        "cf_fea_adoption_mode": cf_fea_adoption_mode,
     }
 
 def prestress_inputs() -> dict[str, Any]:
@@ -1621,7 +1640,7 @@ def page_loads(sub: str) -> None:
         ld = load_derived()
         threshold = float(ld["cf_assessment_threshold_percent"])
         st.markdown("#### Result summary")
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1.2, 1.2])
         with c1:
             card("Reduction factor f", "N/A" if ld["cf_is_straight"] else f"{ld['cf_f']:.4f}", "zero CF for straight track" if ld["cf_is_straight"] else "EN reduction factor")
         with c2:
@@ -1629,7 +1648,9 @@ def page_loads(sub: str) -> None:
         with c3:
             card("CF / LL", f"{ld['cf_C_percent']:.2f}%", "straight track" if ld["cf_is_straight"] else "excluding impact")
         with c4:
-            card("Assessment", str(ld["cf_assessment"]), str(ld["cf_assessment_note"]), "pass" if (ld["cf_is_straight"] or not ld["cf_include_in_fea"] or ld["cf_C_percent"] <= threshold) else "warn")
+            card("Engineering assessment", str(ld["cf_engineering_assessment"]), str(ld["cf_engineering_assessment_note"]), str(ld["cf_engineering_assessment_mode"]))
+        with c5:
+            card("FEA adoption status", str(ld["cf_fea_adoption_status"]), str(ld["cf_fea_adoption_note"]), str(ld["cf_fea_adoption_mode"]))
 
         st.markdown("#### Calculation trace")
         if ld["cf_is_straight"]:
@@ -2140,7 +2161,7 @@ def page_loads(sub: str) -> None:
             ["LL+IM", "LL+IM", "EN 1991-2 Art. 6.4.3/6.4.5", f"U20 × {format_engineering_value(D['load_components']['dynamic_factor_design'], 'factor')}", "factor", "Vertical", "Railway load model", "App calc + adopted"],
             ["LF", "LF", "EN 1991-2 Art. 6.5.3", f"{ld['LF_design_kn']:.0f} / {ld['LF_design_kn_m']:.1f}", "kN / kN/m", "Longitudinal", "Rail level", "App calculated"],
             ["HF", "Qsk", "EN 1991-2 Art. 6.5.2", f"{ld['hf_HF_adopted_kn']:.0f}", "kN", "Transverse", "Top of rail concentrated", "App decision"],
-            ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", str(D.get("rail_loads", {}).get("cf_application_level", "Rail level")), str(ld.get("cf_assessment", "App calculated"))],
+            ["CF", "C", "EN 1991-2 Art. 6.5.1", f"{ld['cf_C_percent']:.2f}", "% of LL", "Radial/transverse", str(D.get("rail_loads", {}).get("cf_application_level", "Rail level")), str(ld.get("cf_fea_adoption_status", ld.get("cf_assessment", "App calculated")))],
             ["WS", "WS", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure", "App calculated"],
             ["WS+WL", "WS+WL", "EN 1991-1-4 + DPT 1311-50", f"{ld['WSsuper_WL_kn_m']:.2f}", "kN/m", "Wind transverse", "Superstructure + train", "App calculated"],
             ["EQ", "Cs", "DPT 1301/1302-61 + AASHTO bridge R", f"{ld['eq_Cs']:.4f}", "-", "X/Y seismic", f"Equivalent static coefficient · I/R={float(D['load_components']['seismic_I']):.2f}/{float(D['load_components']['seismic_R']):.1f}", "DPT lookup + AASHTO R + app calculated"],
