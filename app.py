@@ -68,7 +68,9 @@ from core.tendon_adoption import (
     adopt_tendon_model,
     build_tendon_downstream_summary,
     build_tendon_source_trace,
+    build_tendon_stressing_basis_summary,
     clear_adopted_tendon_model,
+    normalise_jack_from,
     tendon_model_fingerprint,
     tendon_model_status,
 )
@@ -3743,6 +3745,8 @@ def _tendon_summary_frame_from_summary(summary: dict[str, Any]) -> pd.DataFrame:
         ["Jacking stress", summary.get("jacking_stress_mpa", 0.0), "MPa", "0.75 fpu"],
         ["Jacking force per tendon", summary.get("jacking_force_per_tendon_kN", 0.0), "kN", "0.75 fpu × Aps"],
         ["Total jacking force", summary.get("jacking_force_total_kN", 0.0), "kN", "sum of adopted tendons"],
+        ["JackFrom / stressing basis", summary.get("jack_from_display", "—"), "-", summary.get("stressing_mode", "detected from General tendon table")],
+        ["Stressing force policy", summary.get("stressing_force_policy", "Pj/tendon is axial force; two-end stressing does not double total Pj."), "-", "locked rule for friction/anchor-set routing"],
         ["Average dp at end", summary.get("dp_avg_end_m", 0.0), "m", "area-weighted"],
         ["Average dp at midspan", summary.get("dp_avg_midspan_m", 0.0), "m", "area-weighted"],
         ["y_t from top", summary.get("y_t_from_top_m", 0.0), "m", "active adopted section property"],
@@ -3765,18 +3769,8 @@ def _active_adopted_tendon_model() -> dict[str, Any]:
 
 
 def _normalise_jack_from(value: Any) -> str:
-    """Return a compact JackFrom label from CSiBridge / project text."""
-    raw = str(value or "").strip()
-    if not raw:
-        return ""
-    key = raw.lower().replace("_", " ").replace("-", " ")
-    if any(token in key for token in ("both", "two end", "two ends", "both ends")):
-        return "Both ends"
-    if key.startswith("start") or key in {"s", "left", "begin", "beginning"}:
-        return "Start"
-    if key.startswith("end") or key in {"e", "right"}:
-        return "End"
-    return raw
+    """Compatibility wrapper for app-local prestress-loss helpers."""
+    return normalise_jack_from(value)
 
 
 def _psloss_stressing_basis_state(adopted_model: dict[str, Any], tendon_locked: bool) -> dict[str, Any]:
@@ -4476,6 +4470,33 @@ def render_report_qa_prestress_losses_handoff_snapshot() -> None:
     st.markdown("#### 4.2 Friction source-model snapshot")
     show_engineering_table(_psloss_friction_source_rows(state))
 
+def _tendon_stressing_basis_frame(model: dict[str, Any]) -> pd.DataFrame:
+    stressing = build_tendon_stressing_basis_summary(model)
+    return pd.DataFrame(
+        [
+            ["JackFrom source", stressing.get("source", "-"), stressing.get("status", "PENDING"), stressing.get("message", "-")],
+            ["Detected stressing mode", stressing.get("detected_mode", "-"), stressing.get("adoption_status", "-"), stressing.get("affects", "Friction loss and anchor-set distribution")],
+            ["JackFrom values", stressing.get("jack_from_display", "—"), f"{stressing.get('missing_count', 0)} missing", "Use tendon-by-tendon source when values are mixed."],
+            ["Force policy", "Pj/tendon is axial force", "LOCKED RULE", "Two-end stressing controls loss distribution only; it must not double Aps,total or total Pj."],
+        ],
+        columns=["Item", "Value", "Status", "Required engineer check"],
+    )
+
+
+def _render_tendon_stressing_basis_cards(model: dict[str, Any]) -> None:
+    """Show JackFrom / stressing-mode readiness without creating duplicate input."""
+    stressing = build_tendon_stressing_basis_summary(model)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        card("Stressing Basis", stressing.get("adoption_status", "PENDING"), stressing.get("message", ""), stressing.get("mode", "warn"))
+    with c2:
+        card("JackFrom", stressing.get("jack_from_display", "—"), stressing.get("source", "General tendon table"), stressing.get("mode", "warn"))
+    with c3:
+        card("Detected Mode", stressing.get("detected_mode", "—"), stressing.get("affects", "friction / anchor-set"), stressing.get("mode", "warn"))
+    with c4:
+        card("Force Policy", "LOCKED RULE", "Two-end stressing does not double total Pj", "neutral")
+
+
 def _render_tendon_adoption_cards(model: dict[str, Any]) -> None:
     tl = D.setdefault("tendon_layout", {})
     status = tendon_model_status(model, tl)
@@ -4518,6 +4539,9 @@ def render_tendon_layout_reference() -> None:
     model_for_summary = _active_tendon_model()
     _render_tendon_import_summary_cards(model_for_summary)
     _render_tendon_adoption_cards(model_for_summary)
+    _render_tendon_stressing_basis_cards(model_for_summary)
+    with st.expander("Tendon stressing-basis summary", expanded=False):
+        show_engineering_table(_tendon_stressing_basis_frame(model_for_summary))
     tabs = st.tabs(["Import / Mapping", "Elevation View", "Plan View", "3D Tendon View", "Section Overlay", "Adopted Tendon Data", "QA / Consistency"])
 
     with tabs[0]:
@@ -4982,7 +5006,7 @@ def render_tendon_layout_reference() -> None:
         if model.get("valid") and props.get("valid"):
             max_station = float(model.get("span_m") or D["project"].get("span_m", 40.0))
             mid_station = float(model.get("midspan_m") or max_station / 2.0)
-            station_key = "tendon_section_overlay_station"
+            station_key = "tendon_section_overlay_station_value"
             if station_key not in st.session_state:
                 st.session_state[station_key] = mid_station
 
@@ -4999,7 +5023,21 @@ def render_tendon_layout_reference() -> None:
             if b5.button("End", use_container_width=True, key="overlay_station_end"):
                 st.session_state[station_key] = max_station
 
-            station = st.slider("Station x (m)", min_value=0.0, max_value=max_station, value=float(st.session_state.get(station_key, mid_station)), step=0.01, key=station_key)
+            # Avoid Streamlit's Slider frontend chunk on this production QA view.
+            # A numeric station picker is more stable in PDF/browser handoff and
+            # keeps the quick-station buttons as the primary review workflow.
+            current_station = float(st.session_state.get(station_key, mid_station))
+            current_station = max(0.0, min(float(max_station), current_station))
+            station = st.number_input(
+                "Station x (m)",
+                min_value=0.0,
+                max_value=float(max_station),
+                value=current_station,
+                step=0.01,
+                format="%.3f",
+                key=station_key,
+                help="Numeric station control replaces the previous slider to avoid frontend dynamic-import instability during section-overlay review.",
+            )
             station_label = _overlay_station_label(station, max_station)
 
             c1, c2, c3, c4, c5, c6 = st.columns([1.05, 1.05, 1.0, 1.0, 1.0, 0.82])
@@ -5196,6 +5234,8 @@ def render_tendon_layout_reference() -> None:
                 unsafe_allow_html=True,
             )
             _render_tendon_adoption_cards(model)
+            st.markdown("#### Stressing basis from JackFrom")
+            show_engineering_table(_tendon_stressing_basis_frame(adopted_model if adopted_model else model))
 
             c_adopt, c_clear = st.columns([1.35, 0.85])
             with c_adopt:
@@ -5269,6 +5309,9 @@ def render_tendon_layout_reference() -> None:
         st.markdown("#### Source trace")
         show_engineering_table(_tendon_source_trace_frame(tl, model))
 
+        st.markdown("#### JackFrom / stressing-basis QA")
+        show_engineering_table(_tendon_stressing_basis_frame(adopted_model if adopted_model else model))
+
         if not qa_df.empty:
             st.markdown("#### Import QA")
             show_engineering_table(qa_df)
@@ -5284,6 +5327,7 @@ def render_tendon_layout_reference() -> None:
         trace = pd.DataFrame([
             ["Tendon figures", "Working imported or adopted tendon model", "Side elevation / plan / section overlay", "READY" if model.get("valid") else "PENDING"],
             ["Prestress summary", "Explicitly adopted tendon snapshot", "Aps,total and dp averages copied only when adopted", "READY" if adopted_ready else "BLOCKED"],
+            ["Stressing basis", "General tendon table JackFrom field", "Auto-detect one-end / two-end / mixed; require traced review if missing", build_tendon_stressing_basis_summary(adopted_model if adopted_model else model).get("status", "PENDING")],
             ["Friction angle α", "Existing BG40 report route", "Not recalculated from tendon geometry in this milestone", "REVIEW"],
             ["Report export", "Adopted tendon model + source trace", "Figures, tables, and downstream summary are report-ready", "READY" if adopted_ready else "PENDING"],
             ["Save/Load JSON", "tendon_layout.adopted_model", "Adoption snapshot and trace persist in project JSON", "READY" if adopted_ready else "PENDING"],

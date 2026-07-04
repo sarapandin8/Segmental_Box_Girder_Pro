@@ -92,9 +92,105 @@ def build_tendon_source_trace(tendon_layout: dict[str, Any] | None, model: dict[
     return rows
 
 
+
+def normalise_jack_from(value: Any) -> str:
+    """Return a compact JackFrom / stressing-end label from CSiBridge or project text."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    key = raw.lower().replace("_", " ").replace("-", " ")
+    if any(token in key for token in ("both", "two end", "two ends", "both ends")):
+        return "Both ends"
+    if key.startswith("start") or key in {"s", "left", "begin", "beginning"}:
+        return "Start"
+    if key.startswith("end") or key in {"e", "right"}:
+        return "End"
+    return raw
+
+
+def build_tendon_stressing_basis_summary(model: dict[str, Any] | None) -> dict[str, Any]:
+    """Summarize JackFrom / stressing mode from a tendon model without creating new input.
+
+    This is an engineering source gate: the app should auto-detect the stressing
+    basis from the CSiBridge General tendon table, then ask for review or a
+    traced override only when the source is missing, mixed, or project-specific.
+    Two-end stressing affects loss distribution only; it never doubles Aps,total
+    or total tendon axial jacking force.
+    """
+    model = model or {}
+    tendons = model.get("tendons", []) if isinstance(model.get("tendons", []), list) else []
+    raw_values = [str(t.get("jack_from", "")).strip() for t in tendons if isinstance(t, dict)]
+    normalised = [normalise_jack_from(v) for v in raw_values]
+    missing_count = sum(1 for v in normalised if not v)
+    present = [v for v in normalised if v]
+    order = {"Start": 0, "End": 1, "Both ends": 2}
+    unique = sorted(set(present), key=lambda v: order.get(v, 9))
+    jack_display = ", ".join(unique) if unique else "—"
+
+    if not model.get("valid") or not tendons:
+        status = "PENDING"
+        mode = "warn"
+        detected_mode = "Build/import tendon model first"
+        adoption_status = "BLOCKED"
+        message = "Import General / Vertical / Horizontal tendon tables before stressing-basis review."
+        ready = False
+    elif not unique:
+        status = "MISSING"
+        mode = "warn"
+        detected_mode = "JackFrom not found"
+        adoption_status = "REVIEW REQUIRED"
+        message = "General tendon table does not provide JackFrom / stressing-end metadata."
+        ready = False
+    elif unique == ["Both ends"] and missing_count == 0:
+        status = "READY"
+        mode = "pass"
+        detected_mode = "Two-end stressing"
+        adoption_status = "READY FOR ADOPTION"
+        message = "Two-end stressing is explicit; use it for loss distribution only, not force doubling."
+        ready = True
+    elif len(unique) == 1 and unique[0] in {"Start", "End"} and missing_count == 0:
+        status = "READY"
+        mode = "pass"
+        detected_mode = f"One-end stressing from {unique[0]}"
+        adoption_status = "READY FOR ADOPTION"
+        message = "One-end stressing basis is explicit from the General tendon table."
+        ready = True
+    elif set(unique).issubset({"Start", "End"}) and missing_count == 0:
+        status = "REVIEW"
+        mode = "warn"
+        detected_mode = "Mixed one-end stressing by tendon"
+        adoption_status = "REVIEW BEFORE ADOPTION"
+        message = "Start/End stressing is tendon-specific; detailed loss routing must use each tendon row."
+        ready = True
+    else:
+        status = "REVIEW"
+        mode = "warn"
+        detected_mode = "Mixed / project-specific JackFrom"
+        adoption_status = "REVIEW BEFORE ADOPTION"
+        message = "JackFrom values include missing or project-specific entries; confirm before adoption."
+        ready = False if missing_count else True
+
+    return {
+        "status": status,
+        "mode": mode,
+        "ready": ready,
+        "adoption_status": adoption_status,
+        "detected_mode": detected_mode,
+        "jack_from_values": unique,
+        "jack_from_display": jack_display,
+        "raw_jack_from_values": raw_values,
+        "tendon_count": len(tendons),
+        "missing_count": missing_count,
+        "message": message,
+        "source": "General tendon table · JackFrom field",
+        "affects": "Friction loss and anchor-set distribution",
+        "force_policy": "Pj/tendon is axial force; two-end stressing does not double Aps,total or total Pj.",
+    }
+
 def build_tendon_downstream_summary(model: dict[str, Any] | None, *, y_t_from_top_m: float = 0.0) -> dict[str, Any]:
     """Return the exact tendon summary intended for downstream design modules."""
     model = model or {}
+    stressing = build_tendon_stressing_basis_summary(model)
     return {
         "source": "Adopted CSiBridge tendon layout model",
         "active_bridge_object": model.get("active_bridge_object", "-"),
@@ -109,6 +205,11 @@ def build_tendon_downstream_summary(model: dict[str, Any] | None, *, y_t_from_to
         "dp_avg_midspan_m": float(model.get("dp_avg_midspan_m") or 0.0),
         "y_t_from_top_m": float(y_t_from_top_m or 0.0),
         "eccentricity_midspan_m": float(model.get("eccentricity_midspan_m") or ((model.get("dp_avg_midspan_m") or 0.0) - (y_t_from_top_m or 0.0))),
+        "jack_from_display": stressing.get("jack_from_display", "—"),
+        "stressing_mode": stressing.get("detected_mode", "—"),
+        "stressing_status": stressing.get("status", "PENDING"),
+        "stressing_source": stressing.get("source", "General tendon table · JackFrom field"),
+        "stressing_force_policy": stressing.get("force_policy", "Pj/tendon is axial force; two-end stressing does not double total Pj."),
         "model_fingerprint": tendon_model_fingerprint(model),
     }
 

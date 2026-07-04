@@ -133,3 +133,5 @@ Current milestone focus:
 - COMMERCIAL.PSLOSS.3: Added an adopted-tendon readiness register, loss-component calculation-readiness register, and Report/QA readiness snapshot so future friction, anchor-set, elastic-shortening, creep/shrinkage, relaxation, and effective-prestress formulas remain source-gated before calculation.
 
 - COMMERCIAL.PSLOSS.4: Reworked 4.2 Friction into a source-gated friction source model that reads only the adopted tendon profile and JackFrom/stressing trace, adds μ/K input trace and tendon-by-tendon preview gating, and keeps preview results out of final effective-prestress adoption.
+
+- COMMERCIAL.TENDON.1: Polish 2.4 Tendon Layout Reference with JackFrom/stressing-basis auto-detection, force-policy trace, QA/adoption readiness rows, and a numeric section-overlay station control to avoid slider dynamic-import instability, without changing tendon geometry or force calculations.

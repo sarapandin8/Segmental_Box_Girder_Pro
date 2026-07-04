@@ -6,6 +6,7 @@ from core.tendon_adoption import (
     adopt_tendon_model,
     build_tendon_downstream_summary,
     build_tendon_source_trace,
+    build_tendon_stressing_basis_summary,
     clear_adopted_tendon_model,
     tendon_model_fingerprint,
     tendon_model_status,
@@ -85,3 +86,31 @@ def test_tendon_source_trace_and_downstream_summary_are_report_ready():
     summary = build_tendon_downstream_summary(model, y_t_from_top_m=0.8)
     assert summary["source"] == "Adopted CSiBridge tendon layout model"
     assert summary["model_fingerprint"] == tendon_model_fingerprint(model)
+
+
+def test_stressing_basis_is_auto_detected_from_jackfrom_and_added_to_summary():
+    model = _model()
+    basis = build_tendon_stressing_basis_summary(model)
+    assert basis["status"] == "READY"
+    assert basis["detected_mode"] == "One-end stressing from Start"
+    assert basis["jack_from_display"] == "Start"
+    assert "does not double" in basis["force_policy"]
+
+    summary = build_tendon_downstream_summary(model, y_t_from_top_m=0.8)
+    assert summary["jack_from_display"] == "Start"
+    assert summary["stressing_mode"] == "One-end stressing from Start"
+    assert summary["stressing_status"] == "READY"
+
+
+def test_stressing_basis_flags_missing_or_mixed_jackfrom_for_review():
+    model = _model()
+    model["tendons"][0]["jack_from"] = "End"
+    mixed = build_tendon_stressing_basis_summary(model)
+    assert mixed["status"] == "REVIEW"
+    assert mixed["detected_mode"] == "Mixed one-end stressing by tendon"
+
+    for tendon in model["tendons"]:
+        tendon["jack_from"] = ""
+    missing = build_tendon_stressing_basis_summary(model)
+    assert missing["status"] == "MISSING"
+    assert missing["ready"] is False
