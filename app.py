@@ -4414,6 +4414,8 @@ def _psloss_friction_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
     valid = [r for r in results if r.get("gov")]
     gov_result = max(valid, key=lambda r: float((r.get("gov") or {}).get("loss_mpa", 0.0) or 0.0)) if valid else {"tendon": "-", "gov": {}}
     gov = gov_result.get("gov") or {}
+    ties = _psloss_friction_governing_tie_results(results)
+    tie_label = _psloss_friction_governing_label(results)
     max_loss = float(gov.get("loss_mpa", 0.0) or 0.0)
     min_fpx = min([float((r.get("gov") or {}).get("stress_mpa", fpj_mpa) or fpj_mpa) for r in valid], default=0.0)
     max_pct = 100.0 * max_loss / fpj_mpa if fpj_mpa > 0.0 else 0.0
@@ -4423,11 +4425,11 @@ def _psloss_friction_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Calculation status", "PREVIEW READY", "Source-gated calculation trace; not final effective prestress adoption."],
             ["Code basis", "AASHTO LRFD 2020 Art. 5.9.3.2.2b", "Post-tensioned member friction-loss route."],
             ["Formula", "ΔfpF = fpj[1 − exp{−(Kx + μα)}]", "fpx = fpj − ΔfpF; Loss % = ΔfpF/fpj × 100."],
-            ["Tendons in trace", f"{len(results)}", "Read from adopted tendon snapshot only."],
+            ["Tendons in trace", f"{len(results)} / {len(results)}", "All adopted tendons are included in the report trace."],
             ["Stressing route", stressing.get("stressing_mode", "-"), stressing.get("source", "General tendon table · JackFrom field")],
             ["μ / K", f"{float(fstate.get('mu', 0.0) or 0.0):.4f} / {float(fstate.get('k_per_m', 0.0) or 0.0):.6f} 1/m", "Project friction inputs for external/unbonded PT."],
-            ["Governing tendon", str(gov_result.get("tendon", "-")), f"x={float(gov.get('path_m', 0.0) or 0.0):.3f} m; α={float(gov.get('alpha_rad', 0.0) or 0.0):.5f} rad."],
-            ["Maximum friction loss", f"{max_loss:.2f} MPa ({max_pct:.2f}%)", "Governing preview value, not yet adopted into effective prestress."],
+            ["Governing tendon(s)", tie_label, f"{len(ties)} tendon(s) tied within 0.005 MPa; representative substitution uses {gov_result.get('tendon', '-')}."],
+            ["Maximum friction loss", f"{max_loss:.2f} MPa ({max_pct:.2f}%)", f"Representative x={float(gov.get('path_m', 0.0) or 0.0):.3f} m; α={float(gov.get('alpha_rad', 0.0) or 0.0):.5f} rad."],
             ["Minimum fpx after friction", f"{min_fpx:.2f} MPa", "Stress after friction only; anchor set and other losses remain separate."],
         ],
         columns=["Item", "Value", "Trace / note"],
@@ -4437,13 +4439,50 @@ def _psloss_friction_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
 
 
 def _psloss_friction_governing_result(state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
-    """Return governing friction result and supporting state for summary/equation cards."""
+    """Return a representative governing friction result and supporting state."""
     fstate = _psloss_friction_source_state(state)
     model = fstate.get("model") or {}
     results = [_psloss_friction_result_for_tendon(t, fstate) for t in model.get("tendons", []) or []]
     valid = [r for r in results if r.get("gov")]
     gov_result = max(valid, key=lambda r: float((r.get("gov") or {}).get("loss_mpa", 0.0) or 0.0)) if valid else {"tendon": "-", "gov": {}}
     return gov_result, gov_result.get("gov") or {}, results, fstate
+
+
+def _psloss_friction_governing_tie_results(results: list[dict[str, Any]], *, tolerance_mpa: float = 0.005) -> list[dict[str, Any]]:
+    """Return all tendons tied with the governing friction loss.
+
+    Report summaries should not imply that only the first side governs when
+    mirrored tendons have the same rounded loss.  A small tolerance matches the
+    displayed MPa precision and keeps the engineering report honest.
+    """
+    valid = [r for r in results if r.get("gov")]
+    if not valid:
+        return []
+    max_loss = max(float((r.get("gov") or {}).get("loss_mpa", 0.0) or 0.0) for r in valid)
+    return [r for r in valid if abs(float((r.get("gov") or {}).get("loss_mpa", 0.0) or 0.0) - max_loss) <= tolerance_mpa]
+
+
+def _psloss_friction_governing_label(results: list[dict[str, Any]]) -> str:
+    ties = _psloss_friction_governing_tie_results(results)
+    names = [str(r.get("tendon", "-")).strip() or "-" for r in ties]
+    if not names:
+        return "-"
+    if len(names) <= 4:
+        return " / ".join(names)
+    return f"{len(names)} tied tendons: " + ", ".join(names[:4]) + ", ..."
+
+
+def _show_full_tendon_report_table(df: pd.DataFrame, *, label: str) -> None:
+    """Display full tendon report tables with a row-count note and enough height.
+
+    Default Streamlit dataframes can visually hide rows in printed/PDF review.
+    For tendon-by-tendon report pages, show the row count and allocate height so
+    the reviewer understands whether all adopted tendons are present.
+    """
+    total_rows = int(len(df.index))
+    st.caption(f"{label}: showing {total_rows} of {total_rows} rows from the adopted tendon source.")
+    height = min(760, max(180, 36 * (total_rows + 1)))
+    st.dataframe(format_engineering_table(df), use_container_width=True, hide_index=True, height=height)
 
 
 def _render_loss_result_summary_cards_for_friction(state: dict[str, Any]) -> None:
@@ -4467,9 +4506,10 @@ def _render_loss_result_summary_cards_for_friction(state: dict[str, Any]) -> Non
     pct = 100.0 * loss / fpj_mpa if fpj_mpa > 0.0 else 0.0
     valid = [r for r in results if r.get("gov")]
     min_fpx = min([float((r.get("gov") or {}).get("stress_mpa", fpj_mpa) or fpj_mpa) for r in valid], default=0.0)
+    governing_label = _psloss_friction_governing_label(results)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        card("FRICTION LOSS SUMMARY", "PREVIEW READY", f"Governing tendon: {gov_result.get('tendon', '-')}", "pass")
+        card("FRICTION LOSS SUMMARY", "PREVIEW READY", f"Governing: {governing_label}", "pass")
     with c2:
         card("MAX FRICTION LOSS", f"{loss:.2f} MPa", f"{pct:.2f}% of fpj", "warn" if pct > 8.0 else "pass")
     with c3:
@@ -4511,7 +4551,8 @@ def _render_psloss_friction_equation_block(state: dict[str, Any]) -> None:
     fpx = float(gov.get("stress_mpa", fpj_mpa - loss) or 0.0)
     pct = 100.0 * loss / fpj_mpa if fpj_mpa > 0.0 else 0.0
 
-    st.markdown(f"#### Governing tendon substitution — {gov_result.get('tendon', '-')}")
+    tie_label = _psloss_friction_governing_label(_psloss_friction_governing_result(state)[2])
+    st.markdown(f"#### Governing tendon substitution — {gov_result.get('tendon', '-')} (representative; governing tie: {tie_label})")
     st.latex(fr"Kx+\mu\alpha=({k_per_m:.6f})({x:.3f})+({mu:.4f})({alpha:.5f})={exponent:.5f}")
     st.latex(fr"e^{{-(Kx+\mu\alpha)}}=e^{{-{exponent:.5f}}}={exp_factor:.5f}")
     st.latex(fr"\Delta f_{{pF}}={fpj_mpa:.2f}\left[1-{exp_factor:.5f}\right]={loss:.2f}\,\mathrm{{MPa}}")
@@ -4545,6 +4586,7 @@ def _psloss_friction_governing_walkthrough_rows(state: dict[str, Any]) -> pd.Dat
     results = [_psloss_friction_result_for_tendon(t, fstate) for t in model.get("tendons", []) or []]
     result = max(results, key=lambda r: float((r.get("gov") or {}).get("loss_mpa", 0.0) or 0.0)) if results else {"tendon": "-", "gov": {}}
     gov = result.get("gov") or {}
+    tie_label = _psloss_friction_governing_label(results)
     fpj_mpa = float(fstate.get("fpj_mpa", 0.0) or 0.0)
     mu = float(fstate.get("mu", 0.0) or 0.0)
     k_per_m = float(fstate.get("k_per_m", 0.0) or 0.0)
@@ -4559,7 +4601,8 @@ def _psloss_friction_governing_walkthrough_rows(state: dict[str, Any]) -> pd.Dat
     pct = 100.0 * loss / fpj_mpa if fpj_mpa > 0.0 else 0.0
     return pd.DataFrame(
         [
-            ["Governing tendon", str(result.get("tendon", "-")), f"JackFrom={result.get('jack', '-')}; route={result.get('route_basis', '-')}"],
+            ["Governing tendon", str(result.get("tendon", "-")), f"JackFrom={result.get('jack', '-')}; route={result.get('route_basis', '-')}"] ,
+            ["Governing tie set", tie_label, "Tendons tied at the displayed precision are reported together; substitution uses the representative tendon above."],
             ["Inputs", f"fpj={fpj_mpa:.2f} MPa; μ={mu:.4f}; K={k_per_m:.6f} 1/m", "Adopted jacking stress + 4.2 friction project inputs"],
             ["Path terms", f"x={x:.3f} m; α={alpha:.5f} rad", "Derived from adopted tendon profile from active JackFrom side"],
             ["Kx", f"({k_per_m:.6f})({x:.3f}) = {kx:.5f}", "Wobble component"],
@@ -4579,7 +4622,7 @@ def render_prestress_friction_source_model() -> None:
     code_basis_card(
         "4.2 Friction Loss Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.6 standardizes the friction loss page with a report-grade equation block, loss-result summary cards, and source-gated calculation trace. Preview values are not adopted into effective prestress.",
+        "PSLOSS.7 polishes the friction report trace with governing-tie handling and full-tendon report display. Preview values are not adopted into effective prestress.",
     )
     st.markdown(
         '<div class="note-box"><b>Friction source rule:</b> the friction path must be generated from the adopted tendon profile, not from keyed BG40 friction groups or a working import preview. One-end/two-end stressing changes the loss distribution only; it does not double total jacking force.</div>',
@@ -4621,10 +4664,10 @@ def render_prestress_friction_source_model() -> None:
         unsafe_allow_html=True,
     )
     st.markdown("### Tendon-by-tendon friction preview")
-    show_engineering_table(_psloss_friction_preview_rows(state))
+    _show_full_tendon_report_table(_psloss_friction_preview_rows(state), label="Tendon-by-tendon friction preview")
 
     st.markdown("### Tendon-by-tendon friction calculation trace")
-    show_engineering_table(_psloss_friction_calculation_rows(state))
+    _show_full_tendon_report_table(_psloss_friction_calculation_rows(state), label="Tendon-by-tendon friction calculation trace")
     with st.expander("Friction calculation trace / limitations", expanded=False):
         st.markdown(
             '<div class="note-box"><b>Trace basis:</b> route length x and cumulative angular change α are derived from the adopted station profile. For two-end stressing, the preview checks stress from each jacking end and uses the nearer-end friction path for station stress; this is a distribution model only, not a force multiplier. K = 0 is preserved as a project input only when justified by the tendon layout / PT system basis.</div>',
@@ -4675,7 +4718,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.6 keeps the general source gate active and standardizes the 4.2 friction equation block, loss-result summary cards, and calculation trace; detailed final-loss adoption remains a later milestone.",
+            "PSLOSS.7 keeps the general source gate active and polishes the 4.2 friction report trace with governing-tie handling and full-tendon display; detailed final-loss adoption remains a later milestone.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
@@ -4722,7 +4765,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         show_engineering_table(_psloss_formula_readiness_rows(state))
         with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
             st.markdown(
-                '<div class="note-box"><b>PSLOSS.6 rule:</b> 4.1 remains a source/readiness register. 4.2 may generate a source-gated friction preview with full equation block and result-summary cards; it does not adopt final effective-prestress results or effective-prestress formulas.</div>',
+                '<div class="note-box"><b>PSLOSS.7 rule:</b> 4.1 remains a source/readiness register. 4.2 may generate a source-gated friction preview with full equation block, governing-tie handling, full-tendon report display, and result-summary cards; it does not adopt final effective-prestress results or effective-prestress formulas.</div>',
                 unsafe_allow_html=True,
             )
             show_engineering_table(_psloss_formula_readiness_rows(state))

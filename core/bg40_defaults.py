@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.68-commercial-psloss6-friction-equation-summary-cards",
+        "schema_version": "0.4.69-commercial-psloss7-friction-governing-tie-report-polish",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -247,6 +247,10 @@ BG40_DEFAULT = {
         "friction_formula_trace_basis": "ΔfpF = fpj[1 − exp{−(Kx + μα)}], fpx = fpj − ΔfpF, and Loss % = ΔfpF/fpj × 100 are displayed as full equation blocks with tendon-by-tendon Kx, μα, exponent, exponential factor, ΔfpF, and fpx audit columns.",
         "friction_loss_summary_card_status": "LOSS-TYPE RESULT SUMMARY CARD PATTERN ACTIVE",
         "friction_loss_summary_card_basis": "4.2 Friction shows special top result cards for source status, governing tendon / maximum friction loss, minimum fpx after friction, and preview-only adoption status; future loss pages should follow the same pattern.",
+        "friction_governing_tie_status": "GOVERNING TENDON TIES REPORTED",
+        "friction_governing_tie_basis": "When mirrored tendons have equal maximum friction loss, the result cards and report summary list all governing tendons within the displayed MPa tolerance instead of only the first representative row.",
+        "friction_full_tendon_report_status": "FULL TENDON REPORT DISPLAY",
+        "friction_full_tendon_report_basis": "Tendon-by-tendon friction preview and calculation trace include a row-count note and display all adopted tendon rows in report review.",
     },
     "tendon_layout": {
         "active_bridge_object": "B2_SPAN1",
