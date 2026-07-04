@@ -135,3 +135,4 @@ Current milestone focus:
 - COMMERCIAL.PSLOSS.4: Reworked 4.2 Friction into a source-gated friction source model that reads only the adopted tendon profile and JackFrom/stressing trace, adds μ/K input trace and tendon-by-tendon preview gating, and keeps preview results out of final effective-prestress adoption.
 
 - COMMERCIAL.TENDON.1: Polish 2.4 Tendon Layout Reference with JackFrom/stressing-basis auto-detection, force-policy trace, QA/adoption readiness rows, and a numeric section-overlay station control to avoid slider dynamic-import instability, without changing tendon geometry or force calculations.
+- COMMERCIAL.TENDON.2: Add an explicit visible source note that the stressing basis is auto-detected from the General tendon table · JackFrom field, keeping it as a traced tendon-source value rather than a duplicate Prestress Losses input.

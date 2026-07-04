@@ -4540,6 +4540,10 @@ def render_tendon_layout_reference() -> None:
     _render_tendon_import_summary_cards(model_for_summary)
     _render_tendon_adoption_cards(model_for_summary)
     _render_tendon_stressing_basis_cards(model_for_summary)
+    st.markdown(
+        '<div class="note-box"><b>Stressing-basis source note:</b> The one-end / two-end stressing basis is auto-detected from the <b>General tendon table · JackFrom field</b>. This is a traced tendon-source value, not a duplicate Prestress Losses input. Use a reviewed override only if the imported JackFrom field is missing, inconsistent, or superseded by project records.</div>',
+        unsafe_allow_html=True,
+    )
     with st.expander("Tendon stressing-basis summary", expanded=False):
         show_engineering_table(_tendon_stressing_basis_frame(model_for_summary))
     tabs = st.tabs(["Import / Mapping", "Elevation View", "Plan View", "3D Tendon View", "Section Overlay", "Adopted Tendon Data", "QA / Consistency"])
