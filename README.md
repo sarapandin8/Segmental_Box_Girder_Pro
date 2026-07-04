@@ -138,3 +138,4 @@ Current milestone focus:
 - COMMERCIAL.TENDON.2: Add an explicit visible source note that the stressing basis is auto-detected from the General tendon table · JackFrom field, keeping it as a traced tendon-source value rather than a duplicate Prestress Losses input.
 
 - COMMERCIAL.PSLOSS.5: Add friction formula trace and report-style calculation summary to 4.2 Friction, including variable definitions, governing-tendon walkthrough, tendon-by-tendon Kx/μα/exponent/ΔfpF/fpx trace, and Report/QA snapshot without adopting friction into effective prestress.
+- COMMERCIAL.PSLOSS.6: Standardized 4.2 Friction with report-grade equation blocks using `st.latex`, a reusable loss-type result-summary card pattern at the top of the page, and source-gated substitution/result display without changing friction values or effective-prestress adoption.
