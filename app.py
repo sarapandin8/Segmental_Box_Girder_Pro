@@ -5066,11 +5066,11 @@ def _psloss_anchor_distribution_station_rows(state: dict[str, Any], *, max_rows:
 def _render_psloss_anchor_distribution_equation_block(state: dict[str, Any]) -> None:
     st.markdown("### Anchor-set distribution / friction-coupling equation block")
     st.markdown(
-        '<div class="note-box"><b>Distribution preview route:</b> the equivalent quick check remains visible, but the distribution trace couples anchor set to the adopted friction profile. Final effective-prestress adoption remains a later milestone.</div>',
+        '<div class="note-box"><b>Distribution preview route:</b> the equivalent quick check remains visible above as a fast audit value. The position-dependent distribution preview shown here couples anchor set to the adopted friction profile. Final effective-prestress adoption remains a later milestone.</div>',
         unsafe_allow_html=True,
     )
     st.latex(r"\Delta f_{pA}(s)=\max\left[\Delta f_{pA,0}-2\Delta f_{pF}(s),0\right]")
-    st.latex(r"\Delta_a=\int_0^{s_a}\frac{\Delta f_{pA}(s)}{E_p}\,ds")
+    st.latex(r"\Delta_a=1000\int_0^{s_a}\frac{\Delta f_{pA}(s)}{E_p}\,ds")
     st.latex(r"f_{px,F+A}(s)=f_{px,F}(s)-\Delta f_{pA}(s)")
     results, astate = _psloss_anchor_distribution_results(state)
     if not astate.get("ready") or not results:
@@ -5137,7 +5137,7 @@ def _psloss_anchor_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
 def _render_psloss_anchor_equation_block(state: dict[str, Any]) -> None:
     st.markdown("### Anchor-set equation block")
     st.markdown(
-        '<div class="note-box"><b>Code equation route:</b> anchor-set loss is shown here as an equivalent source-model preview. The final position-dependent anchor-set distribution and effective-prestress adoption remain later milestones.</div>',
+        '<div class="note-box"><b>Equivalent quick-check route:</b> this equation is retained as a fast equivalent anchor-set audit value. The position-dependent friction-coupled distribution preview is shown below. Final effective-prestress adoption remains a later milestone.</div>',
         unsafe_allow_html=True,
     )
     st.latex(r"\Delta f_{pA,eq}=\frac{E_p\Delta_a}{L_{eff}}");
@@ -5178,11 +5178,24 @@ def _psloss_anchor_variable_rows() -> pd.DataFrame:
             ["L_eff", "m / mm", "Equivalent tendon length controlled by JackFrom route", "Derived from adopted tendon path; two-end uses distribution preview only"],
             ["Δa / L_eff", "-", "Equivalent set strain", "Intermediate trace term"],
             ["ΔfpA,eq", "MPa", "Equivalent anchor-set stress loss", "Quick-check preview only"],
-            ["ΔfpA,0", "MPa", "Anchor-set loss at active anchorage from distribution compatibility", "Solved so ∫ΔfpA(s)/Ep ds equals Δa"],
-            ["s_a", "m", "Approximate affected length from anchorage", "Distance where ΔfpA(s) remains positive in the adopted station trace"],
-            ["ΔfpA(s)", "MPa", "Position-dependent anchor-set distribution", "Coupled to the friction loss profile ΔfpF(s)"],
-            ["fpx,F+A", "MPa", "Stress after friction plus anchor-set distribution preview", "Not final effective prestress; other losses remain separate"],
             ["fpx,A", "MPa", "Prestressing steel stress after equivalent anchor-set-only preview", "Quick-check value only"],
+        ],
+        columns=["Variable", "Unit", "Meaning", "Source / trace"],
+    )
+
+
+def _psloss_anchor_distribution_variable_rows() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            ["s", "m", "Distance from active anchorage along the adopted tendon path", "Measured along the active JackFrom route"],
+            ["ΔfpF(s)", "MPa", "Friction loss profile at station s from the active jacking end", "Read from the 4.2 friction profile; no separate friction assumption is introduced"],
+            ["2ΔfpF(s)", "MPa", "Friction-coupling term used to reduce anchor-set loss with distance", "Represents the two-way stress change needed for anchor draw-in compatibility along the same tendon path"],
+            ["ΔfpA,0", "MPa", "Anchor-set loss at the active anchorage", "Solved iteratively so the compatibility integral equals the project Δa input"],
+            ["ΔfpA(s)", "MPa", "Position-dependent anchor-set loss distribution", "ΔfpA(s)=max[ΔfpA,0−2ΔfpF(s),0]"],
+            ["s_a", "m", "Affected length from the active anchorage", "Distance where ΔfpA(s)>0; beyond this length anchor-set loss is zero in the preview"],
+            ["fpx,F(s)", "MPa", "Prestressing steel stress after friction only", "Output from 4.2 friction trace at station s"],
+            ["fpx,F+A(s)", "MPa", "Stress after friction plus anchor-set distribution preview", "fpx,F(s)−ΔfpA(s); not final effective prestress"],
+            ["1000", "mm/m", "Unit conversion in compatibility integral", "Because ds is in metres while Δa is reported in millimetres: Δa = 1000∫[ΔfpA(s)/Ep]ds"],
         ],
         columns=["Variable", "Unit", "Meaning", "Source / trace"],
     )
@@ -5227,7 +5240,7 @@ def render_prestress_anchor_set_source_model() -> None:
     code_basis_card(
         "4.3 Anchor Set Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.9 adds a position-dependent anchor-set distribution trace and friction-coupling preview while keeping final effective-prestress adoption blocked.",
+        "PSLOSS.10 polishes the anchor-set distribution wording and adds a dedicated distribution-variable trace while keeping final effective-prestress adoption blocked.",
     )
     st.markdown(
         '<div class="note-box"><b>Anchor-set source rule:</b> anchor-set preview must read the adopted tendon path and JackFrom/stressing trace. The value Δa is a project anchorage-set input. One-end/two-end stressing controls distribution only; it does not double total jacking force.</div>',
@@ -5262,6 +5275,8 @@ def render_prestress_anchor_set_source_model() -> None:
 
     st.markdown("### Anchor-set distribution / friction-coupling preview")
     _render_psloss_anchor_distribution_equation_block(state)
+    st.markdown("#### Distribution-variable definition")
+    show_engineering_table(_psloss_anchor_distribution_variable_rows())
     st.markdown("#### Tendon-by-tendon anchor-set distribution summary")
     _show_full_tendon_report_table(_psloss_anchor_distribution_summary_rows(state), label="Tendon-by-tendon anchor-set distribution summary")
     st.markdown("#### Governing tendon station distribution trace")
@@ -5290,7 +5305,7 @@ def render_prestress_friction_source_model() -> None:
     code_basis_card(
         "4.2 Friction Loss Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.9 keeps the friction report trace closed and upgrades 4.3 Anchor Set with distribution/coupling preview. Preview values are not adopted into effective prestress.",
+        "PSLOSS.10 keeps the friction report trace closed and polishes 4.3 Anchor Set distribution trace wording/variables. Preview values are not adopted into effective prestress.",
     )
     st.markdown(
         '<div class="note-box"><b>Friction source rule:</b> the friction path must be generated from the adopted tendon profile, not from keyed BG40 friction groups or a working import preview. One-end/two-end stressing changes the loss distribution only; it does not double total jacking force.</div>',
@@ -5386,7 +5401,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.9 keeps the general source gate active and adds the 4.3 anchor-set distribution/coupling preview; detailed final-loss adoption remains a later milestone.",
+            "PSLOSS.10 keeps the general source gate active and polishes the 4.3 anchor-set distribution/coupling trace; detailed final-loss adoption remains a later milestone.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
@@ -5433,7 +5448,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         show_engineering_table(_psloss_formula_readiness_rows(state))
         with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
             st.markdown(
-                '<div class="note-box"><b>PSLOSS.9 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction and 4.3 Anchor Set may generate source-gated previews with equation blocks, governing-tie handling, full-tendon display, and result-summary cards; 4.3 also shows a position-dependent anchor-set distribution trace coupled to the friction profile. They do not adopt final effective-prestress results. Detailed effective-prestress formulas remain unchanged.</div>',
+                '<div class="note-box"><b>PSLOSS.10 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction and 4.3 Anchor Set generate source-gated previews with equation blocks, governing-tie handling, full-tendon display, and result-summary cards. 4.3 now clearly separates the equivalent quick check from the friction-coupled position-dependent distribution trace and adds the distribution-variable audit table. They do not adopt final effective-prestress results. Detailed effective-prestress formulas remain unchanged.</div>',
                 unsafe_allow_html=True,
             )
             show_engineering_table(_psloss_formula_readiness_rows(state))
@@ -6577,7 +6592,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.9 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.10 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -6614,16 +6629,16 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.9 Notes
+## PSLOSS.10 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
-- PSLOSS.9 adds a position-dependent 4.3 Anchor Set distribution trace and friction-coupling preview while keeping equivalent quick-check values and final effective-prestress adoption blocked.
+- PSLOSS.10 polishes the 4.3 Anchor Set wording and distribution-variable trace so the equivalent quick check and position-dependent friction-coupled preview are clearly separated while final effective-prestress adoption remains blocked.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss9_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss10_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------

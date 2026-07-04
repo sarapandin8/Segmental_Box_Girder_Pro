@@ -144,3 +144,6 @@ Current milestone focus:
 
 
 - COMMERCIAL.PSLOSS.9: Adds a position-dependent 4.3 Anchor Set distribution trace and friction-coupling preview while preserving equivalent anchor-set quick check and keeping final effective-prestress adoption blocked.
+
+
+- COMMERCIAL.PSLOSS.10: Polishes 4.3 Anchor Set distribution wording and variable trace by separating the equivalent quick check from the position-dependent friction-coupled preview, documenting 2ΔfpF(s), ΔfpA,0, s_a, fpx,F+A(s), and the 1000 m-to-mm compatibility conversion without changing anchor-set results or effective-prestress adoption.
