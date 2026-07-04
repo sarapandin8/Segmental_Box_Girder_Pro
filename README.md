@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.3
+# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.5
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -136,3 +136,5 @@ Current milestone focus:
 
 - COMMERCIAL.TENDON.1: Polish 2.4 Tendon Layout Reference with JackFrom/stressing-basis auto-detection, force-policy trace, QA/adoption readiness rows, and a numeric section-overlay station control to avoid slider dynamic-import instability, without changing tendon geometry or force calculations.
 - COMMERCIAL.TENDON.2: Add an explicit visible source note that the stressing basis is auto-detected from the General tendon table · JackFrom field, keeping it as a traced tendon-source value rather than a duplicate Prestress Losses input.
+
+- COMMERCIAL.PSLOSS.5: Add friction formula trace and report-style calculation summary to 4.2 Friction, including variable definitions, governing-tendon walkthrough, tendon-by-tendon Kx/μα/exponent/ΔfpF/fpx trace, and Report/QA snapshot without adopting friction into effective prestress.

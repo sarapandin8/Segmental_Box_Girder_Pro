@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.66-commercial-tendon2-jackfrom-source-note",
+        "schema_version": "0.4.67-commercial-psloss5-friction-formula-trace",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -240,9 +240,11 @@ BG40_DEFAULT = {
         "jacking_force_interpretation": "Jacking force is tendon axial force per tendon. Do not double the total prestressing force when a tendon is stressed from two ends; stressing end controls friction/anchor-set distribution, not Aps or total axial force.",
         "loss_source_gate_status": "SOURCE GATE REQUIRED",
         "loss_calculation_readiness_status": "BLOCKED UNTIL ADOPTED TENDON SOURCE IS LOCKED",
-        "loss_readiness_basis": "PSLOSS.4 readiness register checks adopted tendon summary, JackFrom/stressing basis, section properties, CR&SH parameters, span/stage basis, and the gated friction source model before detailed formulas are adopted.",
+        "loss_readiness_basis": "PSLOSS.5 readiness register checks adopted tendon summary, JackFrom/stressing basis, section properties, CR&SH parameters, span/stage basis, and the friction formula trace before detailed effective-prestress adoption.",
         "friction_source_model_status": "SOURCE BLOCKED UNTIL ADOPTED TENDON PROFILE AND JACKFROM ARE LOCKED",
         "friction_preview_basis": "4.2 Friction uses adopted tendon station profile, external tendon friction coefficient μ, wobble coefficient K, and JackFrom route trace; preview results are not final adopted effective prestress.",
+        "friction_formula_trace_status": "REPORT TRACE ONLY; NOT ADOPTED INTO EFFECTIVE PRESTRESS",
+        "friction_formula_trace_basis": "ΔfpF = fpj[1 − exp{−(Kx + μα)}], fpx = fpj − ΔfpF, and Loss % = ΔfpF/fpj × 100 are displayed with tendon-by-tendon Kx, μα, exponent, exponential factor, ΔfpF, and fpx audit columns.",
     },
     "tendon_layout": {
         "active_bridge_object": "B2_SPAN1",
