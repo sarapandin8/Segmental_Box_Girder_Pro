@@ -4645,6 +4645,8 @@ def _psloss_anchor_set_source_state(state: dict[str, Any]) -> dict[str, Any]:
     stressing = state.get("stressing_basis", {})
     anchor_set_mm = _safe_float(ps.get("anchor_set_mm", 6.0), 6.0)
     ep_mpa = _safe_float(materials.get("Ep_mpa", 0.0), 0.0)
+    mu = _safe_float(ps.get("mu_external", 0.15), 0.15)
+    k_per_m = _safe_float(ps.get("wobble_external_per_m", 0.0), 0.0)
     summary = state.get("adopted_summary") or {}
     fpj_mpa = _safe_float(summary.get("jacking_stress_mpa") or materials.get("fpi_mpa", 0.0), 0.0)
     ready = bool(state.get("tendon_locked")) and bool(stressing.get("ready")) and bool(model.get("profile_rows")) and fpj_mpa > 0.0 and ep_mpa > 0.0 and anchor_set_mm >= 0.0
@@ -4657,7 +4659,9 @@ def _psloss_anchor_set_source_state(state: dict[str, Any]) -> dict[str, Any]:
         "anchor_set_mm": anchor_set_mm,
         "ep_mpa": ep_mpa,
         "fpj_mpa": fpj_mpa,
-        "message": "Anchor-set preview uses adopted tendon profile, JackFrom trace, Ep, and Δa." if ready else "Adopt tendon model and JackFrom basis before anchor-set preview can run.",
+        "mu": mu,
+        "k_per_m": k_per_m,
+        "message": "Anchor-set preview uses adopted tendon profile, JackFrom trace, Ep, Δa, and the friction profile." if ready else "Adopt tendon model and JackFrom basis before anchor-set preview can run.",
     }
 
 
@@ -4754,30 +4758,31 @@ def _psloss_anchor_governing_result(state: dict[str, Any]) -> tuple[dict[str, An
 
 
 def _render_loss_result_summary_cards_for_anchor_set(state: dict[str, Any]) -> None:
-    results, astate = _psloss_anchor_results(state)
+    results, astate = _psloss_anchor_distribution_results(state)
     if not astate.get("ready") or not results:
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             card("ANCHOR SET SUMMARY", "SOURCE BLOCKED", "Adopt tendon model first", "warn")
         with c2:
-            card("MAX ANCHOR SET LOSS", "—", "blocked", "warn")
+            card("MAX ANCHOR-SET LOSS", "—", "blocked", "warn")
         with c3:
-            card("MIN fpx AFTER ANCHOR", "—", "blocked", "warn")
+            card("MIN fpx AFTER F+A", "—", "blocked", "warn")
         with c4:
             card("ADOPTION STATUS", "PREVIEW ONLY", "Not effective prestress", "neutral")
         return
-    gov = max(results, key=lambda r: float(r.get("loss_mpa", 0.0) or 0.0))
-    tie_label = _psloss_anchor_governing_label(results)
-    max_loss = float(gov.get("loss_mpa", 0.0) or 0.0)
-    pct = float(gov.get("loss_pct", 0.0) or 0.0)
-    min_fpx = min(float(r.get("stress_mpa", 0.0) or 0.0) for r in results)
+    gov = max(results, key=lambda r: float(r.get("max_loss_mpa", 0.0) or 0.0))
+    tie_label = _psloss_anchor_distribution_governing_label(results)
+    max_loss = float(gov.get("max_loss_mpa", 0.0) or 0.0)
+    fpj = float(astate.get("fpj_mpa", 0.0) or 0.0)
+    pct = 100.0 * max_loss / fpj if fpj > 0.0 else 0.0
+    min_fpx = min(float(r.get("min_stress_mpa", 0.0) or 0.0) for r in results)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        card("ANCHOR SET SUMMARY", "PREVIEW READY", f"Governing: {tie_label}", "pass")
+        card("ANCHOR SET SUMMARY", "DISTRIBUTION PREVIEW", f"Governing: {tie_label}", "pass")
     with c2:
-        card("MAX ANCHOR SET LOSS", f"{max_loss:.2f} MPa", f"{pct:.2f}% of fpj", "warn")
+        card("MAX ANCHOR-SET LOSS", f"{max_loss:.2f} MPa", f"{pct:.2f}% of fpj · sₐ≈{float(gov.get('affected_length_m', 0.0) or 0.0):.2f} m", "warn")
     with c3:
-        card("MIN fpx AFTER ANCHOR", f"{min_fpx:.2f} MPa", "Anchor-set-only stress", "pass")
+        card("MIN fpx AFTER F+A", f"{min_fpx:.2f} MPa", "Friction + anchor-set preview", "pass")
     with c4:
         card("ADOPTION STATUS", "PREVIEW ONLY", "Not effective prestress", "neutral")
 
@@ -4789,7 +4794,8 @@ def _psloss_anchor_source_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Adopted tendon profile", "READY" if state.get("tendon_locked") else "BLOCKED", "2.4 Adopted Tendon Data", "Anchor-set preview must use adopted tendon path length only."],
             ["JackFrom / stressing basis", state.get("stressing_basis", {}).get("status", "BLOCKED"), state.get("stressing_basis", {}).get("source", "2.4 tendon adoption required"), "Controls one-end, two-end, or mixed tendon-by-tendon anchor-set route."],
             ["Anchor set Δa", f"{astate['anchor_set_mm']:.3f} mm", "4.3 Anchor Set project input", "Engineer must verify anchorage wedge-set / seating basis."],
-            ["Prestressing steel modulus Ep", f"{astate['ep_mpa']:.0f} MPa", "Material property", "Used with Δa / L_eff to estimate equivalent stress loss."],
+            ["Prestressing steel modulus Ep", f"{astate['ep_mpa']:.0f} MPa", "Material property", "Used with Δa / L_eff and distribution compatibility."],
+            ["Friction coupling μ / K", f"{astate['mu']:.4f} / {astate['k_per_m']:.6f} 1/m", "4.2 Friction project input", "Distribution trace uses the adopted friction profile; do not use a separate friction assumption."],
             ["Jacking stress fpj", f"{astate['fpj_mpa']:.2f} MPa", "Adopted tendon summary / material basis", "Stress basis for preview only; Pj/tendon remains axial force."],
             ["Preview status", astate["status"], "Source gate", astate["message"]],
         ],
@@ -4846,6 +4852,243 @@ def _psloss_anchor_calculation_rows(state: dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["Tendon", "JackFrom", "fpj (MPa)", "Ep (MPa)", "Δa (mm)", "L_eff (m)", "Δa/L_eff", "ΔfpA / fpx", "Status / note"])
 
 
+
+def _anchor_friction_trace_for_tendon(tendon: dict[str, Any], astate: dict[str, Any]) -> tuple[list[dict[str, float]], str, str]:
+    """Return the active-end friction trace used by anchor-set distribution.
+
+    The anchor-set distribution preview must be coupled to the same adopted
+    tendon geometry, JackFrom route, μ, K, and fpj that control the 4.2 friction
+    page.  For two-end stressing, this helper returns the nearer-end preview
+    basis for each station and clearly marks it as a distribution preview, not a
+    doubled jacking-force case.
+    """
+    model = astate.get("model") or {}
+    name = str(tendon.get("tendon", "-"))
+    points = _profile_points_for_tendon(model, name)
+    if len(points) < 2:
+        return [], "missing adopted profile", "REVIEW: adopted profile has fewer than two points"
+    jack = str(tendon.get("jack_from", "")).strip() or "Unknown"
+    jack_lower = jack.lower()
+    mu = float(astate.get("mu", 0.0) or 0.0)
+    k_per_m = float(astate.get("k_per_m", 0.0) or 0.0)
+    fpj_mpa = float(astate.get("fpj_mpa", 0.0) or 0.0)
+    if "both" in jack_lower:
+        start_trace = _friction_route_trace(points, from_end=False, mu=mu, k_per_m=k_per_m, fpj_mpa=fpj_mpa)
+        end_trace = _friction_route_trace(points, from_end=True, mu=mu, k_per_m=k_per_m, fpj_mpa=fpj_mpa)
+        end_by_x = {round(r["x_m"], 9): r for r in end_trace}
+        combined: list[dict[str, float]] = []
+        for sr in start_trace:
+            er = end_by_x.get(round(sr["x_m"], 9), sr)
+            chosen = sr if sr.get("exponent", 0.0) <= er.get("exponent", 0.0) else er
+            combined.append(chosen)
+        combined.sort(key=lambda r: float(r.get("path_m", 0.0) or 0.0))
+        return combined, "two-end; nearer-end friction-coupled preview", "PREVIEW · do not double Pj"
+    if jack_lower == "end":
+        trace = _friction_route_trace(points, from_end=True, mu=mu, k_per_m=k_per_m, fpj_mpa=fpj_mpa)
+        trace.sort(key=lambda r: float(r.get("path_m", 0.0) or 0.0))
+        return trace, "from End; friction-coupled", "PREVIEW"
+    trace = _friction_route_trace(points, from_end=False, mu=mu, k_per_m=k_per_m, fpj_mpa=fpj_mpa)
+    trace.sort(key=lambda r: float(r.get("path_m", 0.0) or 0.0))
+    status = "PREVIEW" if jack_lower in {"start", ""} else "REVIEW JackFrom text"
+    return trace, "from Start; friction-coupled", status
+
+
+def _anchor_distribution_area_mm(trace: list[dict[str, float]], d0_mpa: float, ep_mpa: float) -> float:
+    """Return anchor draw-in implied by a trial active-end anchor loss.
+
+    The distribution preview uses ΔfpA(s)=max[d0−2ΔfpF(s),0].  The draw-in
+    compatibility check is ∫ΔfpA(s)/Ep ds = Δa.  The integral is converted from
+    metres to millimetres for comparison with the project Δa input.
+    """
+    if len(trace) < 2 or ep_mpa <= 0.0:
+        return 0.0
+    area_m = 0.0
+    prev = trace[0]
+    prev_loss = max(d0_mpa - 2.0 * float(prev.get("loss_mpa", 0.0) or 0.0), 0.0)
+    for cur in trace[1:]:
+        cur_loss = max(d0_mpa - 2.0 * float(cur.get("loss_mpa", 0.0) or 0.0), 0.0)
+        ds = max(float(cur.get("path_m", 0.0) or 0.0) - float(prev.get("path_m", 0.0) or 0.0), 0.0)
+        area_m += 0.5 * (prev_loss + cur_loss) / ep_mpa * ds
+        prev = cur
+        prev_loss = cur_loss
+    return area_m * 1000.0
+
+
+def _solve_anchor_distribution_d0_mpa(trace: list[dict[str, float]], ep_mpa: float, delta_a_mm: float) -> float:
+    """Solve active-end anchor-set loss d0 from draw-in compatibility."""
+    if len(trace) < 2 or ep_mpa <= 0.0 or delta_a_mm <= 0.0:
+        return 0.0
+    max_fric = max(float(r.get("loss_mpa", 0.0) or 0.0) for r in trace)
+    length_m = max(float(r.get("path_m", 0.0) or 0.0) for r in trace)
+    high = max(10.0, 2.0 * max_fric + 10.0, ep_mpa * delta_a_mm / max(length_m * 1000.0, 1e-9) * 10.0)
+    for _ in range(30):
+        if _anchor_distribution_area_mm(trace, high, ep_mpa) >= delta_a_mm:
+            break
+        high *= 2.0
+    low = 0.0
+    for _ in range(80):
+        mid = 0.5 * (low + high)
+        if _anchor_distribution_area_mm(trace, mid, ep_mpa) < delta_a_mm:
+            low = mid
+        else:
+            high = mid
+    return high
+
+
+def _anchor_distribution_points_for_tendon(tendon: dict[str, Any], astate: dict[str, Any]) -> dict[str, Any]:
+    """Return position-dependent anchor-set distribution coupled to friction."""
+    name = str(tendon.get("tendon", "-"))
+    jack = str(tendon.get("jack_from", "")).strip() or "Unknown"
+    trace, route_basis, status = _anchor_friction_trace_for_tendon(tendon, astate)
+    ep = float(astate.get("ep_mpa", 0.0) or 0.0)
+    da = float(astate.get("anchor_set_mm", 0.0) or 0.0)
+    fpj = float(astate.get("fpj_mpa", 0.0) or 0.0)
+    if len(trace) < 2 or ep <= 0.0:
+        return {"tendon": name, "jack": jack, "route_basis": route_basis, "status": status, "points": [], "d0_mpa": 0.0, "affected_length_m": 0.0, "area_mm": 0.0, "max_loss_mpa": 0.0, "min_stress_mpa": fpj, "gov_station_m": 0.0}
+    d0 = _solve_anchor_distribution_d0_mpa(trace, ep, da)
+    pts: list[dict[str, float]] = []
+    affected = 0.0
+    min_stress = fpj
+    max_loss = 0.0
+    gov_station = float(trace[0].get("x_m", 0.0) or 0.0)
+    for r in trace:
+        fric_loss = float(r.get("loss_mpa", 0.0) or 0.0)
+        anchor_loss = max(d0 - 2.0 * fric_loss, 0.0)
+        if anchor_loss > 1e-6:
+            affected = max(affected, float(r.get("path_m", 0.0) or 0.0))
+        f_fric = float(r.get("stress_mpa", fpj - fric_loss) or 0.0)
+        f_after = max(f_fric - anchor_loss, 0.0)
+        if f_after < min_stress:
+            min_stress = f_after
+        if anchor_loss > max_loss:
+            max_loss = anchor_loss
+            gov_station = float(r.get("x_m", 0.0) or 0.0)
+        pts.append({
+            "x_m": float(r.get("x_m", 0.0) or 0.0),
+            "path_m": float(r.get("path_m", 0.0) or 0.0),
+            "alpha_rad": float(r.get("alpha_rad", 0.0) or 0.0),
+            "friction_loss_mpa": fric_loss,
+            "friction_stress_mpa": f_fric,
+            "anchor_loss_mpa": anchor_loss,
+            "stress_after_friction_anchor_mpa": f_after,
+        })
+    area_mm = _anchor_distribution_area_mm(trace, d0, ep)
+    return {
+        "tendon": name,
+        "jack": jack,
+        "route_basis": route_basis,
+        "status": status,
+        "points": pts,
+        "d0_mpa": d0,
+        "affected_length_m": affected,
+        "area_mm": area_mm,
+        "max_loss_mpa": max_loss,
+        "min_stress_mpa": min_stress,
+        "gov_station_m": gov_station,
+    }
+
+
+def _psloss_anchor_distribution_results(state: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    astate = _psloss_anchor_set_source_state(state)
+    if not astate.get("ready"):
+        return [], astate
+    model = astate.get("model") or {}
+    out = [_anchor_distribution_points_for_tendon(t, astate) for t in model.get("tendons", []) or []]
+    return out, astate
+
+
+def _psloss_anchor_distribution_governing_tie_results(results: list[dict[str, Any]], *, tolerance_mpa: float = 0.005) -> list[dict[str, Any]]:
+    valid = [r for r in results if r]
+    if not valid:
+        return []
+    max_loss = max(float(r.get("max_loss_mpa", 0.0) or 0.0) for r in valid)
+    return [r for r in valid if abs(float(r.get("max_loss_mpa", 0.0) or 0.0) - max_loss) <= tolerance_mpa]
+
+
+def _psloss_anchor_distribution_governing_label(results: list[dict[str, Any]]) -> str:
+    ties = _psloss_anchor_distribution_governing_tie_results(results)
+    names = [str(r.get("tendon", "-")).strip() or "-" for r in ties]
+    if not names:
+        return "-"
+    if len(names) <= 4:
+        return " / ".join(names)
+    return f"{len(names)} tied tendons: " + ", ".join(names[:4]) + ", ..."
+
+
+def _psloss_anchor_distribution_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
+    results, astate = _psloss_anchor_distribution_results(state)
+    if not astate.get("ready") or not results:
+        return pd.DataFrame(
+            [["SOURCE BLOCKED", "-", "-", "-", "-", "Adopt tendon model and JackFrom/stressing basis before anchor-set distribution trace."]],
+            columns=["Tendon", "JackFrom", "Affected length (m)", "Max ΔfpA,dist", "Min fpx,F+A", "Status / note"],
+        )
+    rows: list[list[Any]] = []
+    fpj = float(astate.get("fpj_mpa", 0.0) or 0.0)
+    for r in results:
+        max_loss = float(r.get("max_loss_mpa", 0.0) or 0.0)
+        pct = 100.0 * max_loss / fpj if fpj > 0.0 else 0.0
+        rows.append([
+            r.get("tendon", "-"),
+            r.get("jack", "-"),
+            f"{float(r.get('affected_length_m', 0.0) or 0.0):.3f}",
+            f"{max_loss:.2f} MPa ({pct:.2f}%)",
+            f"{float(r.get('min_stress_mpa', 0.0) or 0.0):.2f} MPa",
+            r.get("status", "PREVIEW"),
+        ])
+    return pd.DataFrame(rows, columns=["Tendon", "JackFrom", "Affected length (m)", "Max ΔfpA,dist", "Min fpx,F+A", "Status / note"])
+
+
+def _psloss_anchor_distribution_station_rows(state: dict[str, Any], *, max_rows: int = 12) -> pd.DataFrame:
+    results, astate = _psloss_anchor_distribution_results(state)
+    if not astate.get("ready") or not results:
+        return pd.DataFrame(
+            [["SOURCE BLOCKED", "-", "-", "-", "-", "-", "-", "Adopt tendon model before station distribution trace."]],
+            columns=["Tendon", "Station (m)", "Path s (m)", "ΔfpF (MPa)", "ΔfpA,dist (MPa)", "fpx,F (MPa)", "fpx,F+A (MPa)", "Status / note"],
+        )
+    gov = max(results, key=lambda r: float(r.get("max_loss_mpa", 0.0) or 0.0))
+    points = list(gov.get("points", []) or [])
+    # Keep all adopted station points for the governing representative; current BG40 import uses compact station rows.
+    rows: list[list[Any]] = []
+    for pt in points[:max_rows]:
+        rows.append([
+            gov.get("tendon", "-"),
+            f"{float(pt.get('x_m', 0.0) or 0.0):.3f}",
+            f"{float(pt.get('path_m', 0.0) or 0.0):.3f}",
+            f"{float(pt.get('friction_loss_mpa', 0.0) or 0.0):.2f}",
+            f"{float(pt.get('anchor_loss_mpa', 0.0) or 0.0):.2f}",
+            f"{float(pt.get('friction_stress_mpa', 0.0) or 0.0):.2f}",
+            f"{float(pt.get('stress_after_friction_anchor_mpa', 0.0) or 0.0):.2f}",
+            "PREVIEW · representative governing tendon",
+        ])
+    return pd.DataFrame(rows, columns=["Tendon", "Station (m)", "Path s (m)", "ΔfpF (MPa)", "ΔfpA,dist (MPa)", "fpx,F (MPa)", "fpx,F+A (MPa)", "Status / note"])
+
+
+def _render_psloss_anchor_distribution_equation_block(state: dict[str, Any]) -> None:
+    st.markdown("### Anchor-set distribution / friction-coupling equation block")
+    st.markdown(
+        '<div class="note-box"><b>Distribution preview route:</b> the equivalent quick check remains visible, but the distribution trace couples anchor set to the adopted friction profile. Final effective-prestress adoption remains a later milestone.</div>',
+        unsafe_allow_html=True,
+    )
+    st.latex(r"\Delta f_{pA}(s)=\max\left[\Delta f_{pA,0}-2\Delta f_{pF}(s),0\right]")
+    st.latex(r"\Delta_a=\int_0^{s_a}\frac{\Delta f_{pA}(s)}{E_p}\,ds")
+    st.latex(r"f_{px,F+A}(s)=f_{px,F}(s)-\Delta f_{pA}(s)")
+    results, astate = _psloss_anchor_distribution_results(state)
+    if not astate.get("ready") or not results:
+        st.markdown('<div class="warn-box"><b>Distribution substitution blocked:</b> adopt tendon source and JackFrom before solving the anchor-set distribution.</div>', unsafe_allow_html=True)
+        return
+    gov = max(results, key=lambda r: float(r.get("max_loss_mpa", 0.0) or 0.0))
+    ties = _psloss_anchor_distribution_governing_label(results)
+    ep = float(astate.get("ep_mpa", 0.0) or 0.0)
+    da = float(astate.get("anchor_set_mm", 0.0) or 0.0)
+    d0 = float(gov.get("d0_mpa", 0.0) or 0.0)
+    affected = float(gov.get("affected_length_m", 0.0) or 0.0)
+    area = float(gov.get("area_mm", 0.0) or 0.0)
+    min_stress = float(gov.get("min_stress_mpa", 0.0) or 0.0)
+    st.markdown(f"#### Distribution substitution — {gov.get('tendon', '-')} (representative; governing tie: {ties})")
+    st.latex(fr"\Delta f_{{pA,0}}={d0:.2f}\,\mathrm{{MPa}}\quad ; \quad s_a\approx {affected:.3f}\,\mathrm{{m}}")
+    st.latex(fr"\int_0^{{s_a}}\frac{{\Delta f_{{pA}}(s)}}{{E_p}}ds\times1000={area:.3f}\,\mathrm{{mm}}\approx \Delta_a={da:.3f}\,\mathrm{{mm}}")
+    st.latex(fr"\min\left(f_{{px,F+A}}\right)={min_stress:.2f}\,\mathrm{{MPa}}")
+
 def _psloss_anchor_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
     results, astate = _psloss_anchor_results(state)
     if not astate.get("ready"):
@@ -4862,21 +5105,33 @@ def _psloss_anchor_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
     max_loss = float(gov.get("loss_mpa", 0.0) or 0.0)
     max_pct = float(gov.get("loss_pct", 0.0) or 0.0)
     min_fpx = min([float(r.get("stress_mpa", 0.0) or 0.0) for r in results], default=0.0)
+    dist_results, _dist_state = _psloss_anchor_distribution_results(state)
+    dist_tie_label = _psloss_anchor_distribution_governing_label(dist_results)
+    dist_gov = max(dist_results, key=lambda r: float(r.get("max_loss_mpa", 0.0) or 0.0)) if dist_results else {}
+    dist_loss = float(dist_gov.get("max_loss_mpa", 0.0) or 0.0)
+    fpj_for_pct = float(astate.get("fpj_mpa", 0.0) or 0.0)
+    dist_pct = 100.0 * dist_loss / fpj_for_pct if fpj_for_pct > 0.0 else 0.0
+    dist_min_fpx = min([float(r.get("min_stress_mpa", 0.0) or 0.0) for r in dist_results], default=0.0)
     stressing = astate.get("stressing") or {}
     return pd.DataFrame(
         [
-            ["Calculation status", "PREVIEW READY", "Source-gated equivalent anchor-set preview; not final effective-prestress adoption."],
+            ["Calculation status", "DISTRIBUTION PREVIEW READY", "Source-gated equivalent quick check plus position-dependent anchor-set distribution preview; not final effective-prestress adoption."],
             ["Code basis", "AASHTO LRFD 2020 Art. 5.9.3.2.2b", "Post-tensioned anchorage-set source-model route."],
-            ["Formula", "ΔfpA,eq = Ep Δa / L_eff", "fpx,A = fpj − ΔfpA,eq; Loss % = ΔfpA,eq/fpj × 100."],
+            ["Equivalent formula", "ΔfpA,eq = Ep Δa / L_eff", "Quick check only; distribution/coupling trace is the governing preview for this page."],
+            ["Distribution formula", "ΔfpA(s)=max[ΔfpA,0 − 2ΔfpF(s), 0]", "Friction-coupled distribution; Δa = ∫ΔfpA(s)/Ep ds."],
             ["Tendons in trace", f"{len(results)} / {len(results)}", "All adopted tendons are included in the report trace."],
             ["Stressing route", stressing.get("stressing_mode", "-"), stressing.get("source", "General tendon table · JackFrom field")],
-            ["Δa / Ep", f"{float(astate.get('anchor_set_mm', 0.0) or 0.0):.3f} mm / {float(astate.get('ep_mpa', 0.0) or 0.0):.0f} MPa", "Project anchor-set input and material property."],
-            ["Governing tendon(s)", tie_label, f"{len(ties)} tendon(s) tied within 0.005 MPa; representative substitution uses {gov.get('tendon', '-')}."] ,
-            ["Maximum anchor-set loss", f"{max_loss:.2f} MPa ({max_pct:.2f}%)", f"Representative L_eff={float(gov.get('l_eff_m', 0.0) or 0.0):.3f} m."],
-            ["Minimum fpx after anchor set", f"{min_fpx:.2f} MPa", "Anchor-set-only stress; friction and other losses remain separate."],
+            ["Δa / Ep / μ / K", f"{float(astate.get('anchor_set_mm', 0.0) or 0.0):.3f} mm / {float(astate.get('ep_mpa', 0.0) or 0.0):.0f} MPa / {float(astate.get('mu', 0.0) or 0.0):.4f} / {float(astate.get('k_per_m', 0.0) or 0.0):.6f} 1/m", "Project anchor-set input, material property, and friction inputs."],
+            ["Equivalent governing tendon(s)", tie_label, f"{len(ties)} tendon(s) tied within 0.005 MPa; representative equivalent substitution uses {gov.get('tendon', '-')}."] ,
+            ["Equivalent maximum anchor-set loss", f"{max_loss:.2f} MPa ({max_pct:.2f}%)", f"Representative L_eff={float(gov.get('l_eff_m', 0.0) or 0.0):.3f} m."],
+            ["Distribution governing tendon(s)", dist_tie_label, f"Representative distribution uses {dist_gov.get('tendon', '-')}; affected length sₐ≈{float(dist_gov.get('affected_length_m', 0.0) or 0.0):.3f} m."],
+            ["Distribution maximum anchor-set loss", f"{dist_loss:.2f} MPa ({dist_pct:.2f}%)", "Active-end loss from draw-in compatibility coupled to friction profile."],
+            ["Minimum fpx after F+A", f"{dist_min_fpx:.2f} MPa", "Friction plus anchor-set distribution preview; other losses remain separate."],
+            ["Minimum fpx after equivalent anchor set", f"{min_fpx:.2f} MPa", "Equivalent quick-check value only; not final effective prestress."],
         ],
         columns=["Item", "Value", "Trace / note"],
     )
+
 
 
 def _render_psloss_anchor_equation_block(state: dict[str, Any]) -> None:
@@ -4922,8 +5177,12 @@ def _psloss_anchor_variable_rows() -> pd.DataFrame:
             ["Δa", "mm", "Anchorage set / seating movement", "4.3 Anchor Set project input"],
             ["L_eff", "m / mm", "Equivalent tendon length controlled by JackFrom route", "Derived from adopted tendon path; two-end uses distribution preview only"],
             ["Δa / L_eff", "-", "Equivalent set strain", "Intermediate trace term"],
-            ["ΔfpA,eq", "MPa", "Equivalent anchor-set stress loss", "Preview only in this milestone"],
-            ["fpx,A", "MPa", "Prestressing steel stress after anchor-set-only preview", "Not effective prestress; friction and time-dependent losses are separate"],
+            ["ΔfpA,eq", "MPa", "Equivalent anchor-set stress loss", "Quick-check preview only"],
+            ["ΔfpA,0", "MPa", "Anchor-set loss at active anchorage from distribution compatibility", "Solved so ∫ΔfpA(s)/Ep ds equals Δa"],
+            ["s_a", "m", "Approximate affected length from anchorage", "Distance where ΔfpA(s) remains positive in the adopted station trace"],
+            ["ΔfpA(s)", "MPa", "Position-dependent anchor-set distribution", "Coupled to the friction loss profile ΔfpF(s)"],
+            ["fpx,F+A", "MPa", "Stress after friction plus anchor-set distribution preview", "Not final effective prestress; other losses remain separate"],
+            ["fpx,A", "MPa", "Prestressing steel stress after equivalent anchor-set-only preview", "Quick-check value only"],
         ],
         columns=["Variable", "Unit", "Meaning", "Source / trace"],
     )
@@ -4968,7 +5227,7 @@ def render_prestress_anchor_set_source_model() -> None:
     code_basis_card(
         "4.3 Anchor Set Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.8 adds a source-gated anchor-set preview with equation block, loss-result summary cards, and tendon-by-tendon trace. Preview values are not adopted into effective prestress.",
+        "PSLOSS.9 adds a position-dependent anchor-set distribution trace and friction-coupling preview while keeping final effective-prestress adoption blocked.",
     )
     st.markdown(
         '<div class="note-box"><b>Anchor-set source rule:</b> anchor-set preview must read the adopted tendon path and JackFrom/stressing trace. The value Δa is a project anchorage-set input. One-end/two-end stressing controls distribution only; it does not double total jacking force.</div>',
@@ -5001,18 +5260,25 @@ def render_prestress_anchor_set_source_model() -> None:
     st.markdown("### Governing tendon calculation walkthrough")
     show_engineering_table(_psloss_anchor_governing_walkthrough_rows(state))
 
+    st.markdown("### Anchor-set distribution / friction-coupling preview")
+    _render_psloss_anchor_distribution_equation_block(state)
+    st.markdown("#### Tendon-by-tendon anchor-set distribution summary")
+    _show_full_tendon_report_table(_psloss_anchor_distribution_summary_rows(state), label="Tendon-by-tendon anchor-set distribution summary")
+    st.markdown("#### Governing tendon station distribution trace")
+    _show_full_tendon_report_table(_psloss_anchor_distribution_station_rows(state), label="Governing tendon station distribution trace")
+
     st.markdown(
         '<div class="warn-box"><b>Preview only:</b> anchor-set loss preview is not adopted into effective prestress. Final adoption requires the later effective-prestress milestone to define how anchor-set distribution combines with friction and other loss components.</div>',
         unsafe_allow_html=True,
     )
-    st.markdown("### Tendon-by-tendon anchor-set preview")
-    _show_full_tendon_report_table(_psloss_anchor_preview_rows(state), label="Tendon-by-tendon anchor-set preview")
+    st.markdown("### Tendon-by-tendon equivalent anchor-set quick check")
+    _show_full_tendon_report_table(_psloss_anchor_preview_rows(state), label="Tendon-by-tendon equivalent anchor-set quick check")
 
-    st.markdown("### Tendon-by-tendon anchor-set calculation trace")
-    _show_full_tendon_report_table(_psloss_anchor_calculation_rows(state), label="Tendon-by-tendon anchor-set calculation trace")
+    st.markdown("### Tendon-by-tendon equivalent anchor-set calculation trace")
+    _show_full_tendon_report_table(_psloss_anchor_calculation_rows(state), label="Tendon-by-tendon equivalent anchor-set calculation trace")
     with st.expander("Anchor-set calculation trace / limitations", expanded=False):
         st.markdown(
-            '<div class="note-box"><b>Trace basis:</b> this page shows an equivalent source-model preview using ΔfpA,eq = EpΔa/L_eff. Anchor-set loss is position-dependent along a post-tensioned tendon; the final effective-prestress adoption must define the distribution and combination with friction. Two-end stressing controls distribution only and never doubles tendon axial force.</div>',
+            '<div class="note-box"><b>Trace basis:</b> this page keeps the equivalent source-model preview ΔfpA,eq = EpΔa/L_eff as a quick check and adds a position-dependent distribution preview using ΔfpA(s)=max[ΔfpA,0−2ΔfpF(s),0]. Final effective-prestress adoption must define how this distribution combines with all other loss components. Two-end stressing controls distribution only and never doubles tendon axial force.</div>',
             unsafe_allow_html=True,
         )
         show_engineering_table(_psloss_anchor_source_rows(state))
@@ -5024,7 +5290,7 @@ def render_prestress_friction_source_model() -> None:
     code_basis_card(
         "4.2 Friction Loss Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.8 keeps the friction report trace closed and adds a source-gated 4.3 anchor-set preview. Preview values are not adopted into effective prestress.",
+        "PSLOSS.9 keeps the friction report trace closed and upgrades 4.3 Anchor Set with distribution/coupling preview. Preview values are not adopted into effective prestress.",
     )
     st.markdown(
         '<div class="note-box"><b>Friction source rule:</b> the friction path must be generated from the adopted tendon profile, not from keyed BG40 friction groups or a working import preview. One-end/two-end stressing changes the loss distribution only; it does not double total jacking force.</div>',
@@ -5120,7 +5386,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.8 keeps the general source gate active and adds the 4.3 anchor-set source model; detailed final-loss adoption remains a later milestone.",
+            "PSLOSS.9 keeps the general source gate active and adds the 4.3 anchor-set distribution/coupling preview; detailed final-loss adoption remains a later milestone.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
@@ -5167,7 +5433,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         show_engineering_table(_psloss_formula_readiness_rows(state))
         with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
             st.markdown(
-                '<div class="note-box"><b>PSLOSS.8 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction and 4.3 Anchor Set may generate source-gated previews with equation blocks, governing-tie handling, full-tendon display, and result-summary cards; they do not adopt final effective-prestress results. Detailed effective-prestress formulas remain unchanged.</div>',
+                '<div class="note-box"><b>PSLOSS.9 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction and 4.3 Anchor Set may generate source-gated previews with equation blocks, governing-tie handling, full-tendon display, and result-summary cards; 4.3 also shows a position-dependent anchor-set distribution trace coupled to the friction profile. They do not adopt final effective-prestress results. Detailed effective-prestress formulas remain unchanged.</div>',
                 unsafe_allow_html=True,
             )
             show_engineering_table(_psloss_formula_readiness_rows(state))
@@ -5202,6 +5468,8 @@ def render_report_qa_prestress_losses_handoff_snapshot() -> None:
     show_engineering_table(_psloss_anchor_source_rows(state))
     show_engineering_table(_psloss_anchor_report_summary_rows(state))
     show_engineering_table(_psloss_anchor_governing_walkthrough_rows(state))
+    show_engineering_table(_psloss_anchor_distribution_summary_rows(state))
+    show_engineering_table(_psloss_anchor_distribution_station_rows(state))
 
 def _tendon_stressing_basis_frame(model: dict[str, Any]) -> pd.DataFrame:
     stressing = build_tendon_stressing_basis_summary(model)
@@ -6309,7 +6577,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.8 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.9 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -6346,16 +6614,16 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.8 Notes
+## PSLOSS.9 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
-- PSLOSS.8 adds a source-gated 4.3 Anchor Set equation block, variable definitions, governing-tendon walkthrough, tendon-by-tendon calculation audit columns, and report-style summary while keeping final effective-prestress adoption blocked.
+- PSLOSS.9 adds a position-dependent 4.3 Anchor Set distribution trace and friction-coupling preview while keeping equivalent quick-check values and final effective-prestress adoption blocked.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss8_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss9_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------
