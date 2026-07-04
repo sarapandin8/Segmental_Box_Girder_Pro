@@ -141,3 +141,6 @@ Current milestone focus:
 - COMMERCIAL.PSLOSS.6: Standardized 4.2 Friction with report-grade equation blocks using `st.latex`, a reusable loss-type result-summary card pattern at the top of the page, and source-gated substitution/result display without changing friction values or effective-prestress adoption.
 
 - COMMERCIAL.PSLOSS.7: Polishes 4.2 Friction report trace by showing governing-tendon ties (for mirrored tendons with equal loss), adding full-tendon row-count notes and display height for tendon-by-tendon report tables, and keeping the PSLOSS.6 equation/summary pattern unchanged for future loss pages.
+
+
+- COMMERCIAL.PSLOSS.8: Adds a source-gated 4.3 Anchor Set preview using the same loss-summary card, report-grade equation block, variable definition, governing-tendon walkthrough, and full tendon trace pattern established for friction, without adopting anchor-set loss into effective prestress.
