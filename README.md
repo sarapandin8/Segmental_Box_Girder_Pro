@@ -149,3 +149,5 @@ Current milestone focus:
 - COMMERCIAL.PSLOSS.10: Polishes 4.3 Anchor Set distribution wording and variable trace by separating the equivalent quick check from the position-dependent friction-coupled preview, documenting 2ΔfpF(s), ΔfpA,0, s_a, fpx,F+A(s), and the 1000 m-to-mm compatibility conversion without changing anchor-set results or effective-prestress adoption.
 
 - COMMERCIAL.PSLOSS.11: Adds a source-gated 4.4 Elastic Shortening stage preview using adopted tendon count, Ep/Eci material source, engineer-reviewed f_cgp stage input, report-grade equation blocks, loss-summary cards, variable trace, and tendon-by-tendon sequence audit without adopting elastic shortening into final effective prestress.
+
+- COMMERCIAL.PSLOSS.12: Polishes 4.4 Elastic Shortening summary consistency by separating average ES loss, fpx after average ES, maximum sequence ES loss, and minimum sequence stress; adds sequence-basis review wording while keeping formulas and effective-prestress adoption unchanged.

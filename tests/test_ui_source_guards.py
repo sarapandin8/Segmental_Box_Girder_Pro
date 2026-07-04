@@ -64,7 +64,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -691,7 +691,7 @@ def test_loads40_loads_closeout_and_reportqa_handoff():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.LOADS.40" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "render_loads_workspace_closeout_panel" in src
     assert "Loads workspace closeout and Report / QA handoff" in src
     assert "Closed for load-source scope" in src
@@ -709,7 +709,7 @@ def test_psloss1_source_gate_and_jacking_force_guard():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "render_prestress_losses_source_gate_panel" in src
     assert "Prestress Losses Source Gate" in src
     assert "SOURCE BLOCKED" in src
@@ -729,7 +729,7 @@ def test_psloss2_stressing_basis_gate_and_tendon_action():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.2" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "_psloss_stressing_basis_state" in src
     assert "STRESSING BASIS" in src
     assert "Tendon adoption action required" in src
@@ -749,10 +749,10 @@ def test_psloss3_adopted_tendon_and_formula_readiness_register():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.3" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "_psloss_adopted_tendon_readiness_rows" in src
     assert "_psloss_formula_readiness_rows" in src
-    assert "PSLOSS.11 calculation-readiness snapshot" in src
+    assert "PSLOSS.12 calculation-readiness snapshot" in src
     assert "Adopted tendon source readiness" in src
     assert "Loss calculation readiness register" in src
     assert "READY FOR FORMULA MILESTONE" in src
@@ -768,7 +768,7 @@ def test_psloss4_friction_source_model_and_preview_gate():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.4" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "render_prestress_friction_source_model" in src
     assert "4.2 Friction Loss Source Model" in src
     assert "Friction coefficient input assistant" in src
@@ -788,7 +788,7 @@ def test_tendon2_jackfrom_source_note_visible_and_traced():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.TENDON.2" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "Stressing-basis source note" in src
     assert "General tendon table · JackFrom field" in src
     assert "not a duplicate Prestress Losses input" in src
@@ -800,7 +800,7 @@ def test_psloss5_friction_formula_trace_and_report_summary():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.5" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "Report-style friction summary" in src
     assert "Friction formula and variable trace" in src
     assert "Governing tendon calculation walkthrough" in src
@@ -820,7 +820,7 @@ def test_psloss6_friction_equation_cards_and_consistent_formula_block():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.6" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "Friction loss result summary" in src
     assert "_render_loss_result_summary_cards_for_friction" in src
     assert "FRICTION LOSS SUMMARY" in src
@@ -840,7 +840,7 @@ def test_psloss7_friction_governing_tie_and_full_tendon_report_polish():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.7" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "_psloss_friction_governing_tie_results" in src
     assert "_psloss_friction_governing_label" in src
     assert "_show_full_tendon_report_table" in src
@@ -856,7 +856,7 @@ def test_psloss9_anchor_set_distribution_and_friction_coupling_preview():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.9" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "_psloss_anchor_distribution_results" in src
     assert "_render_psloss_anchor_distribution_equation_block" in src
     assert "Anchor-set distribution / friction-coupling preview" in src
@@ -871,7 +871,7 @@ def test_psloss10_anchor_set_distribution_wording_and_variable_trace_polish():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.10" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "Equivalent quick-check route" in src
     assert "The position-dependent friction-coupled distribution preview is shown below" in src
     assert "_psloss_anchor_distribution_variable_rows" in src
@@ -888,7 +888,7 @@ def test_psloss11_elastic_shortening_source_model_and_stage_preview():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.11" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.73-commercial-psloss11-elastic-shortening-source-model"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
     assert "render_prestress_elastic_shortening_source_model" in src
     assert "_psloss_elastic_shortening_source_state" in src
     assert "_psloss_elastic_shortening_sequence_rows" in src
@@ -897,3 +897,19 @@ def test_psloss11_elastic_shortening_source_model_and_stage_preview():
     assert "f_cgp" in src
     assert "stage-controlled engineering input" in src
     assert "Not final effective prestress" in src
+
+def test_psloss12_elastic_shortening_summary_consistency_and_sequence_basis():
+    src = _src()
+    readme = README_SOURCE.read_text(encoding="utf-8")
+    validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
+    assert "COMMERCIAL.PSLOSS.12" in readme
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.74-commercial-psloss12-es-summary-sequence-polish"' in validation_src
+    assert "MAX SEQUENCE ES LOSS" in src
+    assert "fpx,avg" in src
+    assert "fpx after average ES" in src
+    assert "Minimum fpx after sequence ES" in src
+    assert "Sequence basis" in src
+    assert "Transparent preview order only" in src
+    assert "average-vs-sequence reporting" in src
+    assert "Stage/sequence review required" in src
+

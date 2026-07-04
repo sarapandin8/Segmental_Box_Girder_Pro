@@ -5459,7 +5459,8 @@ def _psloss_elastic_shortening_report_summary_rows(state: dict[str, Any]) -> pd.
         )
     fpj = float(estate.get("fpj_mpa", 0.0) or 0.0)
     avg_loss = float(estate.get("avg_loss_mpa", 0.0) or 0.0)
-    max_row = max(rows, key=lambda r: float(r.get("loss_mpa", 0.0) or 0.0)) if rows else {"tendon": "-", "loss_mpa": 0.0, "stress_mpa": fpj, "loss_pct": 0.0}
+    avg_stress = fpj - avg_loss if fpj > 0.0 else 0.0
+    max_row = max(rows, key=lambda r: float(r.get("loss_mpa", 0.0) or 0.0)) if rows else {"tendon": "-", "sequence_no": "-", "loss_mpa": 0.0, "stress_mpa": fpj, "loss_pct": 0.0}
     min_fpx = min(float(r.get("stress_mpa", fpj) or 0.0) for r in rows) if rows else fpj
     return pd.DataFrame(
         [
@@ -5467,10 +5468,12 @@ def _psloss_elastic_shortening_report_summary_rows(state: dict[str, Any]) -> pd.
             ["Code / equation basis", "AASHTO LRFD 2020 Section 5, Art. 5.9.3", "Sequential average elastic-shortening loss route."],
             ["Formula", "ΔfpES,avg = [(N−1)/(2N)](Ep/Eci)f_cgp", "Sequence trace shown separately as ΔfpES,i = [(N−i)/N](Ep/Eci)f_cgp."],
             ["Tendons in trace", f"{estate['n_tendons']} / {estate['n_tendons']}", "All adopted tendons are included in the source trace."],
+            ["Sequence basis", "Preview order from adopted tendon table", "Final construction / stressing sequence must be confirmed before effective-prestress adoption."],
             ["Ep / Eci / f_cgp", f"{estate['ep_mpa']:.0f} MPa / {estate['eci_mpa']:.0f} MPa / {estate['fcgp_mpa']:.2f} MPa", "Material source plus engineer-reviewed stage stress input."],
-            ["Average elastic-shortening loss", f"{avg_loss:.2f} MPa ({100.0 * avg_loss / fpj if fpj > 0.0 else 0.0:.2f}%)", "Average sequential loss used as the report preview value."],
-            ["Maximum sequence loss", f"{float(max_row.get('loss_mpa', 0.0) or 0.0):.2f} MPa ({float(max_row.get('loss_pct', 0.0) or 0.0):.2f}%)", f"Representative earliest tendon in adopted sequence: {max_row.get('tendon', '-')}"],
-            ["Minimum fpx after ES", f"{min_fpx:.2f} MPa", "Sequence-preview stress only; friction, anchor set, and time-dependent losses remain separate."],
+            ["Average elastic-shortening loss", f"{avg_loss:.2f} MPa ({100.0 * avg_loss / fpj if fpj > 0.0 else 0.0:.2f}%)", "Average report-preview value; do not confuse with the maximum sequence loss."],
+            ["fpx after average ES", f"{avg_stress:.2f} MPa", "Average-preview stress only; useful for report comparison against the sequence trace."],
+            ["Maximum sequence ES loss", f"{float(max_row.get('loss_mpa', 0.0) or 0.0):.2f} MPa ({float(max_row.get('loss_pct', 0.0) or 0.0):.2f}%)", f"Governing sequence tendon: {max_row.get('tendon', '-')} at sequence i={max_row.get('sequence_no', '-')}"],
+            ["Minimum fpx after sequence ES", f"{min_fpx:.2f} MPa", "Sequence-preview stress only; friction, anchor set, and time-dependent losses remain separate."],
         ],
         columns=["Item", "Value", "Trace / note"],
     )
@@ -5479,37 +5482,49 @@ def _psloss_elastic_shortening_report_summary_rows(state: dict[str, Any]) -> pd.
 def _render_loss_result_summary_cards_for_elastic_shortening(state: dict[str, Any]) -> None:
     results, estate = _psloss_elastic_shortening_sequence_results(state)
     if not estate.get("ready"):
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
             card("ELASTIC SHORTENING SUMMARY", "SOURCE BLOCKED", "Adopt tendon and stage source first", "warn")
         with c2:
             card("AVERAGE ES LOSS", "—", "blocked", "warn")
         with c3:
-            card("MIN fpx AFTER ES", "—", "blocked", "warn")
+            card("MAX SEQUENCE ES LOSS", "—", "blocked", "warn")
         with c4:
+            card("MIN fpx AFTER ES", "—", "blocked", "warn")
+        with c5:
             card("ADOPTION STATUS", "PREVIEW ONLY", "Not effective prestress", "neutral")
         return
     fpj = float(estate.get("fpj_mpa", 0.0) or 0.0)
     avg_loss = float(estate.get("avg_loss_mpa", 0.0) or 0.0)
-    pct = 100.0 * avg_loss / fpj if fpj > 0.0 else 0.0
+    avg_pct = 100.0 * avg_loss / fpj if fpj > 0.0 else 0.0
+    avg_fpx = fpj - avg_loss if fpj > 0.0 else 0.0
     min_fpx = min(float(r.get("stress_mpa", fpj) or 0.0) for r in results) if results else fpj
-    max_row = max(results, key=lambda r: float(r.get("loss_mpa", 0.0) or 0.0)) if results else {"tendon": "-"}
-    c1, c2, c3, c4 = st.columns(4)
+    max_row = max(results, key=lambda r: float(r.get("loss_mpa", 0.0) or 0.0)) if results else {"tendon": "-", "sequence_no": "-", "loss_mpa": 0.0, "loss_pct": 0.0}
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        card("ELASTIC SHORTENING SUMMARY", "STAGE PREVIEW", f"N={estate['n_tendons']} · representative max: {max_row.get('tendon', '-')}", "pass")
+        card("ELASTIC SHORTENING SUMMARY", "STAGE PREVIEW", f"N={estate['n_tendons']} · sequence source review", "pass")
     with c2:
-        card("AVERAGE ES LOSS", f"{avg_loss:.2f} MPa", f"{pct:.2f}% of fpj", "warn")
+        card("AVERAGE ES LOSS", f"{avg_loss:.2f} MPa", f"{avg_pct:.2f}% · fpx,avg={avg_fpx:.2f} MPa", "warn")
     with c3:
-        card("MIN fpx AFTER ES", f"{min_fpx:.2f} MPa", "Sequence-preview stress", "pass")
+        card("MAX SEQUENCE ES LOSS", f"{float(max_row.get('loss_mpa', 0.0) or 0.0):.2f} MPa", f"{float(max_row.get('loss_pct', 0.0) or 0.0):.2f}% · {max_row.get('tendon', '-')} (i={max_row.get('sequence_no', '-')})", "warn")
     with c4:
-        card("ADOPTION STATUS", "PREVIEW ONLY", "Stage source review required", "neutral")
+        card("MIN fpx AFTER SEQUENCE ES", f"{min_fpx:.2f} MPa", "Sequence-preview stress", "pass")
+    with c5:
+        card("ADOPTION STATUS", "PREVIEW ONLY", "Stage/sequence review required", "neutral")
+
+
+def _render_elastic_shortening_sequence_basis_note() -> None:
+    st.markdown(
+        '<div class="warn-box"><b>Sequence basis:</b> tendon-by-tendon elastic-shortening values use the adopted tendon table order as a transparent preview sequence. Confirm the final jacking order, simultaneous stressing pairs, and stage f<sub>cgp</sub> from the construction / staged-analysis source before adopting any elastic-shortening value into effective prestress.</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _render_psloss_elastic_shortening_equation_block(state: dict[str, Any]) -> None:
     estate = _psloss_elastic_shortening_source_state(state)
     st.markdown("#### Elastic-shortening equation block")
     st.markdown(
-        '<div class="note-box"><b>Equation route:</b> the average elastic-shortening expression is retained as the report preview value. A tendon-by-tendon sequential trace is shown below for transparency. Final effective-prestress adoption remains a later milestone.</div>',
+        '<div class="note-box"><b>Equation route:</b> the average elastic-shortening expression is retained as the report-preview value, while the tendon-by-tendon sequence equation is shown separately for transparency. Average loss, maximum sequence loss, and minimum sequence stress are reported as different quantities. Final effective-prestress adoption remains a later milestone.</div>',
         unsafe_allow_html=True,
     )
     st.latex(r"\Delta f_{pES,avg}=\left(\frac{N-1}{2N}\right)\left(\frac{E_p}{E_{ci}}\right)f_{cgp}")
@@ -5539,14 +5554,16 @@ def _psloss_elastic_shortening_variable_rows() -> pd.DataFrame:
     return pd.DataFrame(
         [
             ["N", "count", "Number of adopted tendons", "2.4 Adopted Tendon Data"],
-            ["i", "count", "Jacking sequence index in the transparent sequence preview", "Adopted tendon order; final sequence may be confirmed by construction/stage source"],
+            ["i", "count", "Jacking sequence index in the transparent sequence preview", "Adopted tendon order; final construction/stressing sequence must be confirmed before adoption"],
             ["Ep", "MPa", "Prestressing steel modulus", "Material property"],
             ["Eci", "MPa", "Concrete modulus at stressing / load-transfer stage", "Material property / engineer stage basis"],
             ["f_cgp", "MPa", "Concrete stress at CG of prestressing steel due to prestress and sustained stage loads", "4.4 Elastic Shortening project stage input"],
-            ["(N−1)/(2N)", "-", "Average sequential stressing factor", "Intermediate trace term"],
-            ["(N−i)/N", "-", "Tendon-by-tendon sequence preview factor", "Transparency trace only"],
-            ["ΔfpES", "MPa", "Elastic-shortening loss in prestressing steel", "Preview only in this milestone"],
-            ["fpx,ES", "MPa", "Prestressing steel stress after elastic-shortening preview", "Not final effective prestress; friction, anchor set, and time-dependent losses remain separate"],
+            ["(N−1)/(2N)", "-", "Average sequential stressing factor", "Average report-preview value; not the maximum sequence value"],
+            ["(N−i)/N", "-", "Tendon-by-tendon sequence preview factor", "Transparency trace only; depends on the assumed preview sequence"],
+            ["ΔfpES,avg", "MPa", "Average elastic-shortening loss used for report preview", "Shown separately from maximum sequence loss"],
+            ["ΔfpES,i", "MPa", "Elastic-shortening loss for tendon sequence i", "Sequence preview only; final jacking sequence may differ"],
+            ["fpx,ES,avg", "MPa", "Prestressing steel stress after average ES preview", "Average preview stress, not minimum sequence stress"],
+            ["fpx,ES,i", "MPa", "Prestressing steel stress after sequence ES preview for tendon i", "Not final effective prestress; friction, anchor set, and time-dependent losses remain separate"],
         ],
         columns=["Variable", "Unit", "Meaning", "Source / trace"],
     )
@@ -5562,15 +5579,19 @@ def _psloss_elastic_shortening_governing_walkthrough_rows(state: dict[str, Any])
     fpj = float(estate.get("fpj_mpa", 0.0) or 0.0)
     avg = float(estate.get("avg_loss_mpa", 0.0) or 0.0)
     max_row = max(results, key=lambda r: float(r.get("loss_mpa", 0.0) or 0.0))
+    min_fpx = min(float(r.get("stress_mpa", fpj) or 0.0) for r in results) if results else fpj
     return pd.DataFrame(
         [
             ["Adopted tendon count", f"N = {estate['n_tendons']}", "Read from locked adopted tendon source."],
+            ["Sequence basis", "Adopted tendon table order", "Transparent preview order only; confirm construction jacking order / simultaneous pairs before final adoption."],
             ["Material ratio", f"Ep/Eci = {estate['ep_mpa']:.0f}/{estate['eci_mpa']:.0f} = {estate['n_ratio']:.5f}", "Prestressing steel modulus divided by concrete stage modulus."],
             ["Stage stress", f"f_cgp = {estate['fcgp_mpa']:.2f} MPa", estate["stage_policy"]],
             ["Average factor", f"(N−1)/(2N) = {(estate['n_tendons']-1)/(2*estate['n_tendons']):.5f}", "Average of sequential stressing losses for equal tendon force."],
-            ["Average ES loss", f"ΔfpES,avg = {avg:.2f} MPa", "Report preview value; not final effective prestress."],
-            ["Average stress after ES", f"fpx,ES,avg = {fpj - avg:.2f} MPa", "Elastic-shortening-only stress; other losses remain separate."],
-            ["Maximum sequence preview", f"{max_row.get('tendon', '-')} → ΔfpES = {float(max_row.get('loss_mpa', 0.0) or 0.0):.2f} MPa", "Earliest tendon in the adopted sequence loses most in the transparent sequence preview."],
+            ["Average ES loss", f"ΔfpES,avg = {avg:.2f} MPa", "Average report-preview value; not the same quantity as maximum sequence loss."],
+            ["Average stress after ES", f"fpx,ES,avg = {fpj - avg:.2f} MPa", "Average-preview stress; separate from minimum sequence stress."],
+            ["Governing sequence tendon", f"{max_row.get('tendon', '-')} at i={max_row.get('sequence_no', '-')}", "Earliest tendon in the preview sequence loses most; final order may differ."],
+            ["Maximum sequence ES loss", f"ΔfpES,max = {float(max_row.get('loss_mpa', 0.0) or 0.0):.2f} MPa ({float(max_row.get('loss_pct', 0.0) or 0.0):.2f}%)", "Sequence-preview maximum; use only after sequence source is confirmed."],
+            ["Minimum sequence stress after ES", f"min fpx,ES,i = {min_fpx:.2f} MPa", "Sequence-preview stress only; other losses remain separate."],
         ],
         columns=["Step", "Value", "Trace"],
     )
@@ -5606,7 +5627,7 @@ def render_prestress_elastic_shortening_source_model() -> None:
     code_basis_card(
         "4.4 Elastic Shortening Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.11 adds a source-gated elastic-shortening stage preview with equation block, result-summary cards, variable trace, and tendon-by-tendon sequence audit. Preview values are not adopted into effective prestress.",
+        "PSLOSS.12 polishes elastic-shortening summary consistency by separating average loss, maximum sequence loss, and sequence-basis review while keeping final effective-prestress adoption blocked.",
     )
     st.markdown(
         '<div class="note-box"><b>Elastic-shortening source rule:</b> the preview must read the locked adopted tendon count, material moduli, and engineer-reviewed stage stress f<sub>cgp</sub>. The app must not infer the actual span-by-span stressing/load-transfer stage from completed-span geometry alone.</div>',
@@ -5631,6 +5652,7 @@ def render_prestress_elastic_shortening_source_model() -> None:
         '<div class="warn-box"><b>Stage check:</b> f<sub>cgp</sub> is a stage-controlled engineering input. Confirm it against the actual stressing/load-transfer model before adopting any final effective-prestress result.</div>',
         unsafe_allow_html=True,
     )
+    _render_elastic_shortening_sequence_basis_note()
     show_engineering_table(_psloss_elastic_shortening_source_rows(state))
 
     st.markdown("### Report-style elastic-shortening summary")
@@ -5698,7 +5720,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.11 keeps the general source gate active and adds a source-gated 4.4 Elastic Shortening stage preview; detailed final-loss adoption remains a later milestone.",
+            "PSLOSS.12 keeps the general source gate active and polishes 4.4 Elastic Shortening summary consistency and sequence-basis review; detailed final-loss adoption remains a later milestone.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
@@ -5729,7 +5751,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         unsafe_allow_html=True,
     )
     if not compact:
-        st.markdown("### PSLOSS.11 calculation-readiness snapshot")
+        st.markdown("### PSLOSS.12 calculation-readiness snapshot")
         _psloss3_readiness_cards(state)
         st.markdown("### Tendon adoption and blocked-input checklist")
         show_engineering_table(_psloss_blocked_tendon_checklist_rows(state))
@@ -5745,7 +5767,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         show_engineering_table(_psloss_formula_readiness_rows(state))
         with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
             st.markdown(
-                '<div class="note-box"><b>PSLOSS.11 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening generate source-gated previews with equation blocks, result-summary cards, and report trace tables. They do not adopt final effective-prestress results. Detailed final effective-prestress adoption remains unchanged.</div>',
+                '<div class="note-box"><b>PSLOSS.12 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening generate source-gated previews with equation blocks, result-summary cards, report trace tables, and explicit average-vs-sequence reporting. They do not adopt final effective-prestress results. Detailed final effective-prestress adoption remains unchanged.</div>',
                 unsafe_allow_html=True,
             )
             show_engineering_table(_psloss_formula_readiness_rows(state))
@@ -6891,7 +6913,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.11 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.12 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -6928,16 +6950,16 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.11 Notes
+## PSLOSS.12 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
-- PSLOSS.11 adds a source-gated 4.4 Elastic Shortening stage preview with equation block, result-summary cards, variable trace, and tendon-by-tendon sequence audit while final effective-prestress adoption remains blocked.
+- PSLOSS.12 polishes 4.4 Elastic Shortening by separating average ES loss from maximum sequence ES loss, adding fpx after average ES, adding sequence-basis review notes, and preserving final effective-prestress adoption blocking.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss11_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss12_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------
