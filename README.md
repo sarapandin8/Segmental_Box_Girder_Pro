@@ -155,4 +155,4 @@ Current milestone focus:
 
 - COMMERCIAL.PSLOSS.14: Cleans up active Prestress Losses headers and 4.1 next-step wording so the closed Friction, Anchor Set, and Elastic Shortening preview pages reflect the shared loss-percent basis standard and the workflow points to 4.5 Creep / Shrinkage next, without changing formulas or results.
 
-- COMMERCIAL.PSLOSS.15: Starts the 4.5 Creep / Shrinkage refined/time-step workflow with a construction-stage source map, editable segment age at transport defaulting to 30 days, editable span assembly duration before stressing, computed representative t_jack, 3.8 ti reconciliation, and method-map trace without adopting final time-dependent losses.
+- COMMERCIAL.PSLOSS.16–18: Completes the 4.5 Creep / Shrinkage source-gated preview package with a calculation-route selector, refined/time-step factor trace, approximate quick-check comparison, result-summary cards, effective-prestress handoff, editable segment age at transport defaulting to 30 days, editable span assembly duration before stressing, computed representative t_jack, and 3.8 ti reconciliation without adopting final time-dependent losses.
