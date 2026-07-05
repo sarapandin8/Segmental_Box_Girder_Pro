@@ -5290,7 +5290,7 @@ def render_prestress_anchor_set_source_model() -> None:
     code_basis_card(
         "4.3 Anchor Set Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.10 polishes the anchor-set distribution wording and adds a dedicated distribution-variable trace while keeping final effective-prestress adoption blocked.",
+        "PSLOSS.14 keeps the anchor-set distribution trace closed and aligns active loss-page headers with the current loss-percent / non-cumulative interpretation standard. Final effective-prestress adoption remains blocked.",
     )
     st.markdown(
         '<div class="note-box"><b>Anchor-set source rule:</b> anchor-set preview must read the adopted tendon path and JackFrom/stressing trace. The value Δa is a project anchorage-set input. One-end/two-end stressing controls distribution only; it does not double total jacking force.</div>',
@@ -5356,7 +5356,7 @@ def render_prestress_friction_source_model() -> None:
     code_basis_card(
         "4.2 Friction Loss Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.10 keeps the friction report trace closed and polishes 4.3 Anchor Set distribution trace wording/variables. Preview values are not adopted into effective prestress.",
+        "PSLOSS.14 keeps the friction report trace closed and aligns active loss-page headers with the current loss-percent / non-cumulative interpretation standard. Preview values are not adopted into effective prestress.",
     )
     st.markdown(
         '<div class="note-box"><b>Friction source rule:</b> the friction path must be generated from the adopted tendon profile, not from keyed BG40 friction groups or a working import preview. One-end/two-end stressing changes the loss distribution only; it does not double total jacking force.</div>',
@@ -5679,7 +5679,7 @@ def render_prestress_elastic_shortening_source_model() -> None:
     code_basis_card(
         "4.4 Elastic Shortening Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.13 standardizes the loss-percent basis and non-cumulative interpretation across active loss pages while keeping final effective-prestress adoption blocked.",
+        "PSLOSS.14 keeps the elastic-shortening preview closed and aligns active loss-page headers with the current loss-percent / non-cumulative interpretation standard. Final effective-prestress adoption remains blocked.",
     )
     st.markdown(
         '<div class="note-box"><b>Elastic-shortening source rule:</b> the preview must read the locked adopted tendon count, material moduli, and engineer-reviewed stage stress f<sub>cgp</sub>. The app must not infer the actual span-by-span stressing/load-transfer stage from completed-span geometry alone.</div>',
@@ -5761,8 +5761,8 @@ def _psloss3_readiness_cards(state: dict[str, Any]) -> None:
     with c4:
         card(
             "NEXT STEP",
-            "FORMULA ENGINE" if state.get("ready") else "ADOPT SOURCE FIRST",
-            "Proceed only after all source gates are ready" if not state.get("ready") else "Friction/anchor set can be scoped next",
+            "TIME-DEPENDENT LOSSES" if state.get("ready") else "ADOPT SOURCE FIRST",
+            "Proceed only after all source gates are ready" if not state.get("ready") else "Creep / Shrinkage source model can be scoped next",
             "pass" if state.get("ready") else "warn",
         )
 
@@ -5773,7 +5773,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.13 keeps the general source gate active and standardizes component loss-percent interpretation across 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening; detailed final-loss adoption remains a later milestone.",
+            "PSLOSS.14 keeps the general source gate active, keeps 4.2 Friction / 4.3 Anchor Set / 4.4 Elastic Shortening closed, and points the next workflow step to 4.5 Creep / Shrinkage. Final effective-prestress adoption remains a later milestone.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
@@ -5804,7 +5804,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         unsafe_allow_html=True,
     )
     if not compact:
-        st.markdown("### PSLOSS.13 calculation-readiness snapshot")
+        st.markdown("### PSLOSS.14 calculation-readiness snapshot")
         _psloss3_readiness_cards(state)
         st.markdown("### Tendon adoption and blocked-input checklist")
         show_engineering_table(_psloss_blocked_tendon_checklist_rows(state))
@@ -5820,7 +5820,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         show_engineering_table(_psloss_formula_readiness_rows(state))
         with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
             st.markdown(
-                '<div class="note-box"><b>PSLOSS.13 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening generate source-gated previews with equation blocks, result-summary cards, report trace tables, and explicit average-vs-sequence reporting plus loss-percent basis notes. Component loss percentages are non-cumulative and are not final effective-prestress losses. Detailed final effective-prestress adoption remains unchanged.</div>',
+                '<div class="note-box"><b>PSLOSS.14 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening are closed for the current source-gated preview scope and retain the component loss-percent / non-cumulative interpretation standard, including average-vs-sequence reporting for elastic shortening. The next scoped module is 4.5 Creep / Shrinkage. Detailed final effective-prestress adoption remains unchanged.</div>',
                 unsafe_allow_html=True,
             )
             show_engineering_table(_psloss_formula_readiness_rows(state))
@@ -6966,7 +6966,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.13 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.14 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -7003,16 +7003,16 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.13 Notes
+## PSLOSS.14 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
-- PSLOSS.13 standardizes the displayed loss-percent basis across Friction, Anchor Set, and Elastic Shortening. Loss % is component loss / fpj × 100 and is not cumulative across pages; final combination is deferred to 4.6 Effective Prestress.
+- PSLOSS.14 keeps the completed Friction, Anchor Set, and Elastic Shortening preview pages aligned with the shared component loss / fpj percent basis and non-cumulative interpretation; final combination remains deferred to 4.6 Effective Prestress.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss13_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss14_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------
