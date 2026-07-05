@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.23
+# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.24
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -162,3 +162,6 @@ Current milestone focus:
 - COMMERCIAL.PSLOSS.22: Renames 4.5 to Time-Dependent Losses and splits the workflow into internal Overview, Creep, Shrinkage, Relaxation, and Handoff to 4.6 tabs while preserving creep, shrinkage, relaxation, route-selection, t_start, and handoff results.
 
 - COMMERCIAL.PSLOSS.23: Polishes the Time-Dependent Losses handoff summary and relaxation wording so relaxation, total time-dependent preview subtotal, and fpx after time-dependent preview are reported consistently before 4.6 without changing formulas or preview values.
+
+
+- COMMERCIAL.PSLOSS.24: Fixes 4.1 General Prestress Losses source-gate CR&SH handoff compatibility by avoiding direct `state["factors"]` access when the page receives a general/migrated source-gate state; displays SOURCE PARTIAL / REVIEW-compatible CR&SH handoff rows instead of crashing, without changing prestress-loss formulas or preview values.

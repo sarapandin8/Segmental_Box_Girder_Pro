@@ -5776,7 +5776,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.22 keeps the general source gate active, keeps 4.2 Friction / 4.3 Anchor Set / 4.4 Elastic Shortening closed, and renames 4.5 to Time-Dependent Losses with internal Creep / Shrinkage / Relaxation / Handoff tabs. Final effective-prestress adoption remains a later milestone.",
+            "PSLOSS.24 keeps the general source gate active and fixes CR&SH handoff compatibility for migrated project states while 4.5 Time-Dependent Losses remains source-gated. Final effective-prestress adoption remains a later milestone.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
@@ -5807,7 +5807,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         unsafe_allow_html=True,
     )
     if not compact:
-        st.markdown("### PSLOSS.22 calculation-readiness snapshot")
+        st.markdown("### PSLOSS.24 calculation-readiness snapshot")
         _psloss3_readiness_cards(state)
         st.markdown("### Tendon adoption and blocked-input checklist")
         show_engineering_table(_psloss_blocked_tendon_checklist_rows(state))
@@ -5823,7 +5823,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         show_engineering_table(_psloss_formula_readiness_rows(state))
         with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
             st.markdown(
-                '<div class="note-box"><b>PSLOSS.22 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening are closed for the current source-gated preview scope. 4.5 Time-Dependent Losses now groups creep, shrinkage, relaxation, and 4.6 handoff in internal component tabs while retaining the t_start selected-age trace. Detailed final effective-prestress adoption remains unchanged.</div>',
+                '<div class="note-box"><b>PSLOSS.24 rule:</b> 4.1 remains a robust source/readiness register. The CR&SH handoff must display SOURCE PARTIAL / REVIEW rows instead of crashing when a migrated project state has no 4.5 factors snapshot. 4.2 Friction, 4.3 Anchor Set, 4.4 Elastic Shortening, and 4.5 Time-Dependent Losses remain preview-only; final effective-prestress adoption remains unchanged.</div>',
                 unsafe_allow_html=True,
             )
             show_engineering_table(_psloss_formula_readiness_rows(state))
@@ -7050,13 +7050,13 @@ def _psloss_crsh_source_rows(state: dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(
         [
             ["Selected calculation route", state["selected_route"], "4.5 method selector", state["adoption_policy"]],
-            ["Selected time-step age source", state["selected_time_source"], "4.5 ti source selector", state["time_source_note"]],
+            ["Selected time-step age source", state.get("selected_time_source", "SOURCE PARTIAL"), "4.5 ti source selector", state["time_source_note"]],
             ["Construction method", state["construction_method"], "4.5 construction-stage input", "Span-by-span representative mode; not a duplicate CR&SH material input."],
             ["Segment age at transport", f"{state['transport_age_days']:.1f}", "days", "Editable in 4.5; default is 30 days."],
             ["Span assembly duration", f"{state['assembly_duration_days']:.1f}", "days", "Editable in 4.5; set to actual gantry-launcher assembly duration before final adoption."],
             ["Computed tendon stressing age t_jack", f"{state['t_jack_days']:.1f}", "days", "t_jack = segment age at transport + span assembly duration."],
             ["3.8 CR&SH ti", f"{state['ti_38_days']:.1f}", "days", f"Source reconciliation: {state['reconciliation']}."] ,
-            ["Selected time-step start age t_start", f"{state['effective_t_jack_days']:.1f}", "days", "Selected source used by refined preview formulas; t_start may be computed t_jack or 3.8 CR&SH ti."],
+            ["Selected time-step start age t_start", f"{state.get('effective_t_jack_days', 0.0):.1f}", "days", "Selected source used by refined preview formulas; t_start may be computed t_jack or 3.8 CR&SH ti."],
             ["Final design age tf", f"{state['tf_days']:.1f}", "days", "Read from 3.8 CR&SH."],
             ["RH", f"{ps['RH_percent']:.1f}", "%", "Read from 3.8 CR&SH; do not duplicate here."],
             ["V/S", f"{crsh['V_over_S_in']:.2f}", "in", "Derived in 3.8 from section area and selected drying perimeter."],
@@ -7098,8 +7098,8 @@ def _psloss_crsh_reconciliation_rows(state: dict[str, Any]) -> pd.DataFrame:
         [
             ["Computed representative t_jack", f"{state['t_jack_days']:.1f} days", "4.5 construction-stage map", "segment age at transport + span assembly duration"],
             ["Current 3.8 CR&SH ti", f"{state['ti_38_days']:.1f} days", "3.8 CR&SH", "existing material-loss age input"],
-            ["Selected time-step age source", state["selected_time_source"], "4.5 ti source selector", state["time_source_note"]],
-            ["Selected t_start", f"{state['effective_t_jack_days']:.1f} days", "Selected age source", "This selected age is used by refined creep/shrinkage formulas shown below; computed t_jack remains a reconciliation value."],
+            ["Selected time-step age source", state.get("selected_time_source", "SOURCE PARTIAL"), "4.5 ti source selector", state["time_source_note"]],
+            ["Selected t_start", f"{state.get('effective_t_jack_days', 0.0):.1f} days", "Selected age source", "This selected age is used by refined creep/shrinkage formulas shown below; computed t_jack remains a reconciliation value."],
             ["Difference", f"{abs(state['t_jack_days']-state['ti_38_days']):.1f} days", "source reconciliation", state["rec_note"]],
             ["Selected method", state["selected_route"], "4.5 method selector", state["adoption_policy"]],
             ["Adoption policy", "Preview only", "4.6 Effective Prestress", "Do not adopt refined time-dependent losses until the selected route and time-step age source are explicitly reported."],
@@ -7118,7 +7118,7 @@ def _psloss_crsh_refined_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
         [
             ["Calculation status", "PREVIEW READY" if state["method_ready"] else "METHOD BLOCKED", "Source-gated time-dependent preview; not final effective-prestress adoption."],
             ["Selected route", state["selected_route"], state["adoption_policy"]],
-            ["Selected time-step age source", state["selected_time_source"], f"effective start age = {state['effective_t_jack_days']:.1f} days; {state['time_source_note']}"],
+            ["Selected time-step age source", state.get("selected_time_source", "SOURCE PARTIAL"), f"effective start age = {state.get('effective_t_jack_days', 0.0):.1f} days; {state.get('time_source_note', '-')}"],
             ["Code basis", "AASHTO LRFD 2020 Art. 5.4.2.3 / 5.9.3.4 / 5.9.3.5", "Segmental construction should use time-step/stage-aware evaluation beyond preliminary design."],
             ["Creep coefficient ψ(t_f,t_start)", f"{f['creep_coeff']:.4f}", "Computed from RH, V/S, fci, selected t_start and final time."],
             ["Incremental shrinkage strain εsh,inc", f"{f['eps_sh_increment']:.6f}", "Shrinkage after jacking only; pre-jacking shrinkage is not a direct tendon loss."],
@@ -7418,9 +7418,40 @@ def _render_psloss_relaxation_section(crsh_state: dict[str, Any]) -> dict[str, A
     )
     return r
 
+def _psloss_crsh_source_gate_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
+    """Compatibility-safe 4.1 CR&SH source-gate handoff rows.
+
+    4.1 passes the general Prestress Losses source-gate state, not the 4.5
+    Time-Dependent Losses state. Migrated projects may therefore have no
+    `factors` key. This helper keeps the source gate readable instead of
+    crashing, while 4.5 still uses the detailed route-dependent handoff below.
+    """
+    ps = D.setdefault("prestress", {})
+    crsh = state.get("crsh") or update_crsh_derived_parameters()
+    tf_days = float(ps.get("tf_days", 0.0) or 0.0)
+    tf_years = tf_days / 365.25 if tf_days > 0.0 else 0.0
+    status = "READY" if bool(state.get("crsh_ready", True)) else "SOURCE PARTIAL"
+    return pd.DataFrame(
+        [
+            ["CR&SH source status", status, "4.1 source gate", "Compatibility-safe source trace; detailed time-dependent factors are owned by 4.5."],
+            ["RH", f"{float(ps.get('RH_percent', 0.0) or 0.0):.1f}", "%", "3.8 CR&SH user project assumption"],
+            ["ti", f"{float(ps.get('ti_days', 0.0) or 0.0):.0f}", "days", "3.8 CR&SH material/loss age input; 4.5 may reconcile with computed t_jack."],
+            ["tf", f"{tf_days:.0f} ≈ {tf_years:.1f}", "days / years", "final design age from 3.8 CR&SH"],
+            ["Drying perimeter basis", ps.get("crsh_drying_perimeter_basis", "-"), "-", "outer-only vs outer+inner void trace"],
+            ["u_total", f"{float(crsh.get('u_total_m', 0.0) or 0.0):.2f}", "m", "derived from selected drying perimeter basis"],
+            ["V/S", f"{float(crsh.get('V_over_S_in', 0.0) or 0.0):.2f}", "in", "AASHTO empirical creep/shrinkage factor input"],
+            ["V/S", f"{float(crsh.get('V_over_S_m', 0.0) or 0.0):.4f}", "m", "SI report value"],
+            ["h0", f"{float(crsh.get('h0_m', 0.0) or 0.0):.4f}", "m", "h0 = 2Ac/u_total = 2(V/S)"],
+        ],
+        columns=["Parameter", "Adopted value", "Unit", "Source / trace"],
+    )
+
+
 def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
-    f = state["factors"]
-    selected = state["selected_route"]
+    if "factors" not in state:
+        return _psloss_crsh_source_gate_handoff_rows(state)
+    f = state.get("factors", {})
+    selected = str(state.get("selected_route", "SOURCE PARTIAL"))
     r = state.get("relaxation") or _psloss_relaxation_preview_state(state)
     total_td_mpa = f["total_crsh_loss_mpa"] + r["selected_loss_mpa"]
     total_td_pct = total_td_mpa / f["fpj_mpa"] * 100.0 if f["fpj_mpa"] > 0.0 else 0.0
@@ -7428,7 +7459,7 @@ def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
     if selected.startswith("Refined"):
         rows = [
             ["Selected method", selected, "4.6 may read refined component previews only after route and age-source review."],
-            ["Selected time-step age source", state["selected_time_source"], f"effective start age = {state['effective_t_jack_days']:.1f} days; {state['time_source_note']}"],
+            ["Selected time-step age source", state.get("selected_time_source", "SOURCE PARTIAL"), f"effective start age = {state.get('effective_t_jack_days', 0.0):.1f} days; {state.get('time_source_note', '-')}"],
             ["Creep preview", f"{f['creep_loss_mpa']:.2f} MPa", "Selected refined component preview; final adoption not run here."],
             ["Shrinkage preview", f"{f['shrinkage_loss_mpa']:.2f} MPa", "Selected refined component preview; final adoption not run here."],
             ["Creep + shrinkage preview", f"{f['total_crsh_loss_mpa']:.2f} MPa", "Selected refined C+SH subtotal; do not add percentages directly across pages."],
@@ -7441,7 +7472,7 @@ def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
     elif selected.startswith("Approximate"):
         rows = [
             ["Selected method", selected, "Quick-check route only; not eligible for final segmental PT effective-prestress adoption."],
-            ["Selected time-step age source", state["selected_time_source"], "Stored for trace only; approximate route is still preliminary."],
+            ["Selected time-step age source", state.get("selected_time_source", "SOURCE PARTIAL"), "Stored for trace only; approximate route is still preliminary."],
             ["Approximate total time-dependent loss", f"{f['approx_total_mpa']:.2f} MPa", "Selected quick-check display value only; final adoption remains blocked."],
             ["Refined creep preview", f"{f['creep_loss_mpa']:.2f} MPa", "Comparison only because approximate route is currently selected."],
             ["Refined shrinkage preview", f"{f['shrinkage_loss_mpa']:.2f} MPa", "Comparison only because approximate route is currently selected."],
@@ -7454,7 +7485,7 @@ def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
     else:
         rows = [
             ["Selected method", selected, "Advanced segment-age table is gated and not implemented."],
-            ["Selected time-step age source", state["selected_time_source"], "No final handoff while advanced route is gated."],
+            ["Selected time-step age source", state.get("selected_time_source", "SOURCE PARTIAL"), "No final handoff while advanced route is gated."],
             ["Refined representative C+SH fallback", f"{f['total_crsh_loss_mpa']:.2f} MPa", "Fallback display only; not a selected final handoff."],
             ["Relaxation preview", f"{r['selected_loss_mpa']:.2f} MPa", "Fallback display only; not a selected final handoff."],
             ["TD preview subtotal", f"{total_td_mpa:.2f} MPa ({total_td_pct:.2f}%)", "Fallback display only; not a selected final handoff."],
@@ -7519,7 +7550,7 @@ def _render_time_dependent_creep_tab(state: dict[str, Any]) -> None:
     st.latex(fr"k_s=\max(1.0,1.45-0.13({f['V_over_S_in']:.2f}))={f['ks_creep']:.4f}")
     st.latex(fr"k_{{hc}}=1.56-0.008({f['H']:.1f})={f['khc']:.4f}")
     st.latex(fr"k_f=\frac{{5}}{{1+{f['fci_ksi']:.3f}}}={f['kf']:.4f}")
-    st.latex(fr"t_{{start}}={state['effective_t_jack_days']:.1f}\ \mathrm{{days}}")
+    st.latex(fr"t_{{start}}={state.get('effective_t_jack_days', 0.0):.1f}\ \mathrm{{days}}")
     st.latex(fr"\psi=1.9({f['ks_creep']:.4f})({f['khc']:.4f})({f['kf']:.4f})({f['ktd_creep']:.4f})({f['ti_term']:.4f})={f['creep_coeff']:.4f}")
     st.latex(fr"\Delta f_{{pCR}}=\frac{{{f['Ep_mpa']:.0f}}}{{{f['Eci_mpa']:.0f}}}({f['fcgp_mpa']:.2f})({f['creep_coeff']:.4f})={f['creep_loss_mpa']:.2f}\ \mathrm{{MPa}}")
     st.latex(fr"f_{{px,CR}}={f['fpj_mpa']:.2f}-{f['creep_loss_mpa']:.2f}={f['fpj_mpa']-f['creep_loss_mpa']:.2f}\ \mathrm{{MPa}}")
@@ -7534,7 +7565,7 @@ def _render_time_dependent_shrinkage_tab(state: dict[str, Any]) -> None:
     with c2:
         card("SHRINKAGE LOSS", f"{f['shrinkage_loss_mpa']:.2f} MPa", f"{f['shrinkage_loss_pct']:.2f}% of fpj", "warn")
     with c3:
-        card("TIME WINDOW", f"t_start={state['effective_t_jack_days']:.1f} d", f"tf≈{state['duration_after_jack_years']:.1f} yr", "neutral")
+        card("TIME WINDOW", f"t_start={state.get('effective_t_jack_days', 0.0):.1f} d", f"tf≈{state['duration_after_jack_years']:.1f} yr", "neutral")
     with c4:
         card("ADOPTION", "PREVIEW ONLY", route_note, "neutral")
 
@@ -7558,7 +7589,7 @@ def _render_time_dependent_shrinkage_tab(state: dict[str, Any]) -> None:
     show_engineering_table(shrink_rows[shrink_rows["Variable"].isin(["H", "V/S", "ks", "kf", "khs", "ktd(tf) - ktd(t_start)", "esh,inc"])])
 
     st.markdown("### Shrinkage substitution")
-    st.latex(fr"t_{{start}}={state['effective_t_jack_days']:.1f}\ \mathrm{{days}}")
+    st.latex(fr"t_{{start}}={state.get('effective_t_jack_days', 0.0):.1f}\ \mathrm{{days}}")
     st.latex(fr"\varepsilon_{{sh,inc}}=({f['ks_shrinkage']:.4f})({f['khs']:.4f})({f['kf']:.4f})({f['ktd_sh_increment']:.4f})(0.48\times10^{{-3}})={f['eps_sh_increment']:.6f}")
     st.latex(fr"\Delta f_{{pSH}}={f['Ep_mpa']:.0f}({f['eps_sh_increment']:.6f})={f['shrinkage_loss_mpa']:.2f}\ \mathrm{{MPa}}")
     st.latex(fr"f_{{px,SH}}={f['fpj_mpa']:.2f}-{f['shrinkage_loss_mpa']:.2f}={f['fpj_mpa']-f['shrinkage_loss_mpa']:.2f}\ \mathrm{{MPa}}")
@@ -7696,7 +7727,7 @@ def render_prestress_time_dependent_losses_source_model() -> None:
     else:
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
-            card("TD SUMMARY", "REFINED PREVIEW", f"t_start={state['effective_t_jack_days']:.1f} d · tf≈{state['duration_after_jack_years']:.1f} yr", "pass")
+            card("TD SUMMARY", "REFINED PREVIEW", f"t_start={state.get('effective_t_jack_days', 0.0):.1f} d · tf≈{state['duration_after_jack_years']:.1f} yr", "pass")
         with c2:
             card("CREEP", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj", "warn")
         with c3:
@@ -7903,7 +7934,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.23 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.24 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -7940,7 +7971,7 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.23 Notes
+## PSLOSS.24 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
@@ -7948,11 +7979,12 @@ def page_report_qa(sub: str) -> None:
 - PSLOSS.21 adds a source-gated relaxation preview with method, steel-class, and stress-basis selectors; the relaxation component is reported to 4.6 as preview-only and is not adopted into final effective prestress.
 - PSLOSS.22 renames 4.5 to Time-Dependent Losses and splits the workflow into internal Overview, Creep, Shrinkage, Relaxation, and Handoff to 4.6 tabs without changing formulas or preview values.
 - PSLOSS.23 polishes the Time-Dependent Losses handoff table so relaxation, the total time-dependent preview subtotal, and fpx after time-dependent preview are reported consistently before 4.6, without changing formulas or preview values.
+- PSLOSS.24 fixes 4.1 General CR&SH source-gate compatibility by avoiding direct `state["factors"]` access when the page receives the general source-gate state or an older migrated project state; it displays compatibility-safe CR&SH handoff rows instead of crashing.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss23_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss24_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------
