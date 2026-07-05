@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.21
+# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.22
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -153,8 +153,10 @@ Current milestone focus:
 - COMMERCIAL.PSLOSS.12: Polishes 4.4 Elastic Shortening summary consistency by separating average ES loss, fpx after average ES, maximum sequence ES loss, and minimum sequence stress; adds sequence-basis review wording while keeping formulas and effective-prestress adoption unchanged.
 - COMMERCIAL.PSLOSS.13: Standardizes loss-percent interpretation across 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening by adding a shared component-loss / fpj basis note, non-cumulative warning, and report-summary rows without changing formulas or results.
 
-- COMMERCIAL.PSLOSS.14: Cleans up active Prestress Losses headers and 4.1 next-step wording so the closed Friction, Anchor Set, and Elastic Shortening preview pages reflect the shared loss-percent basis standard and the workflow points to 4.5 Creep / Shrinkage next, without changing formulas or results.
+- COMMERCIAL.PSLOSS.14: Cleans up active Prestress Losses headers and 4.1 next-step wording so the closed Friction, Anchor Set, and Elastic Shortening preview pages reflect the shared loss-percent basis standard and the workflow points to 4.5 Time-Dependent Losses next, without changing formulas or results.
 
-- COMMERCIAL.PSLOSS.16–18: Completes the 4.5 Creep / Shrinkage source-gated preview package with a calculation-route selector, refined/time-step factor trace, approximate quick-check comparison, result-summary cards, effective-prestress handoff, editable segment age at transport defaulting to 30 days, editable span assembly duration before stressing, computed representative t_jack, and 3.8 ti reconciliation without adopting final time-dependent losses.
-- COMMERCIAL.PSLOSS.20: Polishes 4.5 Creep / Shrinkage selected-age symbol consistency by using t_start for the selected time-step start age in equations, variable traces, and report rows, while retaining computed t_jack only in the construction-stage reconciliation and preserving all creep/shrinkage results.
+- COMMERCIAL.PSLOSS.16–18: Completes the 4.5 Time-Dependent Losses source-gated preview package with a calculation-route selector, refined/time-step factor trace, approximate quick-check comparison, result-summary cards, effective-prestress handoff, editable segment age at transport defaulting to 30 days, editable span assembly duration before stressing, computed representative t_jack, and 3.8 ti reconciliation without adopting final time-dependent losses.
+- COMMERCIAL.PSLOSS.20: Polishes 4.5 Time-Dependent Losses selected-age symbol consistency by using t_start for the selected time-step start age in equations, variable traces, and report rows, while retaining computed t_jack only in the construction-stage reconciliation and preserving all creep/shrinkage results.
 - COMMERCIAL.PSLOSS.21: Adds a source-gated relaxation preview to 4.5 with method/stress-basis/steel-class selectors, AASHTO R1/R2 equation trace, low-relaxation quick-check comparison, and route-dependent 4.6 handoff while keeping final effective-prestress adoption blocked.
+
+- COMMERCIAL.PSLOSS.22: Renames 4.5 to Time-Dependent Losses and splits the workflow into internal Overview, Creep, Shrinkage, Relaxation, and Handoff to 4.6 tabs while preserving creep, shrinkage, relaxation, route-selection, t_start, and handoff results.

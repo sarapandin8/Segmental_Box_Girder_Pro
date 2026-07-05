@@ -54,7 +54,7 @@ WORKSPACES = [
         "id": "prestress_losses",
         "label": "4 Prestress Losses",
         "title": "4 Prestress Losses",
-        "subpages": ["4.1 General", "4.2 Friction", "4.3 Anchor Set", "4.4 Elastic Shortening", "4.5 Creep / Shrinkage", "4.6 Effective Prestress", "QA / Report Preview"],
+        "subpages": ["4.1 General", "4.2 Friction", "4.3 Anchor Set", "4.4 Elastic Shortening", "4.5 Time-Dependent Losses", "4.6 Effective Prestress", "QA / Report Preview"],
     },
     {
         "id": "fea_results",
