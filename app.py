@@ -4077,11 +4077,11 @@ def _psloss_adopted_tendon_readiness_rows(state: dict[str, Any]) -> pd.DataFrame
 
 
 def _psloss_formula_readiness_rows(state: dict[str, Any]) -> pd.DataFrame:
-    """Report-ready PSLOSS.4 component readiness register.
+    """Report-ready PSLOSS.25 component readiness register.
 
-    The row status tells the next milestone what can be calculated safely.  It
-    deliberately does not run friction, anchor set, elastic shortening, creep,
-    shrinkage, or relaxation equations.
+    This register is a read-only module status board.  It must reflect the
+    preview pages that already exist and point the workflow to 4.6 Effective
+    Prestress for final component combination/adoption.
     """
     source_ready = bool(state.get("ready"))
     tendon_ready = bool(state.get("tendon_locked"))
@@ -4093,44 +4093,45 @@ def _psloss_formula_readiness_rows(state: dict[str, Any]) -> pd.DataFrame:
     friction_ready = source_ready and stressing_ready
     anchor_ready = source_ready and stressing_ready
     es_ready = tendon_ready and section_ready and span_ready
-    crsh_component_ready = section_ready and crsh_ready
+    td_ready = section_ready and crsh_ready
+    relaxation_ready = tendon_ready
     return pd.DataFrame(
         [
             [
                 "Friction loss",
-                "READY FOR FORMULA MILESTONE" if friction_ready else "SOURCE BLOCKED",
-                "Adopted tendon profile + JackFrom/stressing basis + span path",
-                "Use tendon-by-tendon adopted station profile; do not use working import preview or averaged JackFrom.",
+                "PREVIEW READY — HANDOFF TO 4.6" if friction_ready else "SOURCE BLOCKED",
+                "4.2 Friction: adopted tendon profile + JackFrom/stressing basis + span path",
+                "Confirm μ/K and adopted JackFrom trace; final combination/adoption remains controlled by 4.6.",
             ],
             [
                 "Anchor set",
-                "READY FOR FORMULA MILESTONE" if anchor_ready else "SOURCE BLOCKED",
-                "Adopted JackFrom/stressing basis + project anchor-set input",
-                "Anchor-set distribution depends on stressing end; two-end stressing does not double Pj.",
+                "DISTRIBUTION PREVIEW READY — HANDOFF TO 4.6" if anchor_ready else "SOURCE BLOCKED",
+                "4.3 Anchor Set: adopted JackFrom/stressing basis + project anchor-set input",
+                "Use the friction-coupled distribution preview; two-end stressing controls distribution only and does not double Pj.",
             ],
             [
                 "Elastic shortening",
-                "STAGE REVIEW REQUIRED" if es_ready else "SOURCE BLOCKED",
-                "Adopted section + tendon source + actual stressing/load-transfer stage",
-                "fcgp must reflect the actual span-by-span stressing stage; completed-span self-weight must not be assumed automatically.",
+                "PREVIEW READY / STAGE REVIEW REQUIRED" if es_ready else "SOURCE BLOCKED",
+                "4.4 Elastic Shortening: adopted section + tendon source + stage stress fcgp",
+                "Verify actual stressing sequence, simultaneous stressing pairs, and load-transfer stage before 4.6 adoption.",
             ],
             [
-                "Creep / shrinkage",
-                "READY FOR FORMULA MILESTONE" if crsh_component_ready else "SOURCE BLOCKED",
-                "3.8 CR&SH RH, V/S, h0, ti/tf + adopted section geometry",
-                "Use CR&SH handoff only; do not create duplicate RH or V/S inputs in 4 Prestress Losses.",
+                "Time-dependent losses",
+                "PREVIEW READY / AGE SOURCE REVIEW REQUIRED" if td_ready else "SOURCE BLOCKED",
+                "4.5 Time-Dependent Losses: 3.8 CR&SH + selected t_start + relaxation source",
+                "Resolve the t_jack / 3.8 ti age-source choice and relaxation source before final 4.6 combination.",
             ],
             [
                 "Relaxation",
-                "FUTURE INPUT REVIEW",
-                "Prestressing strand class / low-relaxation basis",
-                "Confirm strand relaxation class and source before final effective-prestress summary.",
+                "PREVIEW READY / SOURCE REVIEW REQUIRED" if relaxation_ready else "SOURCE BLOCKED",
+                "4.5 Relaxation tab: prestressing strand class / low-relaxation or manufacturer data",
+                "Generic low-relaxation preview is available; manufacturer data supersedes it when supplied.",
             ],
             [
                 "Effective prestress summary",
-                "BLOCKED UNTIL COMPONENTS RUN",
-                "Future component result table",
-                "Do not report final effective prestress until detailed component losses are calculated and adopted.",
+                "NEXT MILESTONE",
+                "4.6 Effective Prestress component result/adoption table",
+                "Define the final station/tendon combination rule before reporting effective prestress.",
             ],
         ],
         columns=["Loss component", "Readiness status", "Required adopted source", "Required engineer check"],
@@ -5764,8 +5765,8 @@ def _psloss3_readiness_cards(state: dict[str, Any]) -> None:
     with c4:
         card(
             "NEXT STEP",
-            "TIME-DEPENDENT LOSSES" if state.get("ready") else "ADOPT SOURCE FIRST",
-            "Proceed only after all source gates are ready" if not state.get("ready") else "4.5 Time-Dependent Losses component tabs are active",
+            "EFFECTIVE PRESTRESS" if state.get("ready") else "ADOPT SOURCE FIRST",
+            "Proceed only after all source gates are ready" if not state.get("ready") else "4.6 Effective Prestress final combination gate is next",
             "pass" if state.get("ready") else "warn",
         )
 
@@ -5776,7 +5777,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.24 keeps the general source gate active and fixes CR&SH handoff compatibility for migrated project states while 4.5 Time-Dependent Losses remains source-gated. Final effective-prestress adoption remains a later milestone.",
+            "PSLOSS.25 polishes the general source-gate readiness register so completed loss previews point to 4.6 Effective Prestress as the next final combination/adoption gate. Final effective-prestress adoption remains a later milestone.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
@@ -5789,7 +5790,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
             )
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        card("LOSS CALCULATION", state["overall_status"], "Detailed formulas are blocked until all source gates are ready." if not state["ready"] else "Ready for next loss-calculation milestone.", state["overall_mode"])
+        card("LOSS CALCULATION", state["overall_status"], "Detailed formulas are blocked until all source gates are ready." if not state["ready"] else "Component previews are ready; 4.6 combination/adoption is next.", state["overall_mode"])
     with c2:
         tstat = state["tendon_status"]
         card("TENDON SOURCE", tstat.get("status", "PENDING"), tstat.get("message", "Adopt tendon model."), tstat.get("mode", "warn"))
@@ -5807,7 +5808,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         unsafe_allow_html=True,
     )
     if not compact:
-        st.markdown("### PSLOSS.24 calculation-readiness snapshot")
+        st.markdown("### PSLOSS.25 calculation-readiness snapshot")
         _psloss3_readiness_cards(state)
         st.markdown("### Tendon adoption and blocked-input checklist")
         show_engineering_table(_psloss_blocked_tendon_checklist_rows(state))
@@ -5823,7 +5824,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         show_engineering_table(_psloss_formula_readiness_rows(state))
         with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
             st.markdown(
-                '<div class="note-box"><b>PSLOSS.24 rule:</b> 4.1 remains a robust source/readiness register. The CR&SH handoff must display SOURCE PARTIAL / REVIEW rows instead of crashing when a migrated project state has no 4.5 factors snapshot. 4.2 Friction, 4.3 Anchor Set, 4.4 Elastic Shortening, and 4.5 Time-Dependent Losses remain preview-only; final effective-prestress adoption remains unchanged.</div>',
+                '<div class="note-box"><b>PSLOSS.25 rule:</b> 4.1 remains a robust source/readiness register. Completed component previews are reported as handoff-ready or review-required, and the next workflow step is 4.6 Effective Prestress. Final effective-prestress adoption remains blocked until 4.6 defines the component-combination rule.</div>',
                 unsafe_allow_html=True,
             )
             show_engineering_table(_psloss_formula_readiness_rows(state))
@@ -7934,7 +7935,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.24 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.25 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -7971,7 +7972,7 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.24 Notes
+## PSLOSS.25 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
@@ -7980,11 +7981,12 @@ def page_report_qa(sub: str) -> None:
 - PSLOSS.22 renames 4.5 to Time-Dependent Losses and splits the workflow into internal Overview, Creep, Shrinkage, Relaxation, and Handoff to 4.6 tabs without changing formulas or preview values.
 - PSLOSS.23 polishes the Time-Dependent Losses handoff table so relaxation, the total time-dependent preview subtotal, and fpx after time-dependent preview are reported consistently before 4.6, without changing formulas or preview values.
 - PSLOSS.24 fixes 4.1 General CR&SH source-gate compatibility by avoiding direct `state["factors"]` access when the page receives the general source-gate state or an older migrated project state; it displays compatibility-safe CR&SH handoff rows instead of crashing.
+- PSLOSS.25 polishes 4.1 General readiness wording so Friction, Anchor Set, Elastic Shortening, Time-Dependent Losses, and Relaxation are reported as preview-ready/review-required handoffs and the module next step points to 4.6 Effective Prestress.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss24_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss25_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------

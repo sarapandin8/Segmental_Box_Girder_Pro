@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.24
+# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.25
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -165,3 +165,5 @@ Current milestone focus:
 
 
 - COMMERCIAL.PSLOSS.24: Fixes 4.1 General Prestress Losses source-gate CR&SH handoff compatibility by avoiding direct `state["factors"]` access when the page receives a general/migrated source-gate state; displays SOURCE PARTIAL / REVIEW-compatible CR&SH handoff rows instead of crashing, without changing prestress-loss formulas or preview values.
+
+- COMMERCIAL.PSLOSS.25: Polishes 4.1 General Prestress Losses readiness wording so completed component previews are reported as handoff-ready or review-required, the readiness register points to 4.6 Effective Prestress as the next milestone, and no prestress-loss formulas or preview values change.
