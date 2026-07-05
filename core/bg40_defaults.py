@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.69-commercial-psloss7-friction-governing-tie-report-polish",
+        "schema_version": "0.4.81-commercial-psloss21-relaxation-source-preview",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -219,6 +219,9 @@ BG40_DEFAULT = {
         "crsh_stage_time_basis": "Auto representative span mode",
         "crsh_calculation_route": "Refined / time-step — Recommended",
         "crsh_time_step_age_source": "Keep REVIEW / do not adopt",
+        "relaxation_calculation_method": "AASHTO refined R1/R2 preview — Recommended",
+        "relaxation_steel_type": "Low-relaxation strand",
+        "relaxation_stress_basis": "Use fpj / jacking-stress preview",
         "u_outer_m": 25.98,
         "u_inner_m": 11.55,
         "u_total_m": 37.53,

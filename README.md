@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.20
+# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.21
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -157,3 +157,4 @@ Current milestone focus:
 
 - COMMERCIAL.PSLOSS.16–18: Completes the 4.5 Creep / Shrinkage source-gated preview package with a calculation-route selector, refined/time-step factor trace, approximate quick-check comparison, result-summary cards, effective-prestress handoff, editable segment age at transport defaulting to 30 days, editable span assembly duration before stressing, computed representative t_jack, and 3.8 ti reconciliation without adopting final time-dependent losses.
 - COMMERCIAL.PSLOSS.20: Polishes 4.5 Creep / Shrinkage selected-age symbol consistency by using t_start for the selected time-step start age in equations, variable traces, and report rows, while retaining computed t_jack only in the construction-stage reconciliation and preserving all creep/shrinkage results.
+- COMMERCIAL.PSLOSS.21: Adds a source-gated relaxation preview to 4.5 with method/stress-basis/steel-class selectors, AASHTO R1/R2 equation trace, low-relaxation quick-check comparison, and route-dependent 4.6 handoff while keeping final effective-prestress adoption blocked.

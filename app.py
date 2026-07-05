@@ -7162,9 +7162,258 @@ def _psloss_crsh_approx_rows(state: dict[str, Any]) -> pd.DataFrame:
     )
 
 
+
+def _psloss_relaxation_method_options() -> list[str]:
+    return [
+        "AASHTO refined R1/R2 preview — Recommended",
+        "Low-relaxation 2.4 ksi quick check",
+        "Manufacturer relaxation data — Future / gated",
+    ]
+
+
+def _psloss_relaxation_steel_options() -> list[str]:
+    return [
+        "Low-relaxation strand",
+        "Other prestressing steel — manufacturer data required",
+    ]
+
+
+def _psloss_relaxation_stress_basis_options() -> list[str]:
+    return [
+        "Use fpj / jacking-stress preview",
+        "Use fpx after creep+shrinkage comparison",
+        "Manufacturer-provided fpt — Future / gated",
+    ]
+
+
+def _psloss_relaxation_selected_method() -> str:
+    ps = D["prestress"]
+    options = _psloss_relaxation_method_options()
+    value = str(ps.get("relaxation_calculation_method", options[0]))
+    if value not in options:
+        value = options[0]
+    ps["relaxation_calculation_method"] = value
+    return value
+
+
+def _psloss_relaxation_selected_steel() -> str:
+    ps = D["prestress"]
+    options = _psloss_relaxation_steel_options()
+    value = str(ps.get("relaxation_steel_type", options[0]))
+    if value not in options:
+        value = options[0]
+    ps["relaxation_steel_type"] = value
+    return value
+
+
+def _psloss_relaxation_selected_stress_basis() -> str:
+    ps = D["prestress"]
+    options = _psloss_relaxation_stress_basis_options()
+    value = str(ps.get("relaxation_stress_basis", options[0]))
+    if value not in options:
+        value = options[0]
+    ps["relaxation_stress_basis"] = value
+    return value
+
+
+def _psloss_relaxation_preview_state(crsh_state: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return source-gated relaxation preview state for PSLOSS.21."""
+    ps = D["prestress"]
+    m = D["materials"]
+    ps.setdefault("relaxation_calculation_method", _psloss_relaxation_method_options()[0])
+    ps.setdefault("relaxation_steel_type", _psloss_relaxation_steel_options()[0])
+    ps.setdefault("relaxation_stress_basis", _psloss_relaxation_stress_basis_options()[0])
+    method = _psloss_relaxation_selected_method()
+    steel = _psloss_relaxation_selected_steel()
+    basis = _psloss_relaxation_selected_stress_basis()
+    crsh_state = crsh_state or _psloss_crsh_time_step_state()
+    f = crsh_state.get("factors", {})
+    fpj = max(0.0, float(m.get("fpi_mpa", 0.0) or 0.0))
+    fpu = max(0.0, float(m.get("fpu_mpa", 0.0) or 0.0))
+    fpy = max(0.0, float(m.get("fpy_mpa", 0.0) or 0.0)) or 0.90 * fpu
+    if basis.startswith("Use fpx after creep"):
+        fpt = max(0.0, float(f.get("fpx_after_crsh_mpa", fpj) or fpj))
+        basis_note = "fpt is taken from the current creep+shrinkage preview for comparison only."
+        basis_ready = True
+    elif basis.startswith("Manufacturer"):
+        fpt = max(0.0, float(ps.get("relaxation_manufacturer_fpt_mpa", 0.0) or 0.0))
+        basis_note = "Manufacturer fpt source is not active; final adoption remains gated."
+        basis_ready = fpt > 0.0
+    else:
+        fpt = fpj
+        basis_note = "fpt is taken as adopted jacking stress fpj for source-model preview."
+        basis_ready = True
+    low_relaxation = steel.startswith("Low-relaxation")
+    KL = 30.0 if low_relaxation else 7.0
+    KL_prime = 45.0 if low_relaxation else 7.0
+    ratio = fpt / fpy if fpy > 0.0 else 0.0
+    ratio_term = max(ratio - 0.55, 0.0)
+    r1_mpa = fpt / KL * ratio_term if KL > 0.0 else 0.0
+    r2_mpa = r1_mpa
+    refined_total_mpa = r1_mpa + r2_mpa
+    quick_r1_mpa = ksi_to_mpa(1.2) if low_relaxation else 0.0
+    quick_total_mpa = ksi_to_mpa(2.4) if low_relaxation else 0.0
+    if method.startswith("AASHTO refined"):
+        selected_loss = refined_total_mpa
+        method_status = "AASHTO R1/R2 PREVIEW"
+        method_mode = "pass" if low_relaxation and basis_ready else "warn"
+        selected_note = "Selected relaxation preview uses AASHTO R1/R2 simplified route; final 4.6 adoption remains blocked."
+        eligible = low_relaxation and basis_ready
+    elif method.startswith("Low-relaxation"):
+        selected_loss = quick_total_mpa
+        method_status = "LOW-RELAX QUICK CHECK"
+        method_mode = "warn"
+        selected_note = "Selected relaxation value is the AASHTO 2.4 ksi low-relaxation quick check; preliminary only."
+        eligible = False
+    else:
+        selected_loss = 0.0
+        method_status = "MANUFACTURER DATA GATED"
+        method_mode = "warn"
+        selected_note = "Manufacturer relaxation data source is not implemented; no selected relaxation loss is eligible for final adoption."
+        eligible = False
+    fpx_after_relax = fpt - selected_loss
+    loss_pct = selected_loss / fpj * 100.0 if fpj > 0.0 else 0.0
+    return {
+        "method": method,
+        "steel_type": steel,
+        "stress_basis": basis,
+        "basis_note": basis_note,
+        "basis_ready": basis_ready,
+        "method_status": method_status,
+        "method_mode": method_mode,
+        "selected_note": selected_note,
+        "low_relaxation": low_relaxation,
+        "KL": KL,
+        "KL_prime": KL_prime,
+        "fpj_mpa": fpj,
+        "fpt_mpa": fpt,
+        "fpy_mpa": fpy,
+        "fpu_mpa": fpu,
+        "ratio": ratio,
+        "ratio_term": ratio_term,
+        "r1_mpa": r1_mpa,
+        "r2_mpa": r2_mpa,
+        "refined_total_mpa": refined_total_mpa,
+        "quick_r1_mpa": quick_r1_mpa,
+        "quick_total_mpa": quick_total_mpa,
+        "selected_loss_mpa": selected_loss,
+        "selected_loss_pct": loss_pct,
+        "fpx_after_relax_mpa": fpx_after_relax,
+        "adoption_gate": "BLOCKED UNTIL 4.6" if eligible else "NOT ELIGIBLE FOR FINAL",
+        "adoption_note": "4.6 must combine relaxation with other adopted components and verify the stress/time basis." if eligible else "Use refined low-relaxation source preview and a verified stress basis before final adoption.",
+    }
+
+
+def _psloss_relaxation_source_rows(r: dict[str, Any]) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            ["Selected relaxation method", r["method"], "4.5 Relaxation method selector", r["selected_note"]],
+            ["Prestressing steel type", r["steel_type"], "Material / project source", "Low-relaxation strand uses KL = 30 unless project/manufacturer source overrides."],
+            ["Relaxation stress basis", r["stress_basis"], "4.5 stress-basis selector", r["basis_note"]],
+            ["fpt", f"{r['fpt_mpa']:.2f}", "MPa", "Stress in prestressing steel used for relaxation preview."],
+            ["fpy", f"{r['fpy_mpa']:.2f}", "MPa", "Yield stress of prestressing steel from material source."],
+            ["KL", f"{r['KL']:.1f}", "-", "AASHTO steel-type factor; low-relaxation strand = 30."],
+            ["Relaxation preview status", r["adoption_gate"], "4.6 Effective Prestress", r["adoption_note"]],
+        ],
+        columns=["Source item", "Value", "Unit / owner", "Trace / engineer check"],
+    )
+
+
+def _psloss_relaxation_report_rows(r: dict[str, Any]) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            ["Calculation status", "PREVIEW READY" if r["selected_loss_mpa"] > 0.0 else "SOURCE GATED", "Source-gated relaxation preview; not final effective prestress."],
+            ["Code basis", "AASHTO LRFD 2020 Art. 5.9.3.4.2c / 5.9.3.4.3c", "R1/R2 relaxation source-model route; manufacturer data may govern if supplied."],
+            ["Selected method", r["method"], r["selected_note"]],
+            ["Stress ratio fpt/fpy", f"{r['ratio']:.4f}", "Relaxation term is active only above 0.55 fpy in the source equation."],
+            ["R1 relaxation preview", f"{r['r1_mpa']:.2f} MPa", "Transfer-to-intermediate period preview from AASHTO simplified equation."],
+            ["R2 relaxation preview", f"{r['r2_mpa']:.2f} MPa", "Final-period preview taken equal to R1 in the AASHTO source route."],
+            ["Selected relaxation loss", f"{r['selected_loss_mpa']:.2f} MPa ({r['selected_loss_pct']:.2f}%)", "Component loss / fpj × 100; do not add % directly across pages."],
+            ["Low-relax quick check", f"{r['quick_total_mpa']:.2f} MPa", "2.4 ksi total quick-check comparison for low-relaxation strand."],
+            ["fpx after relaxation", f"{r['fpx_after_relax_mpa']:.2f} MPa", "Relaxation-only stress preview based on the selected stress basis."],
+            ["Adoption gate", r["adoption_gate"], r["adoption_note"]],
+        ],
+        columns=["Item", "Value", "Trace / note"],
+    )
+
+
+def _psloss_relaxation_variable_rows(r: dict[str, Any]) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            ["fpt", "MPa", "Prestressing steel stress immediately after the selected stress-basis point", "4.5 relaxation stress-basis selector"],
+            ["fpy", "MPa", "Yield stress of prestressing steel", "Material source"],
+            ["KL", "-", "Steel-type relaxation factor", "30 for low-relaxation strand; 7 for other prestressing steel unless manufacturer data govern"],
+            ["ΔfpR1", "MPa", "Relaxation loss for the first time-dependent period", "AASHTO refined simplified preview"],
+            ["ΔfpR2", "MPa", "Relaxation loss for the second time-dependent period", "AASHTO route takes ΔfpR2 = ΔfpR1"],
+            ["ΔfpR,total", "MPa", "Selected total relaxation preview", "Component preview only; final combination is owned by 4.6"],
+            ["Loss %", "%", "Component relaxation loss divided by fpj", "Non-cumulative component-loss percentage"],
+        ],
+        columns=["Variable", "Unit", "Meaning", "Source / trace"],
+    )
+
+
+def _render_psloss_relaxation_section(crsh_state: dict[str, Any]) -> dict[str, Any]:
+    ps = D["prestress"]
+    ps.setdefault("relaxation_calculation_method", _psloss_relaxation_method_options()[0])
+    ps.setdefault("relaxation_steel_type", _psloss_relaxation_steel_options()[0])
+    ps.setdefault("relaxation_stress_basis", _psloss_relaxation_stress_basis_options()[0])
+    st.markdown("### Relaxation source model and gated preview")
+    c0, c1, c2 = st.columns([1.35, 1.05, 1.35])
+    with c0:
+        methods = _psloss_relaxation_method_options()
+        cur = _psloss_relaxation_selected_method()
+        ps["relaxation_calculation_method"] = st.selectbox("Relaxation calculation method", methods, index=methods.index(cur), key="psloss21_relax_method")
+    with c1:
+        steels = _psloss_relaxation_steel_options()
+        cur = _psloss_relaxation_selected_steel()
+        ps["relaxation_steel_type"] = st.selectbox("Prestressing steel relaxation class", steels, index=steels.index(cur), key="psloss21_relax_steel")
+    with c2:
+        bases = _psloss_relaxation_stress_basis_options()
+        cur = _psloss_relaxation_selected_stress_basis()
+        ps["relaxation_stress_basis"] = st.selectbox("Relaxation stress basis", bases, index=bases.index(cur), key="psloss21_relax_basis")
+    r = _psloss_relaxation_preview_state(crsh_state)
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        card("RELAXATION SUMMARY", r["method_status"], r["steel_type"], r["method_mode"])
+    with c2:
+        card("R1 RELAXATION", f"{r['r1_mpa']:.2f} MPa", "AASHTO source period 1", "warn")
+    with c3:
+        card("R2 RELAXATION", f"{r['r2_mpa']:.2f} MPa", "AASHTO source period 2", "warn")
+    with c4:
+        card("TOTAL RELAXATION", f"{r['selected_loss_mpa']:.2f} MPa", f"{r['selected_loss_pct']:.2f}% of fpj", "warn")
+    with c5:
+        card("ADOPTION STATUS", "PREVIEW ONLY", r["adoption_gate"], "neutral")
+    st.markdown(
+        '<div class="note-box"><b>Relaxation source rule:</b> relaxation is a component-level preview. The selected stress basis, steel relaxation class, and method must be reported before 4.6 can combine this value with friction, anchor set, elastic shortening, creep, and shrinkage. Manufacturer relaxation data supersedes the generic source route when supplied.</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown("#### Relaxation source trace")
+    show_engineering_table(_psloss_relaxation_source_rows(r))
+    st.markdown("#### Report-style relaxation summary")
+    show_engineering_table(_psloss_relaxation_report_rows(r))
+    st.markdown("#### Relaxation equation block")
+    st.latex(r"\Delta f_{pR1}=\frac{f_{pt}}{K_L}\left(\frac{f_{pt}}{f_{py}}-0.55\right)")
+    st.latex(r"\Delta f_{pR2}=\Delta f_{pR1}")
+    st.latex(r"\Delta f_{pR,total}=\Delta f_{pR1}+\Delta f_{pR2}")
+    st.latex(r"f_{px,R}=f_{pt}-\Delta f_{pR,total}")
+    st.markdown("#### Relaxation variable definition")
+    show_engineering_table(_psloss_relaxation_variable_rows(r))
+    st.markdown("#### Relaxation substitution")
+    st.latex(fr"\frac{{f_{{pt}}}}{{f_{{py}}}}=\frac{{{r['fpt_mpa']:.2f}}}{{{r['fpy_mpa']:.2f}}}={r['ratio']:.4f}")
+    st.latex(fr"\Delta f_{{pR1}}=\frac{{{r['fpt_mpa']:.2f}}}{{{r['KL']:.1f}}}\left({r['ratio']:.4f}-0.55\right)={r['r1_mpa']:.2f}\ \mathrm{{MPa}}")
+    st.latex(fr"\Delta f_{{pR2}}={r['r2_mpa']:.2f}\ \mathrm{{MPa}}")
+    st.latex(fr"\Delta f_{{pR,total}}={r['r1_mpa']:.2f}+{r['r2_mpa']:.2f}={r['selected_loss_mpa']:.2f}\ \mathrm{{MPa}}")
+    st.latex(fr"f_{{px,R}}={r['fpt_mpa']:.2f}-{r['selected_loss_mpa']:.2f}={r['fpx_after_relax_mpa']:.2f}\ \mathrm{{MPa}}")
+    st.markdown(
+        '<div class="warn-box"><b>Preview only:</b> PSLOSS.21 adds a relaxation source-model preview and 4.6 handoff trace. It does not adopt relaxation into final effective prestress.</div>',
+        unsafe_allow_html=True,
+    )
+    return r
+
 def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
     f = state["factors"]
     selected = state["selected_route"]
+    r = state.get("relaxation") or _psloss_relaxation_preview_state(state)
     if selected.startswith("Refined"):
         rows = [
             ["Selected method", selected, "4.6 may read refined component previews only after route and age-source review."],
@@ -7172,9 +7421,9 @@ def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Creep preview", f"{f['creep_loss_mpa']:.2f} MPa", "Selected refined component preview; final adoption not run here."],
             ["Shrinkage preview", f"{f['shrinkage_loss_mpa']:.2f} MPa", "Selected refined component preview; final adoption not run here."],
             ["Creep + shrinkage preview", f"{f['total_crsh_loss_mpa']:.2f} MPa", "Selected refined subtotal only; do not add percentages directly across pages."],
+            ["Relaxation preview", f"{r['selected_loss_mpa']:.2f} MPa", f"{r['method']}; final adoption not run here."],
             ["Approximate quick check", f"{f['approx_total_mpa']:.2f} MPa", "Comparison only; not the selected refined handoff."],
-            ["Relaxation", "Future 4.5 / 4.6 source item", "Not included in the creep/shrinkage subtotal shown here."],
-            ["Adoption gate", "BLOCKED UNTIL 4.6", "Effective Prestress defines the final component-combination rule and must verify route + age source."],
+            ["Adoption gate", "BLOCKED UNTIL 4.6", "Effective Prestress defines the final component-combination rule and must verify route + age source + relaxation source."],
         ]
     elif selected.startswith("Approximate"):
         rows = [
@@ -7184,7 +7433,7 @@ def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Refined creep preview", f"{f['creep_loss_mpa']:.2f} MPa", "Comparison only because approximate route is currently selected."],
             ["Refined shrinkage preview", f"{f['shrinkage_loss_mpa']:.2f} MPa", "Comparison only because approximate route is currently selected."],
             ["Refined C+SH preview", f"{f['total_crsh_loss_mpa']:.2f} MPa", "Comparison only; not selected handoff while approximate route is selected."],
-            ["Relaxation", "Future 4.5 / 4.6 source item", "Not included in the quick-check value shown here."],
+            ["Relaxation preview", f"{r['selected_loss_mpa']:.2f} MPa", "Component comparison only; approximate route is not eligible for final."],
             ["Adoption gate", "NOT ELIGIBLE FOR FINAL", "Select refined/time-step route and resolve the time-step age source before 4.6 final adoption."],
         ]
     else:
@@ -7192,10 +7441,10 @@ def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Selected method", selected, "Advanced segment-age table is gated and not implemented."],
             ["Selected time-step age source", state["selected_time_source"], "No final handoff while advanced route is gated."],
             ["Refined representative fallback", f"{f['total_crsh_loss_mpa']:.2f} MPa", "Fallback display only; not a selected final handoff."],
+            ["Relaxation preview", f"{r['selected_loss_mpa']:.2f} MPa", "Fallback display only; not a selected final handoff."],
             ["Adoption gate", "BLOCKED", "Choose refined/time-step route or implement advanced segment-age schedule before final adoption."],
         ]
     return pd.DataFrame(rows, columns=["Handoff item", "Value", "Rule / trace"])
-
 
 def render_prestress_creep_shrinkage_stage_source_map() -> None:
     """Render 4.5 Creep/Shrinkage method selector and source-gated preview."""
@@ -7205,11 +7454,14 @@ def render_prestress_creep_shrinkage_stage_source_map() -> None:
     ps.setdefault("crsh_construction_method", "Span-by-span segmental with precast segments")
     ps.setdefault("crsh_stage_time_basis", "Auto representative span mode")
     ps.setdefault("crsh_calculation_route", _psloss_crsh_route_options()[0])
+    ps.setdefault("relaxation_calculation_method", _psloss_relaxation_method_options()[0])
+    ps.setdefault("relaxation_steel_type", _psloss_relaxation_steel_options()[0])
+    ps.setdefault("relaxation_stress_basis", _psloss_relaxation_stress_basis_options()[0])
 
     code_basis_card(
-        "4.5 Creep / Shrinkage Source Model",
+        "4.5 Creep / Shrinkage / Relaxation Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.4.2.3 / 5.9.3.3 / 5.9.3.4 / 5.9.3.5",
-        "PSLOSS.20 polishes selected-age symbol consistency in 4.5 Creep / Shrinkage: equations and report traces use t_start for the selected time-step start age, while computed t_jack remains a construction-stage reconciliation value. Final effective-prestress adoption remains blocked.",
+        "PSLOSS.21 adds a source-gated relaxation preview and route-dependent 4.6 handoff while preserving the completed creep/shrinkage t_start trace. Final effective-prestress adoption remains blocked.",
     )
     st.markdown(
         '<div class="note-box"><b>Construction-stage rule:</b> for span-by-span segmental construction, tendon time-dependent losses start at the representative jacking age after the precast segments are erected and all tendons are stressed. Segment age at transport is editable and defaults to <b>30 days</b> (default = 30 days); it is not hard-coded.</div>',
@@ -7341,17 +7593,20 @@ def render_prestress_creep_shrinkage_stage_source_map() -> None:
     st.latex(r"\Delta f_{pLT}=10.0\frac{f_{pi}A_{ps}}{A_g}\gamma_h\gamma_{st}+12.0\gamma_h\gamma_{st}+\Delta f_{pR}")
     show_engineering_table(_psloss_crsh_approx_rows(state))
 
+    relaxation_state = _render_psloss_relaxation_section(state)
+    state["relaxation"] = relaxation_state
+
     st.markdown("### Effective-prestress handoff")
     show_engineering_table(_psloss_crsh_handoff_rows(state))
 
     st.markdown(
-        '<div class="warn-box"><b>Preview only:</b> PSLOSS.20 keeps route-dependent creep/shrinkage handoff behavior and standardizes t_start as the selected time-step start-age symbol. It does not adopt creep, shrinkage, or relaxation into final effective prestress.</div>',
+        '<div class="warn-box"><b>Preview only:</b> PSLOSS.21 keeps route-dependent creep/shrinkage handoff behavior, standardizes t_start as the selected time-step start-age symbol, and adds a source-gated relaxation preview. It does not adopt creep, shrinkage, or relaxation into final effective prestress.</div>',
         unsafe_allow_html=True,
     )
 
     with st.expander("Creep / shrinkage source trace / limitations", expanded=False):
         st.markdown(
-            '<div class="note-box"><b>One-source rule:</b> RH, V/S, h0, tf, and drying-perimeter basis remain owned by 3.8 CR&SH. 4.5 adds the construction-stage time map, route selector, and time-step age-source selector only. Future refined losses should read the selected time-step source and not create hidden duplicate inputs.</div>',
+            '<div class="note-box"><b>One-source rule:</b> RH, V/S, h0, tf, and drying-perimeter basis remain owned by 3.8 CR&SH. 4.5 adds the construction-stage time map, route selector, time-step age-source selector, and relaxation source selectors only. Future refined/effective-prestress losses should read the selected sources and not create hidden duplicate inputs.</div>',
             unsafe_allow_html=True,
         )
         show_engineering_table(_psloss_crsh_source_rows(state))
@@ -7530,7 +7785,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.20 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.21 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -7567,17 +7822,17 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.20 Notes
+## PSLOSS.21 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
-- PSLOSS.20 keeps the completed Friction, Anchor Set, and Elastic Shortening preview pages aligned with the shared component loss / fpj percent basis and non-cumulative interpretation; final combination remains deferred to 4.6 Effective Prestress.
-- 4.5 Creep / Shrinkage now uses t_start as the selected time-step start-age symbol throughout equations, factor rows, and report traces while retaining computed t_jack only in the construction-stage reconciliation; final adoption remains blocked.
+- PSLOSS.20 keeps the completed Friction, Anchor Set, Elastic Shortening, and Creep/Shrinkage preview pages aligned with the shared component loss / fpj percent basis and non-cumulative interpretation; final combination remains deferred to 4.6 Effective Prestress.
+- PSLOSS.21 adds a source-gated relaxation preview with method, steel-class, and stress-basis selectors; the relaxation component is reported to 4.6 as preview-only and is not adopted into final effective prestress.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss20_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss21_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------
