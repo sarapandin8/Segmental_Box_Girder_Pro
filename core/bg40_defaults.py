@@ -218,6 +218,7 @@ BG40_DEFAULT = {
         "span_assembly_duration_days": 0.0,
         "crsh_stage_time_basis": "Auto representative span mode",
         "crsh_calculation_route": "Refined / time-step — Recommended",
+        "crsh_time_step_age_source": "Keep REVIEW / do not adopt",
         "u_outer_m": 25.98,
         "u_inner_m": 11.55,
         "u_total_m": 37.53,
