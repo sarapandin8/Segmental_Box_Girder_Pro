@@ -4402,10 +4402,10 @@ def _psloss_friction_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
     fstate = _psloss_friction_source_state(state)
     if not fstate.get("ready"):
         return pd.DataFrame(
-            [
+            _append_loss_percent_basis_report_rows([
                 ["Calculation status", "SOURCE BLOCKED", "Adopted tendon source and JackFrom/stressing basis are required."],
                 ["Adoption status", "Preview only", "No effective-prestress value is adopted from this page."],
-            ],
+            ]),
             columns=["Item", "Value", "Trace / note"],
         )
     model = fstate.get("model") or {}
@@ -4421,7 +4421,7 @@ def _psloss_friction_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
     max_pct = 100.0 * max_loss / fpj_mpa if fpj_mpa > 0.0 else 0.0
     stressing = fstate.get("stressing") or {}
     return pd.DataFrame(
-        [
+        _append_loss_percent_basis_report_rows([
             ["Calculation status", "PREVIEW READY", "Source-gated calculation trace; not final effective prestress adoption."],
             ["Code basis", "AASHTO LRFD 2020 Art. 5.9.3.2.2b", "Post-tensioned member friction-loss route."],
             ["Formula", "ΔfpF = fpj[1 − exp{−(Kx + μα)}]", "fpx = fpj − ΔfpF; Loss % = ΔfpF/fpj × 100."],
@@ -4431,7 +4431,7 @@ def _psloss_friction_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Governing tendon(s)", tie_label, f"{len(ties)} tendon(s) tied within 0.005 MPa; representative substitution uses {gov_result.get('tendon', '-')}."],
             ["Maximum friction loss", f"{max_loss:.2f} MPa ({max_pct:.2f}%)", f"Representative x={float(gov.get('path_m', 0.0) or 0.0):.3f} m; α={float(gov.get('alpha_rad', 0.0) or 0.0):.5f} rad."],
             ["Minimum fpx after friction", f"{min_fpx:.2f} MPa", "Stress after friction only; anchor set and other losses remain separate."],
-        ],
+        ]),
         columns=["Item", "Value", "Trace / note"],
     )
 
@@ -4483,6 +4483,56 @@ def _show_full_tendon_report_table(df: pd.DataFrame, *, label: str) -> None:
     st.caption(f"{label}: showing {total_rows} of {total_rows} rows from the adopted tendon source.")
     height = min(760, max(180, 36 * (total_rows + 1)))
     st.dataframe(format_engineering_table(df), use_container_width=True, hide_index=True, height=height)
+
+def _loss_percent_basis_rows() -> pd.DataFrame:
+    """Shared interpretation rule for component-level prestress-loss percentages."""
+    return pd.DataFrame(
+        [
+            [
+                "Percent basis",
+                "Loss % = component loss / fpj × 100",
+                "fpj is the adopted jacking stress used by the current loss page; the percentage is a component-level preview denominator only.",
+            ],
+            [
+                "Non-cumulative rule",
+                "Do not add percentages across loss pages",
+                "Friction, anchor set, elastic shortening, and time-dependent losses use different station/sequence/time bases. Final combination is controlled by 4.6 Effective Prestress.",
+            ],
+            [
+                "Adoption rule",
+                "Preview only until 4.6",
+                "Component percentages are trace values for review; they are not final effective-prestress loss percentages.",
+            ],
+        ],
+        columns=["Item", "Rule", "Trace / note"],
+    )
+
+
+def _render_loss_percent_basis_note() -> None:
+    """Render the standard non-cumulative %loss interpretation note for every loss page."""
+    st.markdown(
+        '<div class="note-box"><b>Loss percent basis:</b> Loss % shown on this page is calculated as <b>component loss / f<sub>pj</sub> × 100</b>. '
+        '<b>Interpretation rule:</b> this is a component-level preview only; do <b>not</b> add loss percentages from different loss pages directly. '
+        'Final effective-prestress combination is controlled by <b>4.6 Effective Prestress</b>.</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _append_loss_percent_basis_report_rows(rows: list[list[str]]) -> list[list[str]]:
+    """Append shared percent/adoption interpretation rows to report-style summaries."""
+    return rows + [
+        [
+            "Percent basis",
+            "component loss / fpj × 100",
+            "Displayed percentages are component-level preview percentages using the adopted jacking stress fpj as denominator.",
+        ],
+        [
+            "Combination / adoption rule",
+            "Deferred to 4.6 Effective Prestress",
+            "Do not add percentages from separate loss pages directly; final effective prestress must combine adopted component traces by tendon/station/sequence/time basis.",
+        ],
+    ]
+
 
 
 def _render_loss_result_summary_cards_for_friction(state: dict[str, Any]) -> None:
@@ -5093,10 +5143,10 @@ def _psloss_anchor_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
     results, astate = _psloss_anchor_results(state)
     if not astate.get("ready"):
         return pd.DataFrame(
-            [
+            _append_loss_percent_basis_report_rows([
                 ["Calculation status", "SOURCE BLOCKED", "Adopted tendon source and JackFrom/stressing basis are required."],
                 ["Adoption status", "Preview only", "No effective-prestress value is adopted from this page."],
-            ],
+            ]),
             columns=["Item", "Value", "Trace / note"],
         )
     gov = max(results, key=lambda r: float(r.get("loss_mpa", 0.0) or 0.0))
@@ -5114,7 +5164,7 @@ def _psloss_anchor_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
     dist_min_fpx = min([float(r.get("min_stress_mpa", 0.0) or 0.0) for r in dist_results], default=0.0)
     stressing = astate.get("stressing") or {}
     return pd.DataFrame(
-        [
+        _append_loss_percent_basis_report_rows([
             ["Calculation status", "DISTRIBUTION PREVIEW READY", "Source-gated equivalent quick check plus position-dependent anchor-set distribution preview; not final effective-prestress adoption."],
             ["Code basis", "AASHTO LRFD 2020 Art. 5.9.3.2.2b", "Post-tensioned anchorage-set source-model route."],
             ["Equivalent formula", "ΔfpA,eq = Ep Δa / L_eff", "Quick check only; distribution/coupling trace is the governing preview for this page."],
@@ -5128,7 +5178,7 @@ def _psloss_anchor_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Distribution maximum anchor-set loss", f"{dist_loss:.2f} MPa ({dist_pct:.2f}%)", "Active-end loss from draw-in compatibility coupled to friction profile."],
             ["Minimum fpx after F+A", f"{dist_min_fpx:.2f} MPa", "Friction plus anchor-set distribution preview; other losses remain separate."],
             ["Minimum fpx after equivalent anchor set", f"{min_fpx:.2f} MPa", "Equivalent quick-check value only; not final effective prestress."],
-        ],
+        ]),
         columns=["Item", "Value", "Trace / note"],
     )
 
@@ -5258,6 +5308,7 @@ def render_prestress_anchor_set_source_model() -> None:
 
     st.markdown("### Anchor-set loss result summary")
     _render_loss_result_summary_cards_for_anchor_set(state)
+    _render_loss_percent_basis_note()
 
     st.markdown("### Anchor-set input assistant")
     editable_value(["prestress", "anchor_set_mm"], "Anchor set Δa (mm)", 0.5)
@@ -5323,6 +5374,7 @@ def render_prestress_friction_source_model() -> None:
 
     st.markdown("### Friction loss result summary")
     _render_loss_result_summary_cards_for_friction(state)
+    _render_loss_percent_basis_note()
 
     st.markdown("### Friction coefficient input assistant")
     c_mu, c_k = st.columns(2)
@@ -5451,10 +5503,10 @@ def _psloss_elastic_shortening_report_summary_rows(state: dict[str, Any]) -> pd.
     rows, estate = _psloss_elastic_shortening_sequence_results(state)
     if not estate.get("ready"):
         return pd.DataFrame(
-            [
+            _append_loss_percent_basis_report_rows([
                 ["Calculation status", estate["status"], "Adopted tendon source, section/material source, and f_cgp stage input are required."],
                 ["Adoption status", "Preview only", "No effective-prestress value is adopted from this page."],
-            ],
+            ]),
             columns=["Item", "Value", "Trace / note"],
         )
     fpj = float(estate.get("fpj_mpa", 0.0) or 0.0)
@@ -5463,7 +5515,7 @@ def _psloss_elastic_shortening_report_summary_rows(state: dict[str, Any]) -> pd.
     max_row = max(rows, key=lambda r: float(r.get("loss_mpa", 0.0) or 0.0)) if rows else {"tendon": "-", "sequence_no": "-", "loss_mpa": 0.0, "stress_mpa": fpj, "loss_pct": 0.0}
     min_fpx = min(float(r.get("stress_mpa", fpj) or 0.0) for r in rows) if rows else fpj
     return pd.DataFrame(
-        [
+        _append_loss_percent_basis_report_rows([
             ["Calculation status", "PREVIEW READY", "Source-gated stage preview; not final effective-prestress adoption."],
             ["Code / equation basis", "AASHTO LRFD 2020 Section 5, Art. 5.9.3", "Sequential average elastic-shortening loss route."],
             ["Formula", "ΔfpES,avg = [(N−1)/(2N)](Ep/Eci)f_cgp", "Sequence trace shown separately as ΔfpES,i = [(N−i)/N](Ep/Eci)f_cgp."],
@@ -5474,7 +5526,7 @@ def _psloss_elastic_shortening_report_summary_rows(state: dict[str, Any]) -> pd.
             ["fpx after average ES", f"{avg_stress:.2f} MPa", "Average-preview stress only; useful for report comparison against the sequence trace."],
             ["Maximum sequence ES loss", f"{float(max_row.get('loss_mpa', 0.0) or 0.0):.2f} MPa ({float(max_row.get('loss_pct', 0.0) or 0.0):.2f}%)", f"Governing sequence tendon: {max_row.get('tendon', '-')} at sequence i={max_row.get('sequence_no', '-')}"],
             ["Minimum fpx after sequence ES", f"{min_fpx:.2f} MPa", "Sequence-preview stress only; friction, anchor set, and time-dependent losses remain separate."],
-        ],
+        ]),
         columns=["Item", "Value", "Trace / note"],
     )
 
@@ -5627,7 +5679,7 @@ def render_prestress_elastic_shortening_source_model() -> None:
     code_basis_card(
         "4.4 Elastic Shortening Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.12 polishes elastic-shortening summary consistency by separating average loss, maximum sequence loss, and sequence-basis review while keeping final effective-prestress adoption blocked.",
+        "PSLOSS.13 standardizes the loss-percent basis and non-cumulative interpretation across active loss pages while keeping final effective-prestress adoption blocked.",
     )
     st.markdown(
         '<div class="note-box"><b>Elastic-shortening source rule:</b> the preview must read the locked adopted tendon count, material moduli, and engineer-reviewed stage stress f<sub>cgp</sub>. The app must not infer the actual span-by-span stressing/load-transfer stage from completed-span geometry alone.</div>',
@@ -5645,6 +5697,7 @@ def render_prestress_elastic_shortening_source_model() -> None:
 
     st.markdown("### Elastic-shortening loss result summary")
     _render_loss_result_summary_cards_for_elastic_shortening(state)
+    _render_loss_percent_basis_note()
 
     st.markdown("### Elastic-shortening input assistant")
     editable_value(["prestress", "fcgp_mpa"], "Concrete stress at CG of prestressing steel f_cgp (MPa)", 0.1, "%.2f")
@@ -5720,7 +5773,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.12 keeps the general source gate active and polishes 4.4 Elastic Shortening summary consistency and sequence-basis review; detailed final-loss adoption remains a later milestone.",
+            "PSLOSS.13 keeps the general source gate active and standardizes component loss-percent interpretation across 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening; detailed final-loss adoption remains a later milestone.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
@@ -5751,7 +5804,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         unsafe_allow_html=True,
     )
     if not compact:
-        st.markdown("### PSLOSS.12 calculation-readiness snapshot")
+        st.markdown("### PSLOSS.13 calculation-readiness snapshot")
         _psloss3_readiness_cards(state)
         st.markdown("### Tendon adoption and blocked-input checklist")
         show_engineering_table(_psloss_blocked_tendon_checklist_rows(state))
@@ -5767,7 +5820,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         show_engineering_table(_psloss_formula_readiness_rows(state))
         with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
             st.markdown(
-                '<div class="note-box"><b>PSLOSS.12 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening generate source-gated previews with equation blocks, result-summary cards, report trace tables, and explicit average-vs-sequence reporting. They do not adopt final effective-prestress results. Detailed final effective-prestress adoption remains unchanged.</div>',
+                '<div class="note-box"><b>PSLOSS.13 rule:</b> 4.1 remains a source/readiness register. 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening generate source-gated previews with equation blocks, result-summary cards, report trace tables, and explicit average-vs-sequence reporting plus loss-percent basis notes. Component loss percentages are non-cumulative and are not final effective-prestress losses. Detailed final effective-prestress adoption remains unchanged.</div>',
                 unsafe_allow_html=True,
             )
             show_engineering_table(_psloss_formula_readiness_rows(state))
@@ -6913,7 +6966,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.12 Summary
+# Segmental Box Girder Pro — Commercial PSLOSS.13 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -6950,16 +7003,16 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.12 Notes
+## PSLOSS.13 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
-- PSLOSS.12 polishes 4.4 Elastic Shortening by separating average ES loss from maximum sequence ES loss, adding fpx after average ES, adding sequence-basis review notes, and preserving final effective-prestress adoption blocking.
+- PSLOSS.13 standardizes the displayed loss-percent basis across Friction, Anchor Set, and Elastic Shortening. Loss % is component loss / fpj × 100 and is not cumulative across pages; final combination is deferred to 4.6 Effective Prestress.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss12_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss13_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------

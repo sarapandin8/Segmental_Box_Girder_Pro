@@ -151,3 +151,4 @@ Current milestone focus:
 - COMMERCIAL.PSLOSS.11: Adds a source-gated 4.4 Elastic Shortening stage preview using adopted tendon count, Ep/Eci material source, engineer-reviewed f_cgp stage input, report-grade equation blocks, loss-summary cards, variable trace, and tendon-by-tendon sequence audit without adopting elastic shortening into final effective prestress.
 
 - COMMERCIAL.PSLOSS.12: Polishes 4.4 Elastic Shortening summary consistency by separating average ES loss, fpx after average ES, maximum sequence ES loss, and minimum sequence stress; adds sequence-basis review wording while keeping formulas and effective-prestress adoption unchanged.
+- COMMERCIAL.PSLOSS.13: Standardizes loss-percent interpretation across 4.2 Friction, 4.3 Anchor Set, and 4.4 Elastic Shortening by adding a shared component-loss / fpj basis note, non-cumulative warning, and report-summary rows without changing formulas or results.
