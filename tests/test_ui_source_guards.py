@@ -66,7 +66,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -117,17 +117,20 @@ def test_m3a_load_figures_and_plotly_modebar_are_present():
     assert "response_spectrum_figure" in src
     assert "PLOTLY_CONFIG" in src
 
-def test_ui1_global_engineering_figure_system_is_present():
+def test_ui1_engineering_figure_system_backend_and_sidebar2_defaults_are_present():
     src = _src()
     figure_src = (APP_SOURCE.resolve().parents[0] / "visualization" / "figure_system.py").read_text(encoding="utf-8")
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.UI.1" in readme
+    assert "COMMERCIAL.UI.SIDEBAR.2" in readme
     assert "visualization/figure_system.py" in readme
-    assert "global_figure_view_mode" in src
-    assert "One-source UI mode applied to every Plotly figure" in src
-    assert "current_plotly_config" in src
+    assert "DEFAULT_SCREEN_FIGURE_VIEW_MODE" in src
+    assert "REPORT_FIGURE_VIEW_MODE" in src
+    assert "report_plotly_config" in src
+    assert "Report figure mode" in src
     assert "plotly_config_for_view_mode" in src
-    assert "Figure view mode" in src
+    assert "**FIGURE SYSTEM**" not in src
+    assert 'key="global_figure_view_mode"' not in src
     assert "ENGINEERING_REVIEW_CONFIG" in figure_src
     assert "ENGINEERING_REPORT_CONFIG" in figure_src
     assert "apply_engineering_figure_layout" in figure_src
@@ -378,12 +381,11 @@ def test_m3h11_tendon_overlay_has_interactive_and_report_view_modes():
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.M3H.11" in readme
     assert "Figure view mode" in src
-    assert "tendon_overlay_view_mode" in src
     assert "Interactive review" in src
     assert "Report preview" in src
     assert "canvas-view-badge" in src
-    assert "PLOTLY_TENDON_REVIEW_CONFIG" in src
-    assert "PLOTLY_TENDON_REPORT_CONFIG" in src
+    assert "DEFAULT_SCREEN_FIGURE_VIEW_MODE" in src
+    assert "REPORT_FIGURE_VIEW_MODE" in src
     assert "tendon_canvas_config" in src
     assert "st.plotly_chart(fig, use_container_width=True, config=tendon_canvas_config)" in src
     assert '"displayModeBar": True' in tendon_fig_src
@@ -691,7 +693,7 @@ def test_loads40_loads_closeout_and_reportqa_handoff():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.LOADS.40" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "render_loads_workspace_closeout_panel" in src
     assert "Loads workspace closeout and Report / QA handoff" in src
     assert "Closed for load-source scope" in src
@@ -709,7 +711,7 @@ def test_psloss1_source_gate_and_jacking_force_guard():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "render_prestress_losses_source_gate_panel" in src
     assert "Prestress Losses Source Gate" in src
     assert "SOURCE BLOCKED" in src
@@ -729,7 +731,7 @@ def test_psloss2_stressing_basis_gate_and_tendon_action():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.2" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "_psloss_stressing_basis_state" in src
     assert "STRESSING BASIS" in src
     assert "Tendon adoption action required" in src
@@ -749,7 +751,7 @@ def test_psloss3_adopted_tendon_and_formula_readiness_register():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.3" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "_psloss_adopted_tendon_readiness_rows" in src
     assert "_psloss_formula_readiness_rows" in src
     assert "PSLOSS.25 calculation-readiness snapshot" in src
@@ -768,7 +770,7 @@ def test_psloss4_friction_source_model_and_preview_gate():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.4" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "render_prestress_friction_source_model" in src
     assert "4.2 Friction Loss Source Model" in src
     assert "Friction coefficient input assistant" in src
@@ -788,7 +790,7 @@ def test_tendon2_jackfrom_source_note_visible_and_traced():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.TENDON.2" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "Stressing-basis source note" in src
     assert "General tendon table · JackFrom field" in src
     assert "not a duplicate Prestress Losses input" in src
@@ -800,7 +802,7 @@ def test_psloss5_friction_formula_trace_and_report_summary():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.5" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "Report-style friction summary" in src
     assert "Friction formula and variable trace" in src
     assert "Governing tendon calculation walkthrough" in src
@@ -820,7 +822,7 @@ def test_psloss6_friction_equation_cards_and_consistent_formula_block():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.6" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "Friction loss result summary" in src
     assert "_render_loss_result_summary_cards_for_friction" in src
     assert "FRICTION LOSS SUMMARY" in src
@@ -840,7 +842,7 @@ def test_psloss7_friction_governing_tie_and_full_tendon_report_polish():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.7" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "_psloss_friction_governing_tie_results" in src
     assert "_psloss_friction_governing_label" in src
     assert "_show_full_tendon_report_table" in src
@@ -856,7 +858,7 @@ def test_psloss9_anchor_set_distribution_and_friction_coupling_preview():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.9" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "_psloss_anchor_distribution_results" in src
     assert "_render_psloss_anchor_distribution_equation_block" in src
     assert "Anchor-set distribution / friction-coupling preview" in src
@@ -871,7 +873,7 @@ def test_psloss10_anchor_set_distribution_wording_and_variable_trace_polish():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.10" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "Equivalent quick-check route" in src
     assert "The position-dependent friction-coupled distribution preview is shown below" in src
     assert "_psloss_anchor_distribution_variable_rows" in src
@@ -888,7 +890,7 @@ def test_psloss11_elastic_shortening_source_model_and_stage_preview():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.11" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "render_prestress_elastic_shortening_source_model" in src
     assert "_psloss_elastic_shortening_source_state" in src
     assert "_psloss_elastic_shortening_sequence_rows" in src
@@ -903,7 +905,7 @@ def test_psloss12_elastic_shortening_summary_consistency_and_sequence_basis():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.12" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "MAX SEQUENCE ES LOSS" in src
     assert "fpx,avg" in src
     assert "fpx after average ES" in src
@@ -920,7 +922,7 @@ def test_psloss13_loss_percent_basis_non_cumulative_standard():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.13" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "_loss_percent_basis_rows" in src
     assert "_render_loss_percent_basis_note" in src
     assert "_append_loss_percent_basis_report_rows" in src
@@ -937,7 +939,7 @@ def test_psloss14_header_and_next_step_consistency_cleanup():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.14" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "PSLOSS.22 keeps the friction report trace closed" in src
     assert "PSLOSS.22 keeps the anchor-set distribution trace closed" in src
     assert "PSLOSS.22 keeps the elastic-shortening preview closed" in src
@@ -953,7 +955,7 @@ def test_psloss16_18_creep_shrinkage_complete_preview():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     defaults_src = DEFAULTS_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.16–18" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert '"segment_age_at_transport_days": 30.0' in defaults_src
     assert "render_prestress_creep_shrinkage_stage_source_map" in src
     assert "Segment age at transport (days)" in src
@@ -977,7 +979,7 @@ def test_psloss20_route_dependent_handoff_and_selected_age_symbol_polish():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     defaults_src = DEFAULTS_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.20" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert '"crsh_time_step_age_source": "Keep REVIEW / do not adopt"' in defaults_src
     assert "Time-step age source" in src
     assert "Use computed t_jack from 4.5 construction map" in src
@@ -1001,7 +1003,7 @@ def test_psloss21_relaxation_source_model_and_gated_preview():
     defaults_src = DEFAULTS_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.21" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert '"relaxation_calculation_method": "AASHTO refined R1/R2 preview — Recommended"' in defaults_src
     assert '"relaxation_steel_type": "Low-relaxation strand"' in defaults_src
     assert '"relaxation_stress_basis": "Use fpj / jacking-stress preview"' in defaults_src
@@ -1025,7 +1027,7 @@ def test_psloss22_time_dependent_loss_tabs_and_rename():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     report_schema_src = REPORT_SCHEMA_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.22" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "4.5 Time-Dependent Losses" in report_schema_src
     assert "4.5 Creep / Shrinkage" not in report_schema_src
     assert "4.5 Time-Dependent Losses Source Model" in src
@@ -1048,7 +1050,7 @@ def test_psloss23_time_dependent_handoff_summary_and_relaxation_wording_polish()
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.23" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "PSLOSS.23 organizes relaxation as a Time-Dependent Losses component tab" in src
     assert "PSLOSS.23 keeps route-dependent time-dependent-loss handoff behavior" in src
     assert "TD preview subtotal" in src
@@ -1064,7 +1066,7 @@ def test_psloss24_crsh_source_gate_compatibility_fix():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.24" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "def _psloss_crsh_source_gate_handoff_rows" in src
     assert 'if "factors" not in state:' in src
     assert "Compatibility-safe 4.1 CR&SH source-gate handoff rows" in src
@@ -1080,7 +1082,7 @@ def test_psloss25_general_readiness_register_next_step_polish():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.25" in readme
     assert "COMMERCIAL.UI.PSLOSS.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "PSLOSS.25 calculation-readiness snapshot" in src
     assert "EFFECTIVE PRESTRESS" in src
     assert "4.6 Effective Prestress final combination gate is next" in src
@@ -1098,7 +1100,7 @@ def test_ui_psloss1_prestress_losses_uses_loads_style_horizontal_subpage_nav():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.UI.PSLOSS.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "def _sync_psloss_inline_subpage_to_sidebar" in src
     assert "psloss_inline_subpage" in src
     assert 'st.radio(\n        "Prestress Losses subpage"' in src
@@ -1113,7 +1115,7 @@ def test_ui_bridge1_bridge_geometry_uses_loads_style_horizontal_subpage_nav():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.UI.BRIDGE.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "def _sync_bridge_inline_subpage_to_sidebar" in src
     assert "bridge_inline_subpage" in src
     assert 'st.radio(\n        "Bridge Geometry / Section Properties subpage"' in src
@@ -1129,25 +1131,27 @@ def test_ui_header1_removes_global_project_context_banner_card():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.UI.HEADER.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "hero-card" not in src
     assert "Active workspace:" not in src
     assert 'small_context("Workspace"' in src
     assert 'small_context("Subpage"' in src
 
 
-def test_ui_sidebar1_removes_project_status_diagnostics_from_sidebar():
+def test_ui_sidebar2_removes_project_status_and_global_figure_system_from_sidebar():
     src = _src()
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.UI.SIDEBAR.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.90-commercial-ui-sidebar1-clean-project-status"' in validation_src
+    assert "COMMERCIAL.UI.SIDEBAR.2" in readme
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.91-commercial-ui-sidebar2-local-figure-mode"' in validation_src
     assert "PROJECT STATUS" not in src
     assert "QA gate ready" not in src
     assert "ULS Flexure max DCR" not in src
     assert "Shear/Torsion D/C" not in src
     assert "render_sidebar_schema_status" not in src
-    assert "FIGURE SYSTEM" in src
+    assert "**FIGURE SYSTEM**" not in src
+    assert "global Figure System control" in src
     assert "ACTIVE CONTEXT" in src
     assert "Load Project JSON" in src
-    assert "COMMERCIAL.UI.SIDEBAR.1 removes the always-visible sidebar project-status diagnostics" in src
+    assert "COMMERCIAL.UI.SIDEBAR.2 removes the global Figure System control" in src

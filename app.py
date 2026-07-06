@@ -1035,21 +1035,36 @@ def code_basis_card(title: str, code_basis: str, note: str = "") -> None:
 
 
 FIGURE_VIEW_OPTIONS = ["Interactive review", "Report preview"]
+DEFAULT_SCREEN_FIGURE_VIEW_MODE = "Interactive review"
+REPORT_FIGURE_VIEW_MODE = "Report preview"
 
 
-# Legacy local key `tendon_overlay_view_mode` was replaced by global_figure_view_mode in COMMERCIAL.UI.1.
-def current_figure_view_mode() -> str:
-    """One-source UI mode applied to every Plotly figure in the app."""
-    mode = st.session_state.get("global_figure_view_mode", FIGURE_VIEW_OPTIONS[0])
-    return mode if mode in FIGURE_VIEW_OPTIONS else FIGURE_VIEW_OPTIONS[0]
+def current_figure_view_mode(*, report_context: bool = False) -> str:
+    """Return the figure mode for the current rendering context.
+
+    The global sidebar Figure System control was removed in COMMERCIAL.UI.SIDEBAR.2.
+    Normal on-screen figures default to Interactive review. Report / QA and future
+    export workflows must call this helper with report_context=True, or call
+    report_plotly_config(), so report output is forced to Report preview without
+    requiring a user toggle. Legacy session_state values are ignored unless a
+    specific figure card reintroduces a local control in a later milestone.
+    """
+    return REPORT_FIGURE_VIEW_MODE if report_context else DEFAULT_SCREEN_FIGURE_VIEW_MODE
 
 
 def current_plotly_config() -> dict:
-    return plotly_config_for_view_mode(current_figure_view_mode())
+    """Default on-screen Plotly config: Interactive review."""
+    return plotly_config_for_view_mode(DEFAULT_SCREEN_FIGURE_VIEW_MODE)
 
 
-def show_plotly(fig) -> None:
-    st.plotly_chart(fig, use_container_width=True, config=current_plotly_config())
+def report_plotly_config() -> dict:
+    """Report / export Plotly config: toolbar hidden, scroll zoom disabled."""
+    return plotly_config_for_view_mode(REPORT_FIGURE_VIEW_MODE)
+
+
+def show_plotly(fig, *, report_context: bool = False) -> None:
+    config = report_plotly_config() if report_context else current_plotly_config()
+    st.plotly_chart(fig, use_container_width=True, config=config)
 
 
 def small_context(title: str, value: str, note: str = "") -> None:
@@ -1701,20 +1716,11 @@ def render_sidebar() -> None:
             st.session_state.current_subpage = ws["subpages"][0]
         st.radio("SUBPAGE", ws["subpages"], key="current_subpage", on_change=_sync_sidebar_subpage_to_loads_inline)
 
-        # Keep the sidebar focused on navigation and interactive controls.
-        # Project QA/DCR/schema diagnostics remain available from Project Dashboard
-        # and Report / QA instead of being repeated on every page.
-        st.markdown("---")
-        st.markdown("**FIGURE SYSTEM**")
-        if "global_figure_view_mode" not in st.session_state or st.session_state.global_figure_view_mode not in FIGURE_VIEW_OPTIONS:
-            st.session_state.global_figure_view_mode = FIGURE_VIEW_OPTIONS[0]
-        st.radio(
-            "Figure view mode",
-            FIGURE_VIEW_OPTIONS,
-            key="global_figure_view_mode",
-            help="One-source display mode applied to every Plotly figure: load diagrams, spectra, section drawings, tendon views, and future analysis plots.",
-        )
-        st.caption(figure_view_badge_text(st.session_state.global_figure_view_mode))
+        # Keep the sidebar focused on navigation and project controls.
+        # QA/DCR/schema diagnostics remain available from Project Dashboard and
+        # Report / QA. The global Figure System control was removed in
+        # COMMERCIAL.UI.SIDEBAR.2; screen figures default to Interactive review,
+        # while Report / QA and export workflows force Report preview internally.
         st.markdown("---")
         st.markdown("**ACTIVE CONTEXT**")
         st.markdown(
@@ -6509,7 +6515,7 @@ def render_tendon_layout_reference() -> None:
                 )
             with c5:
                 st.markdown(
-                    f'<div class="small-muted"><b>Figure view mode</b><br>{figure_view_badge_text(current_figure_view_mode())}<br><span style="font-size:0.72rem;">Global setting in sidebar</span></div>',
+                    f'<div class="small-muted"><b>Figure view mode</b><br>{figure_view_badge_text(current_figure_view_mode())}<br><span style="font-size:0.72rem;">Screen preview default</span></div>',
                     unsafe_allow_html=True,
                 )
             with c6:
@@ -6578,8 +6584,8 @@ def render_tendon_layout_reference() -> None:
                 )
 
                 # Keep the station badge outside the Plotly body. The explicit
-                # figure view mode controls whether the Plotly modebar is shown
-                # for engineering review or hidden for report preview.
+                # Screen figures use Interactive review by default. Report / QA and export
+                # workflows force the Report preview config internally.
                 fig = tendon_section_overlay_figure(
                     coords,
                     props,
@@ -7992,6 +7998,7 @@ def page_report_qa(sub: str) -> None:
         st.dataframe(issue_dataframe(issues), use_container_width=True, hide_index=True)
     elif sub == "Report Preview":
         st.markdown("### Report structure preview")
+        st.markdown('<div class="note-box"><b>Report figure mode:</b> Report / QA and export workflows use the Report preview figure configuration automatically. Users do not need to toggle a global Figure System control before generating report output.</div>', unsafe_allow_html=True)
         rows = []
         for label in WORKSPACE_LABELS[1:-1]:
             ws = get_workspace(label)
@@ -8003,7 +8010,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — COMMERCIAL.UI.SIDEBAR.1 Summary
+# Segmental Box Girder Pro — COMMERCIAL.UI.SIDEBAR.2 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -8040,9 +8047,10 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## COMMERCIAL.UI.SIDEBAR.1 Notes
+## COMMERCIAL.UI.SIDEBAR.2 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
-- COMMERCIAL.UI.SIDEBAR.1 removes the always-visible sidebar project-status diagnostics, DCR cards, and schema trace from the sidebar so the sidebar stays focused on navigation and interactive controls; QA/DCR/schema diagnostics remain available in Project Dashboard and Report / QA.
+- COMMERCIAL.UI.SIDEBAR.1 removes the always-visible sidebar project-status diagnostics, DCR cards, and schema trace from the sidebar so the sidebar stays focused on navigation and controls; QA/DCR/schema diagnostics remain available in Project Dashboard and Report / QA.
+- COMMERCIAL.UI.SIDEBAR.2 removes the global Figure System control from the sidebar. On-screen figures default to Interactive review, while Report / QA and export workflows force Report preview figure config internally so users do not need to toggle a global setting before generating report output.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
 - PSLOSS.20 keeps the completed Friction, Anchor Set, Elastic Shortening, and Time-Dependent Losses preview pages aligned with the shared component loss / fpj percent basis and non-cumulative interpretation; final combination remains deferred to 4.6 Effective Prestress.

@@ -1,6 +1,7 @@
-# Segmental Box Girder Pro — COMMERCIAL.UI.SIDEBAR.1
+# Segmental Box Girder Pro — COMMERCIAL.UI.SIDEBAR.2
 
 This baseline carries forward the accepted commercial milestones and standards:
+- COMMERCIAL.UI.SIDEBAR.2
 - COMMERCIAL.UI.SIDEBAR.1
 - COMMERCIAL.UI.HEADER.1
 - COMMERCIAL.M3H.8
@@ -52,7 +53,8 @@ Display formatting rules
 - Retain the commercial engineering figure system and canvas-card presentation.
 - Shared figure helpers remain under `visualization/figure_system.py`.
 - New figures must follow the existing UI.1 / UI.2 standards.
-- One-source UI mode applies to Plotly figures, SVG components, source panels, and report-ready cards.
+- Screen figures default to Interactive review; Report / QA and export workflows force Report preview figure configuration internally.
+- Shared figure helpers remain the backend source for Plotly toolbar/export behavior; the global Figure System sidebar control is intentionally hidden.
 
 Retained basis / reference notes
 - 1.3.7 Wind Load
@@ -69,10 +71,11 @@ Retained basis / reference notes
 - Orthographic Isometric
 
 Current milestone focus
-- Add explicit Single Track / Double Track selection for the 3.2 SDL page.
-- Use the selected track configuration to control the SDL value sent to the FEA input summary.
-- Keep both single-track and double-track component totals/adopted values visible and editable for report traceability.
-- Preserve existing SDL component table logic and downstream load calculation behavior.
+- Remove the global Figure System control from the sidebar so the sidebar remains focused on navigation and project controls.
+- Keep the backend engineering figure system intact.
+- Default on-screen figures to Interactive review.
+- Force Report preview figure configuration for Report / QA and future export workflows without requiring a user toggle.
+- Preserve all engineering calculations, save/load behavior, report data, and figure-generation logic.
 
 Clean release rule
 - ZIP packages must not include `__pycache__/`, `.pytest_cache/`, `*.pyc`, `*.pyo`, `.streamlit/`, or `.DS_Store`.
