@@ -7818,6 +7818,231 @@ def render_prestress_creep_shrinkage_stage_source_map() -> None:
     """Backward-compatible wrapper for the renamed 4.5 Time-Dependent Losses page."""
     render_prestress_time_dependent_losses_source_model()
 
+
+def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
+    """Return PSLOSS.26 source map and representative effective-prestress preview.
+
+    This is the first 4.6 milestone.  It intentionally computes a transparent
+    representative preview and a conservative sequence check without adopting a
+    final fpe.  The important rule is that total loss percent is calculated from
+    the combined stress result, not by adding displayed component percentages.
+    """
+    source_state = _psloss_source_gate_state()
+    m = D.setdefault("materials", {})
+    ps = D.setdefault("prestress", {})
+    summary = source_state.get("adopted_summary") or {}
+    fpi = _safe_float(summary.get("jacking_stress_mpa") or m.get("fpi_mpa"), 0.0)
+    aps_per_tendon = _safe_float(summary.get("Aps_per_tendon_mm2"), 0.0)
+    tendon_count = int(_safe_float(summary.get("tendon_count"), 0.0) or 0)
+
+    # Friction + anchor set is station-dependent.  Use the already-coupled
+    # 4.3 distribution preview as the representative immediate-loss envelope
+    # instead of adding the independent maximum friction and maximum anchor-set
+    # component cards.
+    fr_gov_result, fr_gov, friction_rows, fstate = _psloss_friction_governing_result(source_state)
+    max_friction_loss = _safe_float(fr_gov.get("loss_mpa"), 0.0)
+    friction_ready = bool(fstate.get("ready"))
+
+    anchor_dist_results, astate = _psloss_anchor_distribution_results(source_state)
+    anchor_ready = bool(astate.get("ready")) and bool(anchor_dist_results)
+    if anchor_ready and fpi > 0.0:
+        min_fa_stress = min([_safe_float(r.get("min_stress_mpa"), fpi) for r in anchor_dist_results], default=fpi)
+        fa_loss = max(fpi - min_fa_stress, 0.0)
+        max_anchor_dist_loss = max([_safe_float(r.get("max_loss_mpa"), 0.0) for r in anchor_dist_results], default=0.0)
+    else:
+        min_fa_stress = fpi
+        fa_loss = 0.0
+        max_anchor_dist_loss = 0.0
+
+    es_rows, estate = _psloss_elastic_shortening_sequence_results(source_state)
+    es_ready = bool(estate.get("ready"))
+    es_avg_loss = _safe_float(estate.get("avg_loss_mpa"), 0.0) if es_ready else 0.0
+    es_max_loss = max([_safe_float(r.get("loss_mpa"), 0.0) for r in es_rows], default=0.0) if es_ready else 0.0
+    es_governing = "-"
+    if es_rows:
+        gov_es = max(es_rows, key=lambda r: _safe_float(r.get("loss_mpa"), 0.0))
+        es_governing = f"{gov_es.get('tendon', '-')} (i={gov_es.get('sequence_no', '-')})"
+
+    td_state = _psloss_crsh_time_step_state()
+    td_factors = td_state.get("factors", {})
+    relaxation_state = _psloss_relaxation_preview_state(td_state)
+    td_route = str(td_state.get("selected_route", ""))
+    td_time_source_ready = bool(td_state.get("time_source_ready"))
+    td_refined_selected = td_route.startswith("Refined")
+    td_ready_for_final = bool(td_refined_selected and td_time_source_ready and relaxation_state.get("adoption_gate") == "BLOCKED UNTIL 4.6")
+    creep_loss = _safe_float(td_factors.get("creep_loss_mpa"), 0.0)
+    shrinkage_loss = _safe_float(td_factors.get("shrinkage_loss_mpa"), 0.0)
+    relaxation_loss = _safe_float(relaxation_state.get("selected_loss_mpa"), 0.0)
+    td_loss = creep_loss + shrinkage_loss + relaxation_loss if td_refined_selected else 0.0
+
+    representative_loss = fa_loss + es_avg_loss + td_loss
+    conservative_loss = fa_loss + es_max_loss + td_loss
+    fpe_rep = max(fpi - representative_loss, 0.0) if fpi > 0.0 else 0.0
+    fpe_cons = max(fpi - conservative_loss, 0.0) if fpi > 0.0 else 0.0
+    pe_per_tendon = fpe_rep * aps_per_tendon / 1000.0 if aps_per_tendon > 0.0 else 0.0
+    pe_total = pe_per_tendon * tendon_count if tendon_count > 0 else 0.0
+
+    review_reasons: list[str] = []
+    if not source_state.get("ready"):
+        review_reasons.append("4.1 source gate is not fully ready")
+    if not friction_ready:
+        review_reasons.append("friction preview is not ready")
+    if not anchor_ready:
+        review_reasons.append("anchor-set distribution preview is not ready")
+    if not es_ready:
+        review_reasons.append("elastic-shortening preview is not ready")
+    else:
+        review_reasons.append("elastic-shortening stressing sequence still requires engineer review")
+    if not td_refined_selected:
+        review_reasons.append("time-dependent route is not refined/time-step")
+    if not td_time_source_ready:
+        review_reasons.append("time-dependent t_start source is still REVIEW")
+    if relaxation_state.get("adoption_gate") != "BLOCKED UNTIL 4.6":
+        review_reasons.append("relaxation source is not eligible for final adoption")
+
+    combination_ready = bool(source_state.get("ready") and friction_ready and anchor_ready and es_ready and td_ready_for_final)
+    status = "READY FOR ADOPTION REVIEW" if combination_ready and len(review_reasons) <= 1 else "PREVIEW / REVIEW REQUIRED"
+    mode = "pass" if status.startswith("READY") else "warn"
+    return {
+        "source_state": source_state,
+        "fpi_mpa": fpi,
+        "fpi_source": "Adopted tendon jacking stress fpj; fpi = fpj for this project",
+        "aps_per_tendon_mm2": aps_per_tendon,
+        "tendon_count": tendon_count,
+        "max_friction_loss_mpa": max_friction_loss,
+        "max_anchor_distribution_loss_mpa": max_anchor_dist_loss,
+        "friction_anchor_loss_mpa": fa_loss,
+        "min_fpx_after_friction_anchor_mpa": min_fa_stress,
+        "es_avg_loss_mpa": es_avg_loss,
+        "es_max_loss_mpa": es_max_loss,
+        "es_governing": es_governing,
+        "creep_loss_mpa": creep_loss,
+        "shrinkage_loss_mpa": shrinkage_loss,
+        "relaxation_loss_mpa": relaxation_loss,
+        "td_loss_mpa": td_loss,
+        "td_route": td_route,
+        "td_time_source": str(td_state.get("selected_time_source", "-")),
+        "td_time_source_ready": td_time_source_ready,
+        "representative_loss_mpa": representative_loss,
+        "representative_loss_pct": (representative_loss / fpi * 100.0) if fpi > 0.0 else 0.0,
+        "fpe_representative_mpa": fpe_rep,
+        "conservative_loss_mpa": conservative_loss,
+        "conservative_loss_pct": (conservative_loss / fpi * 100.0) if fpi > 0.0 else 0.0,
+        "fpe_conservative_mpa": fpe_cons,
+        "pe_per_tendon_kN": pe_per_tendon,
+        "pe_total_kN": pe_total,
+        "combination_ready": combination_ready,
+        "status": status,
+        "mode": mode,
+        "review_reasons": review_reasons,
+        "relaxation_state": relaxation_state,
+        "td_state": td_state,
+    }
+
+
+def _psloss_effective_source_map_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            ["Initial stress fpi", f"{ep_state['fpi_mpa']:.2f} MPa", "2.4 adopted tendon source / material", ep_state["fpi_source"]],
+            ["Friction + anchor-set envelope", f"{ep_state['friction_anchor_loss_mpa']:.2f} MPa", "4.2 + 4.3 station-dependent previews", "Uses the 4.3 friction-coupled distribution envelope; does not add independent maximum friction and anchor-set cards."],
+            ["Elastic shortening selected basis", f"Average = {ep_state['es_avg_loss_mpa']:.2f} MPa", "4.4 Elastic Shortening", f"Representative summary uses average ES; conservative sequence check uses max ES = {ep_state['es_max_loss_mpa']:.2f} MPa at {ep_state['es_governing']} ."],
+            ["Time-dependent selected basis", f"{ep_state['td_loss_mpa']:.2f} MPa", "4.5 Time-Dependent Losses", f"Route = {ep_state['td_route']}; age source = {ep_state['td_time_source']} ."],
+            ["Effective force basis", f"Aps/tendon = {ep_state['aps_per_tendon_mm2']:.0f} mm²; tendons = {ep_state['tendon_count']}", "2.4 adopted tendon summary", "Pe/tendon = fpe × Aps/tendon; total Pe = Pe/tendon × tendon count."],
+            ["Final adoption gate", ep_state["status"], "4.6 Effective Prestress", "Preview values are visible now; final adoption remains blocked until source review items are resolved."],
+        ],
+        columns=["Combination item", "Selected value", "Source owner", "Combination policy / trace"],
+    )
+
+
+def _psloss_effective_component_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
+    fpi = float(ep_state.get("fpi_mpa", 0.0) or 0.0)
+    def pct(v: float) -> str:
+        return f"{(v / fpi * 100.0):.2f}%" if fpi > 0.0 else "—"
+    rows = [
+        ["Friction max component", ep_state["max_friction_loss_mpa"], pct(ep_state["max_friction_loss_mpa"]), "4.2 Friction", "Shown for readability; not directly added as the selected total because anchor set is coupled with friction by station."],
+        ["Anchor-set distribution max component", ep_state["max_anchor_distribution_loss_mpa"], pct(ep_state["max_anchor_distribution_loss_mpa"]), "4.3 Anchor Set", "Position-dependent anchor-set distribution maximum."],
+        ["Selected friction + anchor-set envelope", ep_state["friction_anchor_loss_mpa"], pct(ep_state["friction_anchor_loss_mpa"]), "4.3 coupled distribution", "Selected immediate station envelope for this source-map preview."],
+        ["Elastic shortening average", ep_state["es_avg_loss_mpa"], pct(ep_state["es_avg_loss_mpa"]), "4.4 Elastic Shortening", "Representative summary basis; stage/sequence review still required."],
+        ["Elastic shortening max sequence", ep_state["es_max_loss_mpa"], pct(ep_state["es_max_loss_mpa"]), "4.4 Elastic Shortening", "Conservative sequence check only, not mixed into the representative fpe card."],
+        ["Creep", ep_state["creep_loss_mpa"], pct(ep_state["creep_loss_mpa"]), "4.5 Creep tab", "Refined/time-step component preview."],
+        ["Shrinkage", ep_state["shrinkage_loss_mpa"], pct(ep_state["shrinkage_loss_mpa"]), "4.5 Shrinkage tab", "Post-jacking incremental shrinkage component preview."],
+        ["Relaxation", ep_state["relaxation_loss_mpa"], pct(ep_state["relaxation_loss_mpa"]), "4.5 Relaxation tab", "Selected relaxation component preview."],
+        ["Selected time-dependent subtotal", ep_state["td_loss_mpa"], pct(ep_state["td_loss_mpa"]), "4.5 Handoff to 4.6", "Creep + shrinkage + relaxation for refined/time-step route only."],
+        ["Representative selected total loss", ep_state["representative_loss_mpa"], pct(ep_state["representative_loss_mpa"]), "4.6 combination policy", "Calculated from the combined stress chain, not by adding displayed component percentages."],
+        ["Representative fpe", ep_state["fpe_representative_mpa"], "—", "4.6 preview result", "fpe = fpi − selected total loss."],
+    ]
+    return pd.DataFrame(
+        [[name, f"{val:.2f} MPa" if isinstance(val, (int, float)) else val, pctval, src, note] for name, val, pctval, src, note in rows],
+        columns=["Item", "Stress value", "% of fpi", "Source", "Trace / interpretation"],
+    )
+
+
+def _psloss_effective_review_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
+    reasons = ep_state.get("review_reasons") or []
+    if not reasons:
+        reasons = ["All component sources are ready for final-adoption review."]
+    return pd.DataFrame(
+        [[i + 1, reason, "REVIEW" if "requires" in reason.lower() or "review" in reason.lower() else "CHECK"] for i, reason in enumerate(reasons)],
+        columns=["No.", "Open review item", "Status"],
+    )
+
+
+def render_prestress_effective_prestress_source_map() -> None:
+    """Render PSLOSS.26 first-pass 4.6 Effective Prestress source map."""
+    ep_state = _psloss_effective_prestress_preview_state()
+    code_basis_card(
+        "4.6 Effective Prestress Source Map",
+        "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
+        "PSLOSS.26 starts the final combination/adoption gate by mapping component handoffs, defining the total-loss %fpi basis, and showing representative fpe/Pe preview values. No final effective-prestress value is adopted in this milestone.",
+    )
+    st.markdown(
+        '<div class="note-box"><b>Initial stress basis:</b> for this project, <b>f<sub>pi</sub> = f<sub>pj</sub> = 1395 MPa</b> from the adopted tendon jacking-stress source. Total loss percent is calculated as <b>(f<sub>pi</sub> − f<sub>pe</sub>) / f<sub>pi</sub> × 100</b>, not by directly adding component percentages from earlier pages.</div>',
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        card("EFFECTIVE PRESTRESS", ep_state["status"], "4.6 final adoption gate", ep_state["mode"])
+    with c2:
+        card("INITIAL STRESS fpi", f"{ep_state['fpi_mpa']:.2f} MPa", "fpi = fpj", "neutral")
+    with c3:
+        card("TOTAL LOSS", f"{ep_state['representative_loss_mpa']:.2f} MPa", f"{ep_state['representative_loss_pct']:.2f}% of fpi", "warn")
+    with c4:
+        card("EFFECTIVE STRESS fpe", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "Representative preview", "pass" if ep_state['fpe_representative_mpa'] > 0 else "warn")
+    with c5:
+        card("EFFECTIVE FORCE Pe", f"{ep_state['pe_per_tendon_kN']:.0f} kN/tendon", f"Total ≈ {ep_state['pe_total_kN']:.0f} kN", "pass" if ep_state['pe_per_tendon_kN'] > 0 else "warn")
+
+    st.markdown("### Combination policy")
+    st.latex(r"\Delta f_{p,total}=f_{pi}-f_{pe}")
+    st.latex(r"\mathrm{Total\ loss\ (\%)}=rac{f_{pi}-f_{pe}}{f_{pi}}	imes100")
+    st.latex(r"f_{pe,rep}=f_{pi}-\Delta f_{p,F+A}-\Delta f_{pES,avg}-\Delta f_{pTD}")
+    st.markdown(
+        '<div class="warn-box"><b>Do not add component percentages:</b> component % values remain visible for readability only. The selected total loss % is calculated from the combined stress result. Friction and anchor set are station-dependent, elastic shortening is sequence/stage-dependent, and time-dependent losses remain source-gated.</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### Source map and selected combination basis")
+    show_engineering_table(_psloss_effective_source_map_rows(ep_state))
+
+    st.markdown("### Component handoff table")
+    show_engineering_table(_psloss_effective_component_rows(ep_state))
+
+    st.markdown("### Representative and conservative preview check")
+    conservative_rows = pd.DataFrame(
+        [
+            ["Representative preview", f"{ep_state['representative_loss_mpa']:.2f} MPa", f"{ep_state['representative_loss_pct']:.2f}%", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "Uses F+A station envelope + average ES + selected TD subtotal."],
+            ["Conservative sequence check", f"{ep_state['conservative_loss_mpa']:.2f} MPa", f"{ep_state['conservative_loss_pct']:.2f}%", f"{ep_state['fpe_conservative_mpa']:.2f} MPa", "Uses F+A station envelope + max sequence ES + selected TD subtotal; review-only."],
+        ],
+        columns=["Preview basis", "Total loss", "% of fpi", "fpe", "Interpretation"],
+    )
+    show_engineering_table(conservative_rows)
+
+    st.markdown("### Open review gates before final adoption")
+    show_engineering_table(_psloss_effective_review_rows(ep_state))
+    st.markdown(
+        '<div class="warn-box"><b>Preview only:</b> PSLOSS.26 defines the source map, total-loss %fpi basis, and first-pass fpe/Pe preview. Final adoption still requires the 4.6 combination engine to lock station/tendon basis, elastic-shortening sequence basis, time-step age source, and relaxation source.</div>',
+        unsafe_allow_html=True,
+    )
+
 def page_prestress_losses(sub: str) -> None:
     st.subheader(get_workspace("4 Prestress Losses")["title"])
     psloss_tab_labels = get_workspace("4 Prestress Losses")["subpages"]
@@ -7851,9 +8076,7 @@ def page_prestress_losses(sub: str) -> None:
     elif sub == "4.5 Time-Dependent Losses":
         render_prestress_creep_shrinkage_stage_source_map()
     elif sub == "4.6 Effective Prestress":
-        loss_df = pd.DataFrame([["Friction", summary["friction_mpa"]], ["Anchor set", summary["anchor_set_mpa"]], ["Elastic shortening", summary["elastic_shortening_mpa"]], ["Creep", summary["creep_mpa"]], ["Shrinkage", summary["shrinkage_mpa"]], ["Relaxation", summary["relaxation_mpa"]], ["Total", summary["total_loss_mpa"]], ["fpe", summary["fpe_mpa"]]], columns=["Item", "Value (MPa)"])
-        st.dataframe(loss_df.style.format({"Value (MPa)": "{:.2f}"}), use_container_width=True)
-        st.download_button("Download loss table CSV", loss_df.to_csv(index=False).encode("utf-8"), "prestress_losses.csv", "text/csv")
+        render_prestress_effective_prestress_source_map()
     else:
         code_basis_card("4 Prestress Losses QA / Report Preview", "AASHTO LRFD 2020 Section 5, Art. 5.9.3", "Read-only source-gate snapshot for downstream prestress-loss calculation. This page does not run a detailed loss solver.")
         render_prestress_losses_source_gate_panel(compact=True)
