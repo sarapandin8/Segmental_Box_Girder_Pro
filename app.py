@@ -457,6 +457,33 @@ def show_engineering_table(df: pd.DataFrame, *, hide_index: bool = True) -> None
     st.dataframe(format_engineering_table(df), use_container_width=True, hide_index=hide_index)
 
 
+def render_inpage_horizontal_navigation(
+    label: str,
+    options: list[str],
+    *,
+    key: str,
+    default: str | None = None,
+    note_html: str | None = None,
+) -> str:
+    """Render a compact horizontal in-page navigation radio used for nested review tabs."""
+    if not options:
+        return ""
+    if default not in options:
+        default = options[0]
+    if st.session_state.get(key) not in options:
+        st.session_state[key] = default
+    selected = st.radio(
+        label,
+        options,
+        key=key,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    if note_html:
+        st.markdown(note_html.format(selected=escape(str(selected))), unsafe_allow_html=True)
+    return str(selected)
+
+
 def _fea_status_chip(text: str, mode: str = "neutral") -> str:
     safe_text = escape(str(text))
     safe_mode = escape(str(mode or "neutral"))
@@ -3192,9 +3219,15 @@ def render_section_properties() -> None:
     )
     st.markdown(_section_data_gate_html(D), unsafe_allow_html=True)
     s = D["section"]
-    tabs = st.tabs(["Coordinate Input", "Section Preview", "Adopted Properties for Design", "QA / Comparison"])
+    section_property_tabs = ["Coordinate Input", "Section Preview", "Adopted Properties for Design", "QA / Comparison"]
+    selected_section_property_tab = render_inpage_horizontal_navigation(
+        "2.3 Section Properties internal tab",
+        section_property_tabs,
+        key="section_properties_inline_tab",
+        note_html='<div class="note-box"><b>2.3 Section Properties workspace:</b> Active tab = {selected}. Coordinate import, section preview, adopted design properties, and QA comparison remain one source-gated section-property workflow.</div>',
+    )
 
-    with tabs[0]:
+    if selected_section_property_tab == "Coordinate Input":
         c1, c2 = st.columns([1.6, 1.0])
         with c1:
             uploaded = st.file_uploader("Import CSiBridge section coordinates CSV / Excel", type=["csv", "xlsx", "xls"], key="section_coordinate_file_upload")
@@ -3233,7 +3266,7 @@ def render_section_properties() -> None:
     props = _section_computation_from_state()
     coords = props.get("coordinates", _section_coordinate_df_from_state())
 
-    with tabs[1]:
+    if selected_section_property_tab == "Section Preview":
         c1, c2, c3 = st.columns([1.0, 1.0, 1.0])
         with c1:
             point_mode = st.selectbox(
@@ -3316,7 +3349,7 @@ def render_section_properties() -> None:
             for err in props.get("errors", []):
                 st.error(err)
 
-    with tabs[2]:
+    if selected_section_property_tab == "Adopted Properties for Design":
         st.markdown(
             '<div class="result-card"><b>Adopted Section Properties for Design</b> '
             '<span class="badge pass">USED BY DESIGN CHECKS</span><br>'
@@ -3462,7 +3495,7 @@ def render_section_properties() -> None:
 
         _render_adopted_section_properties_table(adopted_table_slot)
 
-    with tabs[3]:
+    if selected_section_property_tab == "QA / Comparison":
         subsection_title("Coordinate QA / Comparison")
         if props.get("valid"):
             loop_summary = []
@@ -5969,9 +6002,15 @@ def render_tendon_layout_reference() -> None:
     )
     with st.expander("Tendon stressing-basis summary", expanded=False):
         show_engineering_table(_tendon_stressing_basis_frame(model_for_summary))
-    tabs = st.tabs(["Import / Mapping", "Elevation View", "Plan View", "3D Tendon View", "Section Overlay", "Adopted Tendon Data", "QA / Consistency"])
+    tendon_reference_tabs = ["Import / Mapping", "Elevation View", "Plan View", "3D Tendon View", "Section Overlay", "Adopted Tendon Data", "QA / Consistency"]
+    selected_tendon_reference_tab = render_inpage_horizontal_navigation(
+        "2.4 Tendon Layout Reference internal tab",
+        tendon_reference_tabs,
+        key="tendon_layout_reference_inline_tab",
+        note_html='<div class="note-box"><b>2.4 Tendon Layout Reference workspace:</b> Active tab = {selected}. Import, plan/elevation/3D review, section overlay, adopted tendon data, and QA remain one source-gated tendon-reference workflow.</div>',
+    )
 
-    with tabs[0]:
+    if selected_tendon_reference_tab == "Import / Mapping":
         subsection_title("Tendon import / mapping")
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -6050,7 +6089,7 @@ def render_tendon_layout_reference() -> None:
     profile_df = tendon_model_to_profile_frame(model)
     station_match_df = tendon_model_to_station_match_frame(model)
 
-    with tabs[1]:
+    if selected_tendon_reference_tab == "Elevation View":
         subsection_title("Tendon side elevation")
         if model.get("valid"):
             families = list(dict.fromkeys([str(t.get("family", "")) for t in model.get("tendons", []) if str(t.get("family", "")).strip()]))
@@ -6113,7 +6152,7 @@ def render_tendon_layout_reference() -> None:
         else:
             st.info("Build a valid tendon model to show side elevation.")
 
-    with tabs[2]:
+    if selected_tendon_reference_tab == "Plan View":
         subsection_title("Tendon plan / horizontal layout")
         if model.get("valid"):
             families = list(dict.fromkeys([str(t.get("family", "")) for t in model.get("tendons", []) if str(t.get("family", "")).strip()]))
@@ -6176,7 +6215,7 @@ def render_tendon_layout_reference() -> None:
         else:
             st.info("Build a valid tendon model to show plan view.")
 
-    with tabs[3]:
+    if selected_tendon_reference_tab == "3D Tendon View":
         subsection_title("Interactive 3D tendon review")
         props = _section_computation_from_state()
         section_coords = _section_coordinate_df_from_state()
@@ -6427,7 +6466,7 @@ def render_tendon_layout_reference() -> None:
         else:
             st.info("Build a valid tendon model first to show the 3D tendon review viewport.")
 
-    with tabs[4]:
+    if selected_tendon_reference_tab == "Section Overlay":
         subsection_title("Section overlay at selected station")
         props = _section_computation_from_state()
         if model.get("valid") and props.get("valid"):
@@ -6646,7 +6685,7 @@ def render_tendon_layout_reference() -> None:
         else:
             st.info("Build a valid tendon model first.")
 
-    with tabs[5]:
+    if selected_tendon_reference_tab == "Adopted Tendon Data":
         subsection_title("Adopted tendon data")
         if model.get("valid"):
             adopted_model = _active_adopted_tendon_model()
@@ -6711,7 +6750,7 @@ def render_tendon_layout_reference() -> None:
         else:
             st.info("Build a valid tendon model to show adopted tendon data.")
 
-    with tabs[6]:
+    if selected_tendon_reference_tab == "QA / Consistency":
         subsection_title("Tendon QA / consistency")
         gate = tendon_model_status(model, tl)
         adopted_model = _active_adopted_tendon_model()
@@ -8044,6 +8083,7 @@ def page_report_qa(sub: str) -> None:
 - PSLOSS.24 fixes 4.1 General CR&SH source-gate compatibility by avoiding direct `state["factors"]` access when the page receives the general source-gate state or an older migrated project state; it displays compatibility-safe CR&SH handoff rows instead of crashing.
 - COMMERCIAL.UI.PSLOSS.1 standardizes the 4 Prestress Losses in-page subpage navigation with the horizontal radio pattern used by 3 Loads, while preserving all source-gated component previews and 4.6 Effective Prestress as the final combination gate.
 - COMMERCIAL.UI.BRIDGE.1 standardizes the 2 Bridge Geometry / Section Properties in-page subpage navigation with the same horizontal radio pattern used by 3 Loads and 4 Prestress Losses, while preserving all geometry, section-property, tendon-reference, and QA logic/results.
+- COMMERCIAL.UI.BRIDGE.2 standardizes the internal 2.3 Section Properties and 2.4 Tendon Layout Reference tabs with the same horizontal radio navigation pattern while preserving all geometry, section, tendon, QA, and downstream source logic/results.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
