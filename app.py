@@ -1621,12 +1621,26 @@ def _sync_loads_inline_subpage_to_sidebar() -> None:
 
 
 def _sync_sidebar_subpage_to_loads_inline() -> None:
-    """Keep the in-page Loads selector in sync when navigation happens from the sidebar."""
-    if st.session_state.get("current_workspace") == "3 Loads":
+    """Keep in-page horizontal subpage selectors in sync with sidebar navigation."""
+    current_workspace = st.session_state.get("current_workspace")
+    current_subpage = st.session_state.get("current_subpage")
+    if current_workspace == "3 Loads":
         load_subpages = get_workspace("3 Loads")["subpages"]
-        current_subpage = st.session_state.get("current_subpage")
         if current_subpage in load_subpages:
             st.session_state.loads_inline_subpage = current_subpage
+    elif current_workspace == "4 Prestress Losses":
+        psloss_subpages = get_workspace("4 Prestress Losses")["subpages"]
+        if current_subpage in psloss_subpages:
+            st.session_state.psloss_inline_subpage = current_subpage
+
+
+def _sync_psloss_inline_subpage_to_sidebar() -> None:
+    """Keep the sidebar Prestress Losses selector in sync with the in-page radio bar."""
+    if st.session_state.get("current_workspace") == "4 Prestress Losses":
+        psloss_subpages = get_workspace("4 Prestress Losses")["subpages"]
+        inline_subpage = st.session_state.get("psloss_inline_subpage")
+        if inline_subpage in psloss_subpages:
+            st.session_state.current_subpage = inline_subpage
 
 
 def render_sidebar_schema_status() -> None:
@@ -7763,7 +7777,24 @@ def render_prestress_creep_shrinkage_stage_source_map() -> None:
 
 def page_prestress_losses(sub: str) -> None:
     st.subheader(get_workspace("4 Prestress Losses")["title"])
+    psloss_tab_labels = get_workspace("4 Prestress Losses")["subpages"]
+    if st.session_state.get("psloss_inline_subpage") not in psloss_tab_labels:
+        st.session_state.psloss_inline_subpage = sub if sub in psloss_tab_labels else psloss_tab_labels[0]
+    selected_psloss_subpage = st.radio(
+        "Prestress Losses subpage",
+        psloss_tab_labels,
+        key="psloss_inline_subpage",
+        horizontal=True,
+        label_visibility="collapsed",
+        on_change=_sync_psloss_inline_subpage_to_sidebar,
+    )
+    st.markdown(
+        f'<div class="note-box"><b>Dedicated Prestress Losses workspace:</b> Active subpage = {selected_psloss_subpage}. Component previews remain source-gated and final combination is controlled by <b>4.6 Effective Prestress</b>.</div>',
+        unsafe_allow_html=True,
+    )
+
     m, p = D["materials"], D["prestress"]
+    sub = selected_psloss_subpage
     if sub == "4.1 General":
         render_prestress_losses_source_gate_panel()
         return
@@ -7935,7 +7966,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — Commercial PSLOSS.25 Summary
+# Segmental Box Girder Pro — COMMERCIAL.UI.PSLOSS.1 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -7972,7 +8003,7 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## PSLOSS.25 Notes
+## COMMERCIAL.UI.PSLOSS.1 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
@@ -7981,12 +8012,12 @@ def page_report_qa(sub: str) -> None:
 - PSLOSS.22 renames 4.5 to Time-Dependent Losses and splits the workflow into internal Overview, Creep, Shrinkage, Relaxation, and Handoff to 4.6 tabs without changing formulas or preview values.
 - PSLOSS.23 polishes the Time-Dependent Losses handoff table so relaxation, the total time-dependent preview subtotal, and fpx after time-dependent preview are reported consistently before 4.6, without changing formulas or preview values.
 - PSLOSS.24 fixes 4.1 General CR&SH source-gate compatibility by avoiding direct `state["factors"]` access when the page receives the general source-gate state or an older migrated project state; it displays compatibility-safe CR&SH handoff rows instead of crashing.
-- PSLOSS.25 polishes 4.1 General readiness wording so Friction, Anchor Set, Elastic Shortening, Time-Dependent Losses, and Relaxation are reported as preview-ready/review-required handoffs and the module next step points to 4.6 Effective Prestress.
+- COMMERCIAL.UI.PSLOSS.1 standardizes the 4 Prestress Losses in-page subpage navigation with the horizontal radio pattern used by 3 Loads, while preserving all source-gated component previews and 4.6 Effective Prestress as the final combination gate.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_psloss25_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_ui_psloss1_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------
