@@ -1,6 +1,7 @@
-# Segmental Box Girder Pro — COMMERCIAL.UI.HEADER.1
+# Segmental Box Girder Pro — COMMERCIAL.UI.SIDEBAR.1
 
 This baseline carries forward the accepted commercial milestones and standards:
+- COMMERCIAL.UI.SIDEBAR.1
 - COMMERCIAL.UI.HEADER.1
 - COMMERCIAL.M3H.8
 - COMMERCIAL.M3H.9
@@ -194,11 +195,13 @@ Previous milestone retained: COMMERCIAL.PSLOSS.25 polished 4.1 General readiness
 - Preserves coordinate import, section preview, adopted section properties, QA/comparison, tendon import/mapping, elevation/plan/3D views, section overlay, adopted tendon data, and tendon QA logic/results unchanged.
 
 
-Current milestone focus — COMMERCIAL.UI.HEADER.1
-- Remove the global project/context banner card below the main app header.
-- Keep workspace, subpage, design-code, and tendon-system context in the structured context cards.
+Previous milestone retained: COMMERCIAL.UI.HEADER.1 removed the global project/context banner card below the main app header while preserving structured context cards and all app logic/results.
+
+Current milestone focus — COMMERCIAL.UI.SIDEBAR.1
+- Remove the PROJECT STATUS diagnostic block from the sidebar so the sidebar focuses on navigation, figure mode, active context, and project JSON loading.
+- Remove always-visible QA/DCR/schema cards from the sidebar; those diagnostics remain available from Project Dashboard and Report / QA.
 - Preserve the horizontal subpage navigation standardized for Loads, Prestress Losses, and Bridge Geometry.
-- Preserve all geometry, tendon-reference, loads, prestress-loss, QA/report, and save/load logic/results.
+- Preserve all geometry, tendon-reference, loads, prestress-loss, QA/report, schema migration, and save/load logic/results.
 
 Schema
-- 0.4.89-commercial-ui-header1-remove-project-banner
+- 0.4.90-commercial-ui-sidebar1-clean-project-status

@@ -1682,23 +1682,6 @@ def _sync_psloss_inline_subpage_to_sidebar() -> None:
             st.session_state.current_subpage = inline_subpage
 
 
-def render_sidebar_schema_status() -> None:
-    """Show app/runtime schema separately from project-file schema trace."""
-    meta = D.get("meta", {}) if isinstance(D, dict) else {}
-    active_schema = str(meta.get("schema_version", "-"))
-    source_schema = str(meta.get("loaded_schema_version", active_schema))
-    migration_status = str(meta.get("schema_migration_status", "Current" if active_schema == PROJECT_SCHEMA_VERSION else "Review"))
-    st.info(f"App schema: {PROJECT_SCHEMA_VERSION}")
-    if active_schema == PROJECT_SCHEMA_VERSION:
-        st.success(f"Active project schema: {active_schema}")
-    else:
-        st.warning(f"Active project schema: {active_schema}")
-    if source_schema and source_schema != active_schema:
-        st.caption(f"Source project schema: {source_schema} · {migration_status}")
-    else:
-        st.caption(f"Migration status: {migration_status}")
-
-
 def render_sidebar() -> None:
     with st.sidebar:
         st.markdown(
@@ -1718,19 +1701,9 @@ def render_sidebar() -> None:
             st.session_state.current_subpage = ws["subpages"][0]
         st.radio("SUBPAGE", ws["subpages"], key="current_subpage", on_change=_sync_sidebar_subpage_to_loads_inline)
 
-        issues, counts, workflow = active_qa()
-        st.markdown("---")
-        st.markdown("**PROJECT STATUS**")
-        if counts["ERROR"]:
-            st.error(f"QA blocked: {counts['ERROR']} error(s)")
-        elif counts["WARNING"]:
-            st.warning(f"QA review: {counts['WARNING']} warning(s)")
-        else:
-            st.success("QA gate ready")
-        snap = engineering_snapshot()
-        st.info(f"ULS Flexure max DCR: {snap['flexure_max_dcr']:.3f}")
-        st.info(f"Shear/Torsion D/C: {snap['transverse_check']['DCR_governing']:.3f}")
-        render_sidebar_schema_status()
+        # Keep the sidebar focused on navigation and interactive controls.
+        # Project QA/DCR/schema diagnostics remain available from Project Dashboard
+        # and Report / QA instead of being repeated on every page.
         st.markdown("---")
         st.markdown("**FIGURE SYSTEM**")
         if "global_figure_view_mode" not in st.session_state or st.session_state.global_figure_view_mode not in FIGURE_VIEW_OPTIONS:
@@ -8030,7 +8003,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — COMMERCIAL.UI.BRIDGE.1 Summary
+# Segmental Box Girder Pro — COMMERCIAL.UI.SIDEBAR.1 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -8067,8 +8040,9 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## COMMERCIAL.UI.BRIDGE.1 Notes
+## COMMERCIAL.UI.SIDEBAR.1 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
+- COMMERCIAL.UI.SIDEBAR.1 removes the always-visible sidebar project-status diagnostics, DCR cards, and schema trace from the sidebar so the sidebar stays focused on navigation and interactive controls; QA/DCR/schema diagnostics remain available in Project Dashboard and Report / QA.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
 - PSLOSS.20 keeps the completed Friction, Anchor Set, Elastic Shortening, and Time-Dependent Losses preview pages aligned with the shared component loss / fpj percent basis and non-cumulative interpretation; final combination remains deferred to 4.6 Effective Prestress.
