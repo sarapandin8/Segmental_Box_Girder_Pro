@@ -1,6 +1,7 @@
-# Segmental Box Girder Pro — COMMERCIAL.UI.BRIDGE.2
+# Segmental Box Girder Pro — COMMERCIAL.UI.HEADER.1
 
 This baseline carries forward the accepted commercial milestones and standards:
+- COMMERCIAL.UI.HEADER.1
 - COMMERCIAL.M3H.8
 - COMMERCIAL.M3H.9
 - COMMERCIAL.M3H.10
@@ -191,3 +192,13 @@ Previous milestone retained: COMMERCIAL.PSLOSS.25 polished 4.1 General readiness
 - Standardizes the internal 2.3 Section Properties review tabs with the same in-page horizontal radio navigation pattern used by 3 Loads, 4 Prestress Losses, and 2 Bridge Geometry / Section Properties.
 - Standardizes the internal 2.4 Tendon Layout Reference review tabs with the same horizontal radio pattern.
 - Preserves coordinate import, section preview, adopted section properties, QA/comparison, tendon import/mapping, elevation/plan/3D views, section overlay, adopted tendon data, and tendon QA logic/results unchanged.
+
+
+Current milestone focus — COMMERCIAL.UI.HEADER.1
+- Remove the global project/context banner card below the main app header.
+- Keep workspace, subpage, design-code, and tendon-system context in the structured context cards.
+- Preserve the horizontal subpage navigation standardized for Loads, Prestress Losses, and Bridge Geometry.
+- Preserve all geometry, tendon-reference, loads, prestress-loss, QA/report, and save/load logic/results.
+
+Schema
+- 0.4.89-commercial-ui-header1-remove-project-banner

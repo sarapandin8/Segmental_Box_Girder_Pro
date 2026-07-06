@@ -206,7 +206,6 @@ CSS = """
 .app-header-pill {border:1px solid #bcd3f5; background:#ffffff; border-radius:999px; padding:8px 14px; color:#0b3b91; font-weight:850; font-size:0.78rem; white-space:nowrap;}
 .app-title {font-size: 2.05rem; font-weight: 900; color: var(--brand-dark); margin-bottom: 0.1rem;}
 .app-subtitle {font-size: 0.92rem; color: var(--muted); margin-bottom: 1.0rem;}
-.hero-card {border: 1px solid var(--line); background: linear-gradient(180deg,#fff,#f8fbff); border-radius: 16px; padding: 16px 18px; margin: 8px 0 16px 0; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);}
 .context-card {border: 1px solid #d5e6ff; background: #fff; border-radius: 12px; padding: 12px 14px; min-height: 78px;}
 .status-card {border: 1px solid #d5e6ff; background: #fff; border-radius: 14px; padding: 15px 17px; min-height: 105px; box-shadow: 0 5px 18px rgba(15, 23, 42, 0.06);}
 .status-card.pass {background: var(--pass-bg); border-color: #b8edd0;}
@@ -1808,10 +1807,6 @@ def render_header() -> None:
             </div>
             <div class="app-header-pill">{ws['label'].upper()}</div>
           </div>
-        </div>
-        <div class="hero-card">
-          <b>{D['project']['name']}</b> · {D['project']['description']}<br>
-          <span class="small-muted">Active workspace: {ws['label']} · Subpage: {sub} · Baseline: {D['meta'].get('baseline_report', 'BG40 R10')}</span>
         </div>
         """,
         unsafe_allow_html=True,
