@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.UI.PSLOSS.1
+# Segmental Box Girder Pro — COMMERCIAL.UI.BRIDGE.1
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.M3H.8
@@ -177,3 +177,11 @@ Current milestone focus:
 
 
 Previous milestone retained: COMMERCIAL.PSLOSS.25 polished 4.1 General readiness wording and pointed the workflow to 4.6 Effective Prestress.
+
+
+## COMMERCIAL.UI.BRIDGE.1
+
+- Standardizes the 2 Bridge Geometry / Section Properties subpage navigation with an in-page horizontal radio bar matching the 3 Loads and 4 Prestress Losses workspace pattern.
+- Keeps sidebar navigation synchronized with the in-page selector.
+- Preserves bridge description, geometry/model assumptions, section-property engine, tendon-layout reference, consistency checks, and QA/report preview logic/results.
+- Carries forward COMMERCIAL.UI.PSLOSS.1 and all completed Prestress Losses component preview milestones unchanged.

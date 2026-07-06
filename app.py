@@ -1624,7 +1624,11 @@ def _sync_sidebar_subpage_to_loads_inline() -> None:
     """Keep in-page horizontal subpage selectors in sync with sidebar navigation."""
     current_workspace = st.session_state.get("current_workspace")
     current_subpage = st.session_state.get("current_subpage")
-    if current_workspace == "3 Loads":
+    if current_workspace == "2 Bridge Geometry / Section Properties":
+        bridge_subpages = get_workspace("2 Bridge Geometry / Section Properties")["subpages"]
+        if current_subpage in bridge_subpages:
+            st.session_state.bridge_inline_subpage = current_subpage
+    elif current_workspace == "3 Loads":
         load_subpages = get_workspace("3 Loads")["subpages"]
         if current_subpage in load_subpages:
             st.session_state.loads_inline_subpage = current_subpage
@@ -1632,6 +1636,15 @@ def _sync_sidebar_subpage_to_loads_inline() -> None:
         psloss_subpages = get_workspace("4 Prestress Losses")["subpages"]
         if current_subpage in psloss_subpages:
             st.session_state.psloss_inline_subpage = current_subpage
+
+
+def _sync_bridge_inline_subpage_to_sidebar() -> None:
+    """Keep the sidebar Bridge Geometry selector in sync with the in-page radio bar."""
+    if st.session_state.get("current_workspace") == "2 Bridge Geometry / Section Properties":
+        bridge_subpages = get_workspace("2 Bridge Geometry / Section Properties")["subpages"]
+        inline_subpage = st.session_state.get("bridge_inline_subpage")
+        if inline_subpage in bridge_subpages:
+            st.session_state.current_subpage = inline_subpage
 
 
 def _sync_psloss_inline_subpage_to_sidebar() -> None:
@@ -6777,6 +6790,23 @@ def render_bridge_consistency() -> None:
 
 
 def page_bridge_geometry(sub: str) -> None:
+    bridge_tab_labels = get_workspace("2 Bridge Geometry / Section Properties")["subpages"]
+    if st.session_state.get("bridge_inline_subpage") not in bridge_tab_labels:
+        st.session_state.bridge_inline_subpage = sub if sub in bridge_tab_labels else bridge_tab_labels[0]
+    selected_bridge_subpage = st.radio(
+        "Bridge Geometry / Section Properties subpage",
+        bridge_tab_labels,
+        key="bridge_inline_subpage",
+        horizontal=True,
+        label_visibility="collapsed",
+        on_change=_sync_bridge_inline_subpage_to_sidebar,
+    )
+    st.markdown(
+        f'<div class="note-box"><b>Dedicated Bridge Geometry / Section Properties workspace:</b> Active subpage = {selected_bridge_subpage}. Geometry, section properties, and tendon-reference data remain report-driven source records for downstream checks.</div>',
+        unsafe_allow_html=True,
+    )
+
+    sub = selected_bridge_subpage
     if sub == "2.1 Bridge Description":
         render_bridge_description()
     elif sub == "2.2 Geometry and Analysis Model":
@@ -7966,7 +7996,7 @@ def page_report_qa(sub: str) -> None:
         ld = load_derived()
         psloss_state = _psloss_source_gate_state()
         report_md = f"""
-# Segmental Box Girder Pro — COMMERCIAL.UI.PSLOSS.1 Summary
+# Segmental Box Girder Pro — COMMERCIAL.UI.BRIDGE.1 Summary
 
 ## Project
 - Bridge object: {D['project']['bridge_object']}
@@ -8003,7 +8033,7 @@ def page_report_qa(sub: str) -> None:
 - Stressing basis = {psloss_state['stressing_basis'].get('status', 'BLOCKED')}; {psloss_state['stressing_basis'].get('stressing_mode', 'Confirm JackFrom')}.
 - Jacking force rule = Pj/tendon is tendon axial force; one-end/two-end stressing controls friction/anchor-set distribution and must not double total prestressing force.
 
-## COMMERCIAL.UI.PSLOSS.1 Notes
+## COMMERCIAL.UI.BRIDGE.1 Notes
 - Report / QA now displays the Prestress Losses source gate, stressing-basis gate, adopted tendon readiness register, friction and anchor-set formula-trace snapshots, and Loads handoff snapshot.
 - Detailed final prestress-loss adoption equations are intentionally not changed in this milestone.
 - The source gate blocks detailed loss calculation unless tendon, JackFrom / stressing basis, section, CR&SH, and span/stage sources are ready.
@@ -8013,11 +8043,12 @@ def page_report_qa(sub: str) -> None:
 - PSLOSS.23 polishes the Time-Dependent Losses handoff table so relaxation, the total time-dependent preview subtotal, and fpx after time-dependent preview are reported consistently before 4.6, without changing formulas or preview values.
 - PSLOSS.24 fixes 4.1 General CR&SH source-gate compatibility by avoiding direct `state["factors"]` access when the page receives the general source-gate state or an older migrated project state; it displays compatibility-safe CR&SH handoff rows instead of crashing.
 - COMMERCIAL.UI.PSLOSS.1 standardizes the 4 Prestress Losses in-page subpage navigation with the horizontal radio pattern used by 3 Loads, while preserving all source-gated component previews and 4.6 Effective Prestress as the final combination gate.
+- COMMERCIAL.UI.BRIDGE.1 standardizes the 2 Bridge Geometry / Section Properties in-page subpage navigation with the same horizontal radio pattern used by 3 Loads and 4 Prestress Losses, while preserving all geometry, section-property, tendon-reference, and QA logic/results.
 - Formula logic for DL, SDL, LL+IM, LF/HF, CF, Wind, CR&SH, EQ, and detailed prestress losses was not changed.
 - The legacy keyed friction-group page was replaced by the adopted-profile friction source model; downstream final loss adoption remains unchanged.
 """
         st.markdown(report_md)
-        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_ui_psloss1_summary.md", "text/markdown", use_container_width=True)
+        st.download_button("Download Markdown Summary", report_md.encode("utf-8"), "segmental_box_girder_ui_bridge1_summary.md", "text/markdown", use_container_width=True)
 
 
 # -----------------------------------------------------------------------------
