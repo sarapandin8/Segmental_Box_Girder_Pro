@@ -4717,6 +4717,9 @@ def _psloss_friction_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
     max_loss = float(gov.get("loss_mpa", 0.0) or 0.0)
     min_fpx = min([float((r.get("gov") or {}).get("stress_mpa", fpj_mpa) or fpj_mpa) for r in valid], default=0.0)
     max_pct = 100.0 * max_loss / fpj_mpa if fpj_mpa > 0.0 else 0.0
+    avg_summary = _psloss_friction_equivalent_summary(state)
+    avg_loss = float(avg_summary.get("loss_mpa", 0.0) or 0.0)
+    avg_pct = 100.0 * avg_loss / fpj_mpa if fpj_mpa > 0.0 else 0.0
     stressing = fstate.get("stressing") or {}
     return pd.DataFrame(
         _append_loss_percent_basis_report_rows([
@@ -4727,7 +4730,8 @@ def _psloss_friction_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Stressing route", stressing.get("stressing_mode", "-"), stressing.get("source", "General tendon table · JackFrom field")],
             ["μ / K", f"{float(fstate.get('mu', 0.0) or 0.0):.4f} / {float(fstate.get('k_per_m', 0.0) or 0.0):.6f} 1/m", "Project friction inputs for external/unbonded PT."],
             ["Governing tendon(s)", tie_label, f"{len(ties)} tendon(s) tied within 0.005 MPa; representative substitution uses {gov_result.get('tendon', '-')}."],
-            ["Maximum friction loss", f"{max_loss:.2f} MPa ({max_pct:.2f}%)", f"Representative x={float(gov.get('path_m', 0.0) or 0.0):.3f} m; α={float(gov.get('alpha_rad', 0.0) or 0.0):.5f} rad."],
+            ["Average physical 3D friction loss", f"{avg_loss:.2f} MPa ({avg_pct:.2f}%)", "Area-weighted average over adopted tendons; this is the friction value handed off to 4.6 global fpe and CSiBridge total-loss percent."],
+            ["Maximum tendon friction loss", f"{max_loss:.2f} MPa ({max_pct:.2f}%)", f"Local maximum; x={float(gov.get('path_m', 0.0) or 0.0):.3f} m; α={float(gov.get('alpha_rad', 0.0) or 0.0):.5f} rad."],
             ["Minimum fpx after friction", f"{min_fpx:.2f} MPa", "Stress after friction only; anchor set and other losses remain separate."],
         ]),
         columns=["Item", "Value", "Trace / note"],
@@ -4787,19 +4791,19 @@ def _loss_percent_basis_rows() -> pd.DataFrame:
     return pd.DataFrame(
         [
             [
-                "Percent basis",
-                "Loss % = component loss / fpj × 100",
-                "fpj is the adopted jacking stress used by the current loss page; the percentage is a component-level preview denominator only.",
+                "Average percent basis",
+                "Average loss % = area-weighted average component loss / fpj × 100",
+                "For global fpe and CSiBridge lump-sum loss input, use the area-weighted average over all adopted tendons. Because BG40 uses equal Aps per tendon, this equals the arithmetic average of the 16 tendon losses.",
             ],
             [
-                "Non-cumulative rule",
-                "Do not add percentages across loss pages",
-                "Friction, anchor set, elastic shortening, and time-dependent losses use different station/sequence/time bases. Final combination is controlled by 4.6 Effective Prestress.",
+                "Local / governing values",
+                "Keep maximum/local values separate",
+                "Governing tendon or station losses are useful for local tendon-force and diagnostic checks, but they must not replace the average component loss used for global fpe unless the software input is tendon-specific.",
             ],
             [
-                "Adoption rule",
-                "Preview only until 4.6",
-                "Component percentages are trace values for review; they are not final effective-prestress loss percentages.",
+                "Final total-loss rule",
+                "Do not add page percentages manually",
+                "Final total loss % for CSiBridge is calculated on 4.6 from the combined average stress chain: (fpi − fpe,avg) / fpi × 100.",
             ],
         ],
         columns=["Item", "Rule", "Trace / note"],
@@ -4809,9 +4813,9 @@ def _loss_percent_basis_rows() -> pd.DataFrame:
 def _render_loss_percent_basis_note() -> None:
     """Render the standard non-cumulative %loss interpretation note for every loss page."""
     st.markdown(
-        '<div class="note-box"><b>Loss percent basis:</b> Loss % shown on this page is calculated as <b>component loss / f<sub>pj</sub> × 100</b>. '
-        '<b>Interpretation rule:</b> this is a component-level preview only; do <b>not</b> add loss percentages from different loss pages directly. '
-        'Final effective-prestress combination is controlled by <b>4.6 Effective Prestress</b>.</div>',
+        '<div class="note-box"><b>Average %loss basis:</b> the value to carry forward to global f<sub>pe</sub> is the <b>area-weighted average loss / f<sub>pj</sub> × 100</b> over all adopted tendons. '
+        'Local maximum or governing tendon losses remain visible for diagnostics only. '
+        '<b>Do not add percentages from separate loss pages manually:</b> the CSiBridge final-stage total loss % is calculated in <b>4.6 Effective Prestress</b> from the combined average stress result.</div>',
         unsafe_allow_html=True,
     )
 
@@ -4820,17 +4824,39 @@ def _append_loss_percent_basis_report_rows(rows: list[list[str]]) -> list[list[s
     """Append shared percent/adoption interpretation rows to report-style summaries."""
     return rows + [
         [
-            "Percent basis",
-            "component loss / fpj × 100",
-            "Displayed percentages are component-level preview percentages using the adopted jacking stress fpj as denominator.",
+            "Average percent basis",
+            "area-weighted average component loss / fpj × 100",
+            "This is the component % used by 4.6 for global fpe when a single representative loss is required. BG40 tendons have equal Aps, so area-weighted average equals the arithmetic average of the 16 tendon rows.",
         ],
         [
             "Combination / adoption rule",
-            "Deferred to 4.6 Effective Prestress",
-            "Do not add percentages from separate loss pages directly; final effective prestress must combine adopted component traces by tendon/station/sequence/time basis.",
+            "Final total loss % is calculated in 4.6",
+            "Do not add displayed page percentages manually; final effective prestress must combine adopted average component losses by the selected tendon/station/sequence/time basis.",
         ],
     ]
 
+
+def _weighted_average(values: list[float], weights: list[float] | None = None) -> float:
+    """Return a robust weighted average; equal weights are used if weights are missing or zero."""
+    clean_values = [float(v or 0.0) for v in values]
+    if not clean_values:
+        return 0.0
+    if not weights or len(weights) != len(clean_values) or sum(max(float(w or 0.0), 0.0) for w in weights) <= 0.0:
+        return sum(clean_values) / len(clean_values)
+    clean_weights = [max(float(w or 0.0), 0.0) for w in weights]
+    denom = sum(clean_weights)
+    return sum(v * w for v, w in zip(clean_values, clean_weights)) / denom if denom > 0.0 else 0.0
+
+
+def _active_tendon_area_weights(default_count: int = 0) -> list[float]:
+    """Return adopted tendon areas for area-weighted average component losses."""
+    model = _active_adopted_tendon_model()
+    weights = [max(_safe_float(t.get("area_mm2"), 0.0), 0.0) for t in (model.get("tendons", []) or [])]
+    weights = [w for w in weights if w > 0.0]
+    if weights:
+        return weights
+    count = max(int(default_count or 0), 0)
+    return [1.0] * count
 
 
 def _render_loss_result_summary_cards_for_friction(state: dict[str, Any]) -> None:
@@ -4850,20 +4876,25 @@ def _render_loss_result_summary_cards_for_friction(state: dict[str, Any]) -> Non
 
     gov_result, gov, results, fstate = _psloss_friction_governing_result(state)
     fpj_mpa = float(fstate.get("fpj_mpa", 0.0) or 0.0)
-    loss = float(gov.get("loss_mpa", 0.0) or 0.0)
-    pct = 100.0 * loss / fpj_mpa if fpj_mpa > 0.0 else 0.0
+    max_loss = float(gov.get("loss_mpa", 0.0) or 0.0)
+    max_pct = 100.0 * max_loss / fpj_mpa if fpj_mpa > 0.0 else 0.0
+    friction_avg = _psloss_friction_equivalent_summary(state)
+    avg_loss = float(friction_avg.get("loss_mpa", 0.0) or 0.0)
+    avg_pct = 100.0 * avg_loss / fpj_mpa if fpj_mpa > 0.0 else 0.0
     valid = [r for r in results if r.get("gov")]
     min_fpx = min([float((r.get("gov") or {}).get("stress_mpa", fpj_mpa) or fpj_mpa) for r in valid], default=0.0)
     governing_label = _psloss_friction_governing_label(results)
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        card("FRICTION LOSS SUMMARY", "PHYSICAL α READY", f"Governing: {governing_label}", "pass")
+        card("FRICTION LOSS SUMMARY", "PHYSICAL α READY", "Average feeds 4.6 fpe", "pass")
     with c2:
-        card("STATION-POLYLINE MAX", f"{loss:.2f} MPa", f"{pct:.2f}% of fpj · diagnostic", "warn" if pct > 8.0 else "pass")
+        card("AVG PHYSICAL 3D LOSS", f"{avg_loss:.2f} MPa", f"{avg_pct:.2f}% of fpj · 16-tendon average", "warn" if avg_pct > 6.0 else "pass")
     with c3:
-        card("MIN fpx AFTER FRICTION", f"{min_fpx:.2f} MPa", "station diagnostic only", "pass")
+        card("MAX TENDON LOSS", f"{max_loss:.2f} MPa", f"{max_pct:.2f}% · {governing_label}", "warn" if max_pct > 8.0 else "pass")
     with c4:
-        card("ADOPTION STATUS", "PREVIEW ONLY", "Not effective prestress", "neutral")
+        card("MIN fpx AFTER FRICTION", f"{min_fpx:.2f} MPa", "local tendon diagnostic", "pass")
+    with c5:
+        card("ADOPTION STATUS", "PREVIEW ONLY", "Average handed off to 4.6", "neutral")
 
 
 def _render_psloss_friction_equation_block(state: dict[str, Any]) -> None:
@@ -5106,33 +5137,41 @@ def _psloss_anchor_governing_result(state: dict[str, Any]) -> tuple[dict[str, An
 
 
 def _render_loss_result_summary_cards_for_anchor_set(state: dict[str, Any]) -> None:
-    results, astate = _psloss_anchor_distribution_results(state)
-    if not astate.get("ready") or not results:
-        c1, c2, c3, c4 = st.columns(4)
+    dist_results, astate = _psloss_anchor_distribution_results(state)
+    equiv_results, equiv_state = _psloss_anchor_results(state)
+    if not astate.get("ready") or not dist_results or not equiv_results:
+        c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
             card("ANCHOR SET SUMMARY", "SOURCE BLOCKED", "Adopt tendon model first", "warn")
         with c2:
-            card("MAX ANCHOR-SET LOSS", "—", "blocked", "warn")
+            card("AVG EQUIV. ANCHOR", "—", "blocked", "warn")
         with c3:
-            card("MIN fpx AFTER F+A", "—", "blocked", "warn")
+            card("MAX DISTRIBUTION LOSS", "—", "blocked", "warn")
         with c4:
+            card("MIN fpx AFTER F+A", "—", "blocked", "warn")
+        with c5:
             card("ADOPTION STATUS", "PREVIEW ONLY", "Not effective prestress", "neutral")
         return
-    gov = max(results, key=lambda r: float(r.get("max_loss_mpa", 0.0) or 0.0))
-    tie_label = _psloss_anchor_distribution_governing_label(results)
+    gov = max(dist_results, key=lambda r: float(r.get("max_loss_mpa", 0.0) or 0.0))
+    tie_label = _psloss_anchor_distribution_governing_label(dist_results)
     max_loss = float(gov.get("max_loss_mpa", 0.0) or 0.0)
     fpj = float(astate.get("fpj_mpa", 0.0) or 0.0)
-    pct = 100.0 * max_loss / fpj if fpj > 0.0 else 0.0
-    min_fpx = min(float(r.get("min_stress_mpa", 0.0) or 0.0) for r in results)
-    c1, c2, c3, c4 = st.columns(4)
+    max_pct = 100.0 * max_loss / fpj if fpj > 0.0 else 0.0
+    weights = _active_tendon_area_weights(len(equiv_results))
+    avg_equiv = _weighted_average([float(r.get("loss_mpa", 0.0) or 0.0) for r in equiv_results], weights)
+    avg_pct = 100.0 * avg_equiv / fpj if fpj > 0.0 else 0.0
+    min_fpx = min(float(r.get("min_stress_mpa", 0.0) or 0.0) for r in dist_results)
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        card("ANCHOR SET SUMMARY", "DISTRIBUTION PREVIEW", f"Governing: {tie_label}", "pass")
+        card("ANCHOR SET SUMMARY", "AVERAGE READY", "Equivalent average feeds 4.6", "pass")
     with c2:
-        card("MAX ANCHOR-SET LOSS", f"{max_loss:.2f} MPa", f"{pct:.2f}% of fpj · sₐ≈{float(gov.get('affected_length_m', 0.0) or 0.0):.2f} m", "warn")
+        card("AVG EQUIV. ANCHOR", f"{avg_equiv:.2f} MPa", f"{avg_pct:.2f}% of fpj · 16-tendon average", "pass")
     with c3:
-        card("MIN fpx AFTER F+A", f"{min_fpx:.2f} MPa", "Friction + anchor-set preview", "pass")
+        card("MAX DISTRIBUTION LOSS", f"{max_loss:.2f} MPa", f"{max_pct:.2f}% · {tie_label}", "warn")
     with c4:
-        card("ADOPTION STATUS", "PREVIEW ONLY", "Not effective prestress", "neutral")
+        card("MIN fpx AFTER F+A", f"{min_fpx:.2f} MPa", "local F+A diagnostic", "pass")
+    with c5:
+        card("ADOPTION STATUS", "PREVIEW ONLY", "Average handed off to 4.6", "neutral")
 
 
 def _psloss_anchor_source_rows(state: dict[str, Any]) -> pd.DataFrame:
@@ -5452,6 +5491,10 @@ def _psloss_anchor_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
     tie_label = _psloss_anchor_governing_label(results)
     max_loss = float(gov.get("loss_mpa", 0.0) or 0.0)
     max_pct = float(gov.get("loss_pct", 0.0) or 0.0)
+    weights = _active_tendon_area_weights(len(results))
+    avg_loss = _weighted_average([float(r.get("loss_mpa", 0.0) or 0.0) for r in results], weights)
+    fpj_for_avg_pct = float(astate.get("fpj_mpa", 0.0) or 0.0)
+    avg_pct = 100.0 * avg_loss / fpj_for_avg_pct if fpj_for_avg_pct > 0.0 else 0.0
     min_fpx = min([float(r.get("stress_mpa", 0.0) or 0.0) for r in results], default=0.0)
     dist_results, _dist_state = _psloss_anchor_distribution_results(state)
     dist_tie_label = _psloss_anchor_distribution_governing_label(dist_results)
@@ -5471,7 +5514,8 @@ def _psloss_anchor_report_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Stressing route", stressing.get("stressing_mode", "-"), stressing.get("source", "General tendon table · JackFrom field")],
             ["Δa / Ep / μ / K", f"{float(astate.get('anchor_set_mm', 0.0) or 0.0):.3f} mm / {float(astate.get('ep_mpa', 0.0) or 0.0):.0f} MPa / {float(astate.get('mu', 0.0) or 0.0):.4f} / {float(astate.get('k_per_m', 0.0) or 0.0):.6f} 1/m", "Project anchor-set input, material property, and friction inputs."],
             ["Equivalent governing tendon(s)", tie_label, f"{len(ties)} tendon(s) tied within 0.005 MPa; representative equivalent substitution uses {gov.get('tendon', '-')}."] ,
-            ["Equivalent maximum anchor-set loss", f"{max_loss:.2f} MPa ({max_pct:.2f}%)", f"Representative L_eff={float(gov.get('l_eff_m', 0.0) or 0.0):.3f} m."],
+            ["Equivalent average anchor-set loss", f"{avg_loss:.2f} MPa ({avg_pct:.2f}%)", "Area-weighted average over adopted tendons; this is the anchor-set value handed off to 4.6 global fpe."],
+            ["Equivalent maximum anchor-set loss", f"{max_loss:.2f} MPa ({max_pct:.2f}%)", f"Representative L_eff={float(gov.get('l_eff_m', 0.0) or 0.0):.3f} m; local maximum, not the global average."],
             ["Distribution governing tendon(s)", dist_tie_label, f"Representative distribution uses {dist_gov.get('tendon', '-')}; affected length sₐ≈{float(dist_gov.get('affected_length_m', 0.0) or 0.0):.3f} m."],
             ["Distribution maximum anchor-set loss", f"{dist_loss:.2f} MPa ({dist_pct:.2f}%)", "Active-end loss from draw-in compatibility coupled to friction profile."],
             ["Minimum fpx after F+A", f"{dist_min_fpx:.2f} MPa", "Friction plus anchor-set distribution preview; other losses remain separate."],
@@ -5682,12 +5726,12 @@ def render_prestress_friction_source_model() -> None:
         editable_value(["prestress", "wobble_external_per_m"], "Wobble coefficient K (1/m)", 0.0001, "%.6f")
     show_engineering_table(_psloss_friction_source_rows(state))
 
-    st.markdown("### Report-style friction summary")
+    st.markdown("### Physical friction design-basis summary")
     show_engineering_table(_psloss_friction_report_summary_rows(state))
 
     st.markdown("### Friction α audit from 2.4 Tendon Layout")
     st.markdown(
-        '<div class="note-box"><b>PSLOSS.26C audit rule:</b> AASHTO friction α must be traceable to the physical tendon angular change. This table computes α from the adopted 2.4 vertical and horizontal layouts, compares it with the report group benchmark, and keeps the merged station-polyline α as a diagnostic route only.</div>',
+        '<div class="note-box"><b>PSLOSS.26E physical α rule:</b> AASHTO friction α is taken from the engineer-confirmed physical cumulative 3D bend/deviator route. The 2D component α and report-equivalent α are retained only as cross-check / benchmark values. The area-weighted average physical 3D loss is the value handed off to 4.6 for global f<sub>pe</sub> and CSiBridge total-loss percent.</div>',
         unsafe_allow_html=True,
     )
     show_engineering_table(_psloss_friction_alpha_summary_rows(state))
@@ -8175,13 +8219,13 @@ def render_prestress_time_dependent_losses_source_model() -> None:
         with c1:
             card("TD SUMMARY", "REFINED PREVIEW", f"t_start={state.get('effective_t_jack_days', 0.0):.1f} d · tf≈{state['duration_after_jack_years']:.1f} yr", "pass")
         with c2:
-            card("CREEP", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj", "warn")
+            card("AVG CREEP LOSS", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj · 4.6 average", "warn")
         with c3:
-            card("SHRINKAGE", f"{f['shrinkage_loss_mpa']:.2f} MPa", f"{f['shrinkage_loss_pct']:.2f}% of fpj", "warn")
+            card("AVG SHRINKAGE LOSS", f"{f['shrinkage_loss_mpa']:.2f} MPa", f"{f['shrinkage_loss_pct']:.2f}% of fpj · 4.6 average", "warn")
         with c4:
-            card("RELAXATION", f"{relaxation_state['selected_loss_mpa']:.2f} MPa", f"{relaxation_state['selected_loss_pct']:.2f}% of fpj", "warn")
+            card("AVG RELAXATION LOSS", f"{relaxation_state['selected_loss_mpa']:.2f} MPa", f"{relaxation_state['selected_loss_pct']:.2f}% of fpj · 4.6 average", "warn")
         with c5:
-            card("TD PREVIEW", f"{total_td_mpa:.2f} MPa", f"{total_td_pct:.2f}% of fpj · not final", "neutral")
+            card("AVG TD LOSS", f"{total_td_mpa:.2f} MPa", f"{total_td_pct:.2f}% of fpj · handed to 4.6", "neutral")
 
     st.markdown(
         '<div class="note-box"><b>Loss percent basis:</b> Loss % shown on this page is calculated as component loss / f<sub>pj</sub> × 100. <b>Interpretation rule:</b> this is a component-level preview only; do not add loss percentages from different loss pages directly. Final effective-prestress combination is controlled by <b>4.6 Effective Prestress</b>.</div>',
@@ -8362,6 +8406,9 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
         "td_time_source_ready": td_time_source_ready,
         "representative_loss_mpa": representative_loss,
         "representative_loss_pct": (representative_loss / fpi * 100.0) if fpi > 0.0 else 0.0,
+        "csibridge_final_loss_pct": (representative_loss / fpi * 100.0) if fpi > 0.0 else 0.0,
+        "csibridge_final_loss_mpa": representative_loss,
+        "csibridge_fpe_mpa": fpe_rep,
         "fpe_representative_mpa": fpe_rep,
         "conservative_loss_mpa": conservative_loss,
         "conservative_loss_pct": (conservative_loss / fpi * 100.0) if fpi > 0.0 else 0.0,
@@ -8377,6 +8424,30 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
     }
 
 
+def _psloss_effective_csibridge_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
+    """Return the single average final-stage loss percent for CSiBridge input."""
+    fpi = float(ep_state.get("fpi_mpa", 0.0) or 0.0)
+    total_loss = float(ep_state.get("csibridge_final_loss_mpa", ep_state.get("representative_loss_mpa", 0.0)) or 0.0)
+    total_pct = float(ep_state.get("csibridge_final_loss_pct", ep_state.get("representative_loss_pct", 0.0)) or 0.0)
+    fpe = float(ep_state.get("csibridge_fpe_mpa", ep_state.get("fpe_representative_mpa", 0.0)) or 0.0)
+    pe_total = float(ep_state.get("pe_total_kN", 0.0) or 0.0)
+    friction = float(ep_state.get("equivalent_friction_loss_mpa", 0.0) or 0.0)
+    anchor = float(ep_state.get("equivalent_anchor_loss_mpa", 0.0) or 0.0)
+    es = float(ep_state.get("es_avg_loss_mpa", 0.0) or 0.0)
+    td = float(ep_state.get("td_loss_mpa", 0.0) or 0.0)
+    return pd.DataFrame(
+        [
+            ["Recommended CSiBridge final loss input", f"{total_pct:.2f}%", "Use this when CSiBridge requires one lump-sum final-stage prestress-loss percentage for the tendon system."],
+            ["Equivalent stress loss", f"{total_loss:.2f} MPa", f"Δfp,total,avg = fpi − fpe,avg; fpi = {fpi:.2f} MPa."],
+            ["Average effective stress fpe", f"{fpe:.2f} MPa", "Area-weighted average of all 16 adopted tendons; not the maximum-loss tendon."],
+            ["Effective force Pe,total", f"{pe_total:.0f} kN", "Computed from Aps,total × fpe,avg; useful for model consistency checks."],
+            ["Average component chain", f"F={friction:.2f} + A={anchor:.2f} + ES={es:.2f} + TD={td:.2f} MPa", "These are the average component stresses used to form the single CSiBridge loss percentage."],
+            ["Local-design caution", "Do not use T5 max loss as global %", "T5-L/T5-R govern local friction, but global fpe / CSiBridge lump-sum input should use the area-weighted average tendon-system loss."],
+        ],
+        columns=["Item", "Value", "Trace / use rule"],
+    )
+
+
 def _psloss_effective_source_map_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(
         [
@@ -8385,6 +8456,7 @@ def _psloss_effective_source_map_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
             ["Elastic shortening selected basis", f"Average = {ep_state['es_avg_loss_mpa']:.2f} MPa", "4.4 Elastic Shortening", f"Representative summary uses average ES; conservative sequence check uses max ES = {ep_state['es_max_loss_mpa']:.2f} MPa at {ep_state['es_governing']} ."],
             ["Time-dependent selected basis", f"{ep_state['td_loss_mpa']:.2f} MPa", "4.5 Time-Dependent Losses", f"Route = {ep_state['td_route']}; age source = {ep_state['td_time_source']}; creep basis = {ep_state.get('td_creep_basis', '-')} ."],
             ["Effective force basis", f"Aps/tendon = {ep_state['aps_per_tendon_mm2']:.0f} mm²; tendons = {ep_state['tendon_count']}", "2.4 adopted tendon summary", "Pe/tendon = fpe × Aps/tendon; total Pe = Pe/tendon × tendon count."],
+            ["CSiBridge final-stage loss input", f"{ep_state['csibridge_final_loss_pct']:.2f}%", "4.6 average effective-prestress chain", "Single lump-sum final loss percentage = average total stress loss / fpi × 100; use for CSiBridge when tendon-specific loss input is not used."],
             ["Final adoption gate", ep_state["status"], "4.6 Effective Prestress", "Preview values are visible now; final adoption remains blocked until source review items are resolved."],
         ],
         columns=["Combination item", "Selected value", "Source owner", "Combination policy / trace"],
@@ -8782,6 +8854,16 @@ def render_prestress_effective_prestress_source_map() -> None:
         card("REPRESENTATIVE fpe", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "Preview, not adopted", "pass" if ep_state['fpe_representative_mpa'] > 0 else "warn")
     with c5:
         card("EFFECTIVE FORCE Pe", f"{ep_state['pe_per_tendon_kN']:.0f} kN/tendon", f"Total ≈ {ep_state['pe_total_kN']:.0f} kN", "pass" if ep_state['pe_per_tendon_kN'] > 0 else "warn")
+
+    st.markdown("### CSiBridge final-stage loss input")
+    ccb1, ccb2, ccb3 = st.columns(3)
+    with ccb1:
+        card("CSIBRIDGE TOTAL LOSS", f"{ep_state['csibridge_final_loss_pct']:.2f}%", "Final-stage average % loss from fpi/fpj", "warn")
+    with ccb2:
+        card("CSIBRIDGE fpe,AVG", f"{ep_state['csibridge_fpe_mpa']:.2f} MPa", "Use only when CSiBridge needs average fpe", "pass")
+    with ccb3:
+        card("AVERAGING BASIS", "16 TENDONS", "Area-weighted; equal Aps in BG40", "neutral")
+    show_engineering_table(_psloss_effective_csibridge_rows(ep_state))
 
     st.markdown("### Combination policy")
     st.markdown(

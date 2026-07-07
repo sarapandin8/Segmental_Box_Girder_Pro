@@ -270,3 +270,13 @@ Schema
 
 Schema
 - 0.4.97-commercial-psloss26e-physical-alpha-basis
+
+## COMMERCIAL.PSLOSS.26F
+
+- Adds a dedicated 4.6 CSiBridge final-stage loss input block. The recommended CSiBridge percentage is calculated as the area-weighted average total stress loss divided by fpi/fpj, not from the governing local tendon loss.
+- Makes each prestress-loss page show the correct average component %loss handoff basis: average physical 3D friction, average equivalent anchor set, average elastic shortening, and average time-dependent losses. Local maximum/govening tendon values remain visible as diagnostics only.
+- Keeps tendon-specific/local loss traces available for QA while clearly separating them from the single global fpe / Pe / CSiBridge lump-sum total-loss input.
+- Retains 4.6 as PREVIEW / REVIEW REQUIRED until the remaining ES sequence, t_start, relaxation/manufacturer, and final report adoption gates are signed off.
+
+Schema
+- 0.4.98-commercial-psloss26f-csibridge-average-loss-handoff
