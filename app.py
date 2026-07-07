@@ -3805,6 +3805,72 @@ def _active_adopted_tendon_model() -> dict[str, Any]:
     return adopted if isinstance(adopted, dict) and adopted.get("valid") else {}
 
 
+def _tendon_model_fingerprints(model: dict[str, Any]) -> tuple[str, str]:
+    """Return working/adopted fingerprints for compact source-gate UX."""
+    tl = D.setdefault("tendon_layout", {})
+    adopted = _active_adopted_tendon_model()
+    working_fp = tendon_model_fingerprint(model) if isinstance(model, dict) and model else ""
+    adopted_fp = str(tl.get("adopted_model_fingerprint") or tendon_model_fingerprint(adopted) or "")
+    return working_fp, adopted_fp
+
+
+def _tendon_working_matches_adopted(model: dict[str, Any]) -> bool:
+    working_fp, adopted_fp = _tendon_model_fingerprints(model)
+    return bool(working_fp and adopted_fp and working_fp == adopted_fp)
+
+
+def _tendon_auto_adopt_ready(model: dict[str, Any]) -> bool:
+    """Decide whether a valid working tendon model can be locked without extra clicks.
+
+    Auto-adoption is only used when there is no existing adopted source.  Once a
+    design source exists, changed imports must be explicitly reviewed before they
+    replace the locked snapshot.
+    """
+    if not isinstance(model, dict) or not model.get("valid"):
+        return False
+    stressing = build_tendon_stressing_basis_summary(model)
+    if not stressing.get("ready"):
+        return False
+    tendons = model.get("tendons", []) if isinstance(model.get("tendons", []), list) else []
+    if not tendons:
+        return False
+    if float(model.get("total_area_mm2") or 0.0) <= 0.0:
+        return False
+    return True
+
+
+def _ensure_tendon_source_auto_adopted(model: dict[str, Any]) -> dict[str, Any] | None:
+    """Auto-lock the first valid tendon model to reduce unnecessary Adopt clicks."""
+    tl = D.setdefault("tendon_layout", {})
+    if _active_adopted_tendon_model():
+        return None
+    if not _tendon_auto_adopt_ready(model):
+        return None
+    summary = _adopt_working_tendon_model(model)
+    tl["auto_adopted_at_utc"] = tl.get("adopted_at_utc", "")
+    tl["auto_adopted_fingerprint"] = summary.get("model_fingerprint", "")
+    tl["auto_adopt_notice"] = "Current valid tendon model was auto-adopted as the downstream design source."
+    return summary
+
+
+def _tendon_source_diff_frame(adopted_model: dict[str, Any], working_model: dict[str, Any]) -> pd.DataFrame:
+    """Compact working-vs-adopted comparison for explicit update decisions."""
+    adopted_model = adopted_model or {}
+    working_model = working_model or {}
+    adopted_stressing = build_tendon_stressing_basis_summary(adopted_model)
+    working_stressing = build_tendon_stressing_basis_summary(working_model)
+    adopted_fp = tendon_model_fingerprint(adopted_model) or "—"
+    working_fp = tendon_model_fingerprint(working_model) or "—"
+    rows = [
+        ["Model fingerprint", adopted_fp, working_fp],
+        ["Tendon count", len(adopted_model.get("tendons", []) or []), len(working_model.get("tendons", []) or [])],
+        ["Aps,total", format_engineering_value(float(adopted_model.get("total_area_mm2") or 0.0), "mm²"), format_engineering_value(float(working_model.get("total_area_mm2") or 0.0), "mm²")],
+        ["JackFrom", adopted_stressing.get("jack_from_display", "—"), working_stressing.get("jack_from_display", "—")],
+        ["Stressing mode", adopted_stressing.get("detected_mode", "—"), working_stressing.get("detected_mode", "—")],
+        ["dp avg at end", f'{float(adopted_model.get("dp_avg_end_m") or 0.0):.3f} m', f'{float(working_model.get("dp_avg_end_m") or 0.0):.3f} m'],
+        ["dp avg at midspan", f'{float(adopted_model.get("dp_avg_midspan_m") or 0.0):.3f} m', f'{float(working_model.get("dp_avg_midspan_m") or 0.0):.3f} m'],
+    ]
+    return pd.DataFrame(rows, columns=["Item", "Adopted design source", "Current working model"])
 
 
 def _normalise_jack_from(value: Any) -> str:
@@ -6321,19 +6387,25 @@ def _render_tendon_adoption_cards(model: dict[str, Any]) -> None:
     tl = D.setdefault("tendon_layout", {})
     status = tendon_model_status(model, tl)
     adopted = _active_adopted_tendon_model()
-    working_fp = tendon_model_fingerprint(model)
-    adopted_fp = str(tl.get("adopted_model_fingerprint") or tendon_model_fingerprint(adopted) or "—")
+    working_fp, adopted_fp_raw = _tendon_model_fingerprints(model)
+    adopted_fp = adopted_fp_raw or "—"
+    matches = _tendon_working_matches_adopted(model)
     summary = tl.get("adopted_downstream_summary") or build_tendon_downstream_summary(adopted, y_t_from_top_m=float(D["section"].get("yt_from_top_m", 0.0))) if adopted else {}
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        card("Tendon Source Gate", status["status"], status["message"], status["mode"])
+        gate_note = "No action required" if matches else status["message"]
+        card("Tendon Source Gate", status["status"], gate_note, status["mode"])
     with c2:
-        card("Working model", working_fp or "—", "latest imported/merged model", "neutral")
+        if matches:
+            card("Current model", "MATCHES ADOPTED", working_fp or "—", "pass")
+        else:
+            card("Working model", working_fp or "—", "latest imported/merged model", "neutral")
     with c3:
-        card("Adopted model", adopted_fp, tl.get("adopted_at_utc", "not locked") or "not locked", "pass" if adopted else "warn")
+        adopted_note = "current downstream source" if adopted else "not locked"
+        card("Adopted model", adopted_fp, adopted_note, "pass" if adopted else "warn")
     with c4:
         value = f"{format_engineering_value(summary.get('Aps_total_mm2', 0.0), 'mm²')} mm²" if summary else "—"
-        note = "used by downstream prestress" if summary else "adopt tendon model first"
+        note = "used by downstream prestress" if summary else "valid model will auto-adopt when ready"
         card("Aps,total", value, note, "pass" if summary else "warn")
 
 
@@ -6357,9 +6429,16 @@ def render_tendon_layout_reference() -> None:
     section_title("2.4 Tendon Layout Reference")
     tl = D.setdefault("tendon_layout", {})
     model_for_summary = _active_tendon_model()
+    auto_summary = _ensure_tendon_source_auto_adopted(model_for_summary)
     _render_tendon_import_summary_cards(model_for_summary)
     _render_tendon_adoption_cards(model_for_summary)
     _render_tendon_stressing_basis_cards(model_for_summary)
+    if auto_summary:
+        st.markdown(
+            f'''<div class="result-card"><b>Tendon design source auto-adopted</b> <span class="badge pass">LOCKED</span><br>
+            <span class="small-muted">The imported tendon model passed the source checks and has been locked automatically. Fingerprint: <b>{auto_summary.get("model_fingerprint", "—")}</b>. No extra Adopt click is required.</span></div>''',
+            unsafe_allow_html=True,
+        )
     st.markdown(
         '<div class="note-box"><b>Stressing-basis source note:</b> The one-end / two-end stressing basis is auto-detected from the <b>General tendon table · JackFrom field</b>. This is a traced tendon-source value, not a duplicate Prestress Losses input. Use a reviewed override only if the imported JackFrom field is missing, inconsistent, or superseded by project records.</div>',
         unsafe_allow_html=True,
@@ -7055,11 +7134,18 @@ def render_tendon_layout_reference() -> None:
             adopted_model = _active_adopted_tendon_model()
             adopted_summary = tl.get("adopted_downstream_summary", {}) if adopted_model else {}
             gate = tendon_model_status(model, tl)
-            gate_badge = "pass" if gate["mode"] == "pass" else "neutral"
+            gate_badge = "pass" if gate["mode"] == "pass" else "warn"
+            matches_adopted = _tendon_working_matches_adopted(model)
+            if adopted_model and matches_adopted:
+                gate_message = "Current working model already matches the adopted downstream design source. No action required."
+            elif adopted_model:
+                gate_message = "A changed working tendon model is available. Review the differences before updating the adopted design source."
+            else:
+                gate_message = "A valid working tendon model will be auto-adopted when JackFrom and Aps checks are ready; otherwise use Manage adopted source / QA."
             st.markdown(
                 f"""
-                <div class="result-card"><b>Tendon Design Source Lockdown</b> <span class="badge {gate_badge}">{gate['status']}</span><br>
-                <span class="small-muted">Imported tendon tables are a working source. Downstream prestress/report checks must use the explicitly adopted tendon snapshot only.</span></div>
+                <div class="result-card"><b>Tendon Design Source</b> <span class="badge {gate_badge}">{gate['status']}</span><br>
+                <span class="small-muted">{gate_message}</span></div>
                 """,
                 unsafe_allow_html=True,
             )
@@ -7067,26 +7153,50 @@ def render_tendon_layout_reference() -> None:
             st.markdown("#### Stressing basis from JackFrom")
             show_engineering_table(_tendon_stressing_basis_frame(adopted_model if adopted_model else model))
 
-            c_adopt, c_clear = st.columns([1.35, 0.85])
-            with c_adopt:
-                if st.button("Adopt / Re-adopt tendon model as design source", type="primary", use_container_width=True):
+            if adopted_model and matches_adopted:
+                st.markdown(
+                    '<div class="note-box"><b>No action required:</b> the current working tendon model is already locked as the adopted design source. Re-adoption controls are hidden in Manage adopted source / QA.</div>',
+                    unsafe_allow_html=True,
+                )
+            elif adopted_model and not matches_adopted:
+                st.markdown(
+                    '<div class="warn-box"><b>Changed working model detected:</b> downstream checks still use the adopted snapshot until you explicitly review and update it.</div>',
+                    unsafe_allow_html=True,
+                )
+                show_engineering_table(_tendon_source_diff_frame(adopted_model, model))
+                if st.button("Review complete — update adopted tendon source", use_container_width=True):
                     summary = _adopt_working_tendon_model(model)
-                    st.success(
-                        "Tendon layout locked as the downstream design source. Prestress tendon count, Aps,total, dp averages, and group end/midspan dp values now come from the adopted snapshot."
-                    )
+                    st.success("Updated the adopted tendon design source from the reviewed working model.")
                     st.caption(f"Adopted model fingerprint: {summary.get('model_fingerprint', '—')}")
                     st.rerun()
-            with c_clear:
+            elif not adopted_model:
+                st.markdown(
+                    '<div class="warn-box"><b>Not locked:</b> the working tendon model is valid but could not be auto-adopted. Resolve the source checks below, then adopt it from Manage adopted source / QA.</div>',
+                    unsafe_allow_html=True,
+                )
+
+            with st.expander("Manage adopted source / QA", expanded=not bool(adopted_model)):
+                if not adopted_model:
+                    if st.button("Adopt valid working tendon model as design source", use_container_width=True):
+                        summary = _adopt_working_tendon_model(model)
+                        st.success("Tendon layout locked as the downstream design source.")
+                        st.caption(f"Adopted model fingerprint: {summary.get('model_fingerprint', '—')}")
+                        st.rerun()
+                elif matches_adopted:
+                    st.caption("Re-adoption is not needed because the working and adopted fingerprints match.")
+                else:
+                    st.caption("Use the review/update control above after checking the source differences.")
+                st.markdown("##### Danger zone")
                 if st.button("Clear adopted tendon source", use_container_width=True):
                     clear_adopted_tendon_model(tl)
-                    st.warning("Adopted tendon source cleared. Raw imports remain available for review, but downstream modules should not use them until re-adopted.")
+                    st.warning("Adopted tendon source cleared. Raw imports remain available for review, but downstream modules should not use them until a source is adopted again.")
                     st.rerun()
 
             active_table_model = adopted_model if adopted_model else model
             active_table_label = "Adopted Tendon Layout Table — one row per tendon" if adopted_model else "Working imported model · not yet adopted — one row per tendon"
             st.markdown(f"#### {active_table_label}")
             if not adopted_model:
-                st.markdown('<div class="warn-box"><b>Not locked:</b> the table below is the current imported/merged model for review only. Click <b>Adopt / Re-adopt tendon model as design source</b> before using it downstream.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="warn-box"><b>Not locked:</b> the table below is the current imported/merged model for review only.</div>', unsafe_allow_html=True)
             active_tendons_df, active_group_df, _, _ = tendon_model_to_frames(active_table_model)
             active_profile_df = tendon_model_to_profile_frame(active_table_model)
             summary_display = _tendon_summary_display_frame(active_tendons_df)

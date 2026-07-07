@@ -331,3 +331,20 @@ Changes:
 Schema:
 
 - 0.4.101-commercial-psloss26i-final-loss-status-polish
+
+## COMMERCIAL.TENDON.2.4H
+
+Auto-adopted tendon source UX simplification.
+
+Changes:
+
+- Auto-adopts the first valid tendon model as the downstream design source when the imported General / Vertical / Horizontal tables pass source checks and no adopted snapshot exists.
+- Hides the redundant Adopt / Re-adopt button when the working model fingerprint already matches the adopted design source.
+- Shows a compact “No action required” locked-state message for the normal adopted workflow.
+- Adds a changed-working-model state with a concise adopted-vs-working comparison before updating the design source.
+- Moves re-adoption controls and Clear adopted tendon source into a collapsed Manage adopted source / QA section; the destructive clear action is now the only red/danger-style action.
+- Preserves the tendon source gate so downstream prestress-loss and report checks continue to read only the adopted snapshot, not transient imports.
+
+Schema:
+
+- 0.4.102-commercial-tendon24h-auto-adopt-source-ux
