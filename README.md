@@ -236,4 +236,16 @@ Schema
 - Preserves all friction, anchor-set, elastic-shortening, creep, shrinkage, relaxation, save/load, report, and QA behavior; final fpe adoption remains blocked.
 
 Schema
-- 0.4.94-commercial-psloss26b-high-loss-root-cause
+- 0.4.95-commercial-psloss26c-friction-alpha-gate
+
+## COMMERCIAL.PSLOSS.26C
+
+- Adds a friction α gate so the app no longer treats the merged station-polyline α as automatically eligible for global effective-prestress adoption.
+- Computes tendon-by-tendon α directly from the adopted 2.4 vertical and horizontal tendon-layout profiles using the component route αtotal = sqrt(αv² + αh²).
+- Compares the 2.4 component α values against the calculation-report tendon-group α benchmark while keeping the report values as a benchmark, not an unverified source of truth.
+- Keeps the existing station-polyline / 3D profile friction route visible as a local/distribution diagnostic and flags possible over-counting where station interpolation/control points create nonphysical angular changes.
+- Updates 4.6 to use the α-audited equivalent friction plus equivalent anchor-set quick-check as the representative immediate-loss preview, while retaining the local station F+A envelope as diagnostic only.
+- Preserves final fpe adoption as REVIEW/BLOCKED until the friction α audit, equivalent anchor-set basis, elastic-shortening sequence, time-step age source, and relaxation source are all closed.
+
+Schema
+- 0.4.95-commercial-psloss26c-friction-alpha-gate
