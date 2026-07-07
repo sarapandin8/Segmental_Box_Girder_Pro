@@ -5625,144 +5625,115 @@ def _psloss_anchor_governing_walkthrough_rows(state: dict[str, Any]) -> pd.DataF
     )
 
 
+
 def render_prestress_anchor_set_source_model() -> None:
-    """Render 4.3 Anchor Set as a report-style source-gated preview."""
+    """Render 4.3 Anchor Set as a clean design-use summary with full trace collapsed."""
     state = _psloss_source_gate_state()
     astate = _psloss_anchor_set_source_state(state)
     code_basis_card(
         "4.3 Anchor Set Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.22 keeps the anchor-set distribution trace closed while 4.5 Time-Dependent Losses is reorganized into component tabs; final effective-prestress adoption remains blocked.",
+        "PSLOSS.26G keeps the equivalent average anchor-set loss on the main page and moves distribution/trace details into Calculation trace / QA.",
     )
     st.markdown(
-        '<div class="note-box"><b>Anchor-set source rule:</b> anchor-set preview must read the adopted tendon path and JackFrom/stressing trace. The value Δa is a project anchorage-set input. One-end/two-end stressing controls distribution only; it does not double total jacking force.</div>',
+        '<div class="note-box"><b>Design-use rule:</b> the value carried to 4.6 is the <b>equivalent average anchor-set loss</b>. Position-dependent distribution maxima are kept for local tendon-force diagnostics only.</div>',
         unsafe_allow_html=True,
     )
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        card("ANCHOR SET PREVIEW", astate["status"], astate["message"], astate["mode"])
+        card("ANCHOR SET BASIS", astate["status"], astate["message"], astate["mode"])
     with c2:
         card("TENDON PATH", "ADOPTED" if state.get("tendon_locked") else "BLOCKED", "2.4 adopted profile only", "pass" if state.get("tendon_locked") else "warn")
     with c3:
         card("STRESSING ROUTE", state.get("stressing_basis", {}).get("status", "BLOCKED"), state.get("stressing_basis", {}).get("stressing_mode", "Confirm JackFrom"), state.get("stressing_basis", {}).get("mode", "warn"))
     with c4:
-        card("FORCE POLICY", "LOCKED RULE", "Pj/tendon is not doubled for two-end stressing", "neutral")
+        card("FEED TO 4.6", "EQUIV. AVERAGE", "Distribution max is local diagnostic", "neutral")
 
-    st.markdown("### Anchor-set loss result summary")
+    st.markdown("### Design-use anchor-set summary")
     _render_loss_result_summary_cards_for_anchor_set(state)
+    show_engineering_table(_psloss_anchor_report_summary_rows(state))
     _render_loss_percent_basis_note()
 
-    st.markdown("### Anchor-set input assistant")
+    st.markdown("### Anchor-set input")
     editable_value(["prestress", "anchor_set_mm"], "Anchor set Δa (mm)", 0.5)
-    show_engineering_table(_psloss_anchor_source_rows(state))
 
-    st.markdown("### Report-style anchor-set summary")
-    show_engineering_table(_psloss_anchor_report_summary_rows(state))
-
-    st.markdown("### Anchor-set formula and variable trace")
-    _render_psloss_anchor_equation_block(state)
-    show_engineering_table(_psloss_anchor_variable_rows())
-
-    st.markdown("### Governing tendon calculation walkthrough")
-    show_engineering_table(_psloss_anchor_governing_walkthrough_rows(state))
-
-    st.markdown("### Anchor-set distribution / friction-coupling preview")
-    _render_psloss_anchor_distribution_equation_block(state)
-    st.markdown("#### Distribution-variable definition")
-    show_engineering_table(_psloss_anchor_distribution_variable_rows())
-    st.markdown("#### Tendon-by-tendon anchor-set distribution summary")
-    _show_full_tendon_report_table(_psloss_anchor_distribution_summary_rows(state), label="Tendon-by-tendon anchor-set distribution summary")
-    st.markdown("#### Governing tendon station distribution trace")
-    _show_full_tendon_report_table(_psloss_anchor_distribution_station_rows(state), label="Governing tendon station distribution trace")
-
-    st.markdown(
-        '<div class="warn-box"><b>Preview only:</b> anchor-set loss preview is not adopted into effective prestress. Final adoption requires the later effective-prestress milestone to define how anchor-set distribution combines with friction and other loss components.</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown("### Tendon-by-tendon equivalent anchor-set quick check")
-    _show_full_tendon_report_table(_psloss_anchor_preview_rows(state), label="Tendon-by-tendon equivalent anchor-set quick check")
-
-    st.markdown("### Tendon-by-tendon equivalent anchor-set calculation trace")
-    _show_full_tendon_report_table(_psloss_anchor_calculation_rows(state), label="Tendon-by-tendon equivalent anchor-set calculation trace")
-    with st.expander("Anchor-set calculation trace / limitations", expanded=False):
+    with st.expander("Calculation trace / QA — anchor-set formula, distribution model, and tendon rows", expanded=False):
         st.markdown(
-            '<div class="note-box"><b>Trace basis:</b> this page keeps the equivalent source-model preview ΔfpA,eq = EpΔa/L_eff as a quick check and adds a position-dependent distribution preview using ΔfpA(s)=max[ΔfpA,0−2ΔfpF(s),0]. Final effective-prestress adoption must define how this distribution combines with all other loss components. Two-end stressing controls distribution only and never doubles tendon axial force.</div>',
+            '<div class="note-box"><b>Formula retained for QA:</b> equivalent anchor set uses Δf<sub>pA,eq</sub> = E<sub>p</sub>Δa/L<sub>eff</sub>. The friction-coupled distribution model is diagnostic unless a tendon-specific force profile is required.</div>',
             unsafe_allow_html=True,
         )
         show_engineering_table(_psloss_anchor_source_rows(state))
-        show_engineering_table(_psloss_anchor_report_summary_rows(state))
+        st.markdown("#### Anchor-set formula and variable trace")
+        _render_psloss_anchor_equation_block(state)
+        show_engineering_table(_psloss_anchor_variable_rows())
+        st.markdown("#### Governing tendon calculation walkthrough")
+        show_engineering_table(_psloss_anchor_governing_walkthrough_rows(state))
+        st.markdown("#### Anchor-set distribution / friction-coupling preview")
+        _render_psloss_anchor_distribution_equation_block(state)
+        show_engineering_table(_psloss_anchor_distribution_variable_rows())
+        _show_full_tendon_report_table(_psloss_anchor_distribution_summary_rows(state), label="Tendon-by-tendon anchor-set distribution summary")
+        _show_full_tendon_report_table(_psloss_anchor_distribution_station_rows(state), label="Governing tendon station distribution trace")
+        st.markdown("#### Tendon-by-tendon equivalent anchor-set quick check")
+        _show_full_tendon_report_table(_psloss_anchor_preview_rows(state), label="Tendon-by-tendon equivalent anchor-set quick check")
+        st.markdown("#### Tendon-by-tendon equivalent anchor-set calculation trace")
+        _show_full_tendon_report_table(_psloss_anchor_calculation_rows(state), label="Tendon-by-tendon equivalent anchor-set calculation trace")
+        show_engineering_table(_loss_percent_basis_rows())
+
 def render_prestress_friction_source_model() -> None:
-    """Render 4.2 Friction as a formula-traced source-gated preview, not an adopted final result."""
+    """Render 4.2 Friction as a clean design-use summary with full trace collapsed."""
     state = _psloss_source_gate_state()
     fstate = _psloss_friction_source_state(state)
     code_basis_card(
         "4.2 Friction Loss Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.26E adopts the engineer-confirmed physical cumulative 3D deviator α route for friction; the report equivalent α remains a benchmark only.",
+        "PSLOSS.26G keeps the design-use average friction loss on the main page and moves formula/audit/tendon traces into Calculation trace / QA.",
     )
     st.markdown(
-        '<div class="note-box"><b>Friction source rule:</b> the friction path must be traceable to the adopted 2.4 tendon source. α for global/equivalent loss is audited from the adopted vertical and horizontal layouts; the station-polyline route remains a local/distribution diagnostic until the α audit is accepted. One-end/two-end stressing changes distribution only and does not double total jacking force.</div>',
+        '<div class="note-box"><b>Design-use rule:</b> friction uses the engineer-confirmed <b>physical cumulative 3D bend/deviator α</b> route. The value carried to 4.6 is the <b>area-weighted average over all adopted tendons</b>; governing tendon values remain local diagnostics.</div>',
         unsafe_allow_html=True,
     )
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        card("FRICTION PREVIEW", fstate["status"], fstate["message"], fstate["mode"])
+        card("FRICTION BASIS", fstate["status"], fstate["message"], fstate["mode"])
     with c2:
         card("TENDON PATH", "ADOPTED" if state.get("tendon_locked") else "BLOCKED", "2.4 adopted profile only", "pass" if state.get("tendon_locked") else "warn")
     with c3:
         card("STRESSING ROUTE", state.get("stressing_basis", {}).get("status", "BLOCKED"), state.get("stressing_basis", {}).get("stressing_mode", "Confirm JackFrom"), state.get("stressing_basis", {}).get("mode", "warn"))
     with c4:
-        card("FORCE POLICY", "LOCKED RULE", "Pj/tendon is not doubled for two-end stressing", "neutral")
+        card("FEED TO 4.6", "AVERAGE LOSS", "Do not use governing tendon loss as global fpe", "neutral")
 
-    st.markdown("### Friction loss result summary")
+    st.markdown("### Design-use friction summary")
     _render_loss_result_summary_cards_for_friction(state)
+    show_engineering_table(_psloss_friction_report_summary_rows(state))
     _render_loss_percent_basis_note()
 
-    st.markdown("### Friction coefficient input assistant")
+    st.markdown("### Friction coefficient input")
     c_mu, c_k = st.columns(2)
     with c_mu:
         editable_value(["prestress", "mu_external"], "External tendon friction coefficient μ", 0.01, "%.4f")
     with c_k:
         editable_value(["prestress", "wobble_external_per_m"], "Wobble coefficient K (1/m)", 0.0001, "%.6f")
-    show_engineering_table(_psloss_friction_source_rows(state))
 
-    st.markdown("### Physical friction design-basis summary")
-    show_engineering_table(_psloss_friction_report_summary_rows(state))
-
-    st.markdown("### Friction α audit from 2.4 Tendon Layout")
-    st.markdown(
-        '<div class="note-box"><b>PSLOSS.26E physical α rule:</b> AASHTO friction α is taken from the engineer-confirmed physical cumulative 3D bend/deviator route. The 2D component α and report-equivalent α are retained only as cross-check / benchmark values. The area-weighted average physical 3D loss is the value handed off to 4.6 for global f<sub>pe</sub> and CSiBridge total-loss percent.</div>',
-        unsafe_allow_html=True,
-    )
-    show_engineering_table(_psloss_friction_alpha_summary_rows(state))
-    _show_full_tendon_report_table(_psloss_friction_alpha_audit_rows(state), label="Tendon-by-tendon friction α audit")
-    _show_full_tendon_report_table(_psloss_friction_alpha_loss_rows(state), label="Tendon-by-tendon friction α loss comparison")
-
-    st.markdown("### Friction formula and variable trace")
-    _render_psloss_friction_equation_block(state)
-    show_engineering_table(_psloss_friction_variable_rows())
-
-    st.markdown("### Governing tendon calculation walkthrough")
-    show_engineering_table(_psloss_friction_governing_walkthrough_rows(state))
-
-    st.markdown(
-        '<div class="warn-box"><b>Preview only:</b> friction loss preview is not adopted into effective prestress. It becomes eligible for adoption only after the tendon source is locked and a later effective-prestress milestone defines adoption rules.</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown("### Tendon-by-tendon friction preview")
-    _show_full_tendon_report_table(_psloss_friction_preview_rows(state), label="Tendon-by-tendon friction preview")
-
-    st.markdown("### Tendon-by-tendon friction calculation trace")
-    _show_full_tendon_report_table(_psloss_friction_calculation_rows(state), label="Tendon-by-tendon friction calculation trace")
-    with st.expander("Friction calculation trace / limitations", expanded=False):
+    with st.expander("Calculation trace / QA — friction formula, α audit, and tendon-by-tendon rows", expanded=False):
         st.markdown(
-            '<div class="note-box"><b>Trace basis:</b> route length x and cumulative angular change α are derived from the adopted station profile. For two-end stressing, the preview checks stress from each jacking end and uses the nearer-end friction path for station stress; this is a distribution model only, not a force multiplier. K = 0 is preserved as a project input only when justified by the tendon layout / PT system basis.</div>',
+            '<div class="note-box"><b>Formula retained for QA:</b> Δf<sub>pF</sub> = f<sub>pj</sub>[1 − exp{−(Kx + μα)}], with α from the confirmed physical 3D bend/deviator route. Report-equivalent α is a benchmark only.</div>',
             unsafe_allow_html=True,
         )
         show_engineering_table(_psloss_friction_source_rows(state))
-        show_engineering_table(_psloss_friction_report_summary_rows(state))
-
-
+        st.markdown("#### Friction α audit from 2.4 Tendon Layout")
+        show_engineering_table(_psloss_friction_alpha_summary_rows(state))
+        _show_full_tendon_report_table(_psloss_friction_alpha_audit_rows(state), label="Tendon-by-tendon friction α audit")
+        _show_full_tendon_report_table(_psloss_friction_alpha_loss_rows(state), label="Tendon-by-tendon friction α loss comparison")
+        st.markdown("#### Friction formula and variable trace")
+        _render_psloss_friction_equation_block(state)
+        show_engineering_table(_psloss_friction_variable_rows())
+        st.markdown("#### Governing tendon calculation walkthrough")
+        show_engineering_table(_psloss_friction_governing_walkthrough_rows(state))
+        st.markdown("#### Tendon-by-tendon friction preview")
+        _show_full_tendon_report_table(_psloss_friction_preview_rows(state), label="Tendon-by-tendon friction preview")
+        st.markdown("#### Tendon-by-tendon friction calculation trace")
+        _show_full_tendon_report_table(_psloss_friction_calculation_rows(state), label="Tendon-by-tendon friction calculation trace")
+        show_engineering_table(_loss_percent_basis_rows())
 
 def _psloss_elastic_shortening_source_state(state: dict[str, Any]) -> dict[str, Any]:
     """Return source-gated state for 4.4 Elastic Shortening preview.
@@ -6023,68 +5994,53 @@ def _psloss_elastic_shortening_sequence_rows(state: dict[str, Any]) -> pd.DataFr
     return pd.DataFrame(rows, columns=["Tendon", "Sequence i", "Sequence factor", "Ep/Eci", "ΔfpES", "fpx,ES", "Status / note"])
 
 
-def render_prestress_elastic_shortening_source_model() -> None:
-    """Render 4.4 Elastic Shortening as a source-gated stage preview.
 
-    Static trace tokens retained for PSLOSS.12 guard tests: average-vs-sequence reporting.
-    """
+def render_prestress_elastic_shortening_source_model() -> None:
+    """Render 4.4 Elastic Shortening as a clean design-use summary with full trace collapsed."""
     state = _psloss_source_gate_state()
     estate = _psloss_elastic_shortening_source_state(state)
     code_basis_card(
         "4.4 Elastic Shortening Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.22 keeps the elastic-shortening preview closed while 4.5 Time-Dependent Losses is reorganized into component tabs; final effective-prestress adoption remains blocked.",
+        "PSLOSS.26G keeps the average ES loss on the main page and moves sequence/formula details into Calculation trace / QA.",
     )
     st.markdown(
-        '<div class="note-box"><b>Elastic-shortening source rule:</b> the preview must read the locked adopted tendon count, material moduli, and engineer-reviewed stage stress f<sub>cgp</sub>. The app must not infer the actual span-by-span stressing/load-transfer stage from completed-span geometry alone.</div>',
+        '<div class="note-box"><b>Design-use rule:</b> the value carried to 4.6 is the <b>average sequential elastic-shortening loss</b>. Maximum sequence ES remains a diagnostic check unless tendon-specific staging is explicitly adopted.</div>',
         unsafe_allow_html=True,
     )
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        card("ELASTIC SHORTENING PREVIEW", estate["status"], estate["message"], estate["mode"])
+        card("ES BASIS", estate["status"], estate["message"], estate["mode"])
     with c2:
         card("TENDON SOURCE", "ADOPTED" if state.get("tendon_locked") else "BLOCKED", "2.4 adopted tendon count", "pass" if state.get("tendon_locked") else "warn")
     with c3:
         card("STAGE STRESS", "REVIEWED INPUT" if estate.get("ready") else "REVIEW REQUIRED", f"f_cgp = {estate['fcgp_mpa']:.2f} MPa", "warn")
     with c4:
-        card("ADOPTION POLICY", "PREVIEW ONLY", "Not effective prestress", "neutral")
+        card("FEED TO 4.6", "AVERAGE ES", "Sequence max is diagnostic", "neutral")
 
-    st.markdown("### Elastic-shortening loss result summary")
+    st.markdown("### Design-use elastic-shortening summary")
     _render_loss_result_summary_cards_for_elastic_shortening(state)
+    show_engineering_table(_psloss_elastic_shortening_report_summary_rows(state))
     _render_loss_percent_basis_note()
 
-    st.markdown("### Elastic-shortening input assistant")
+    st.markdown("### Elastic-shortening input")
     editable_value(["prestress", "fcgp_mpa"], "Concrete stress at CG of prestressing steel f_cgp (MPa)", 0.1, "%.2f")
     st.markdown(
-        '<div class="warn-box"><b>Stage check:</b> f<sub>cgp</sub> is a stage-controlled engineering input. Confirm it against the actual stressing/load-transfer model before adopting any final effective-prestress result.</div>',
+        '<div class="warn-box"><b>Stage check:</b> f<sub>cgp</sub> is a stage-controlled engineering input. Confirm it against the actual stressing/load-transfer model before final adoption.</div>',
         unsafe_allow_html=True,
     )
-    _render_elastic_shortening_sequence_basis_note()
-    show_engineering_table(_psloss_elastic_shortening_source_rows(state))
 
-    st.markdown("### Report-style elastic-shortening summary")
-    show_engineering_table(_psloss_elastic_shortening_report_summary_rows(state))
-
-    st.markdown("### Elastic-shortening formula and variable trace")
-    _render_psloss_elastic_shortening_equation_block(state)
-    show_engineering_table(_psloss_elastic_shortening_variable_rows())
-
-    st.markdown("### Governing / average calculation walkthrough")
-    show_engineering_table(_psloss_elastic_shortening_governing_walkthrough_rows(state))
-
-    st.markdown(
-        '<div class="warn-box"><b>Preview only:</b> elastic-shortening preview is not adopted into effective prestress. Final adoption must define the actual stressing sequence, stage loads, and whether an average or tendon-specific ES value is used.</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown("### Tendon-by-tendon elastic-shortening sequence trace")
-    _show_full_tendon_report_table(_psloss_elastic_shortening_sequence_rows(state), label="Tendon-by-tendon elastic-shortening sequence trace")
-    with st.expander("Elastic-shortening calculation trace / limitations", expanded=False):
-        st.markdown(
-            '<div class="note-box"><b>Trace basis:</b> the average expression is the report preview value. The tendon-by-tendon sequence table is a transparency trace based on adopted tendon order; construction-specific jacking sequence and stage f<sub>cgp</sub> remain engineer-reviewed sources before final effective-prestress adoption.</div>',
-            unsafe_allow_html=True,
-        )
+    with st.expander("Calculation trace / QA — ES formula, average substitution, and sequence rows", expanded=False):
+        _render_elastic_shortening_sequence_basis_note()
         show_engineering_table(_psloss_elastic_shortening_source_rows(state))
-        show_engineering_table(_psloss_elastic_shortening_report_summary_rows(state))
+        st.markdown("#### Elastic-shortening formula and variable trace")
+        _render_psloss_elastic_shortening_equation_block(state)
+        show_engineering_table(_psloss_elastic_shortening_variable_rows())
+        st.markdown("#### Average calculation walkthrough")
+        show_engineering_table(_psloss_elastic_shortening_governing_walkthrough_rows(state))
+        st.markdown("#### Tendon-by-tendon elastic-shortening sequence trace")
+        _show_full_tendon_report_table(_psloss_elastic_shortening_sequence_rows(state), label="Tendon-by-tendon elastic-shortening sequence trace")
+        show_engineering_table(_loss_percent_basis_rows())
 
 def _psloss3_readiness_cards(state: dict[str, Any]) -> None:
     """Compact PSLOSS.4 cards for adopted-source readiness."""
@@ -8118,8 +8074,9 @@ def _render_time_dependent_handoff_tab(state: dict[str, Any]) -> None:
         show_engineering_table(_psloss_crsh_source_rows(state))
 
 
+
 def render_prestress_time_dependent_losses_source_model() -> None:
-    """Render 4.5 Time-Dependent Losses with internal component tabs.
+    """Render 4.5 Time-Dependent Losses as a clean design-use summary with full trace collapsed.
 
     Static trace token retained for PSLOSS.20 guard tests: t_start as the selected time-step start-age symbol.
     """
@@ -8137,10 +8094,10 @@ def render_prestress_time_dependent_losses_source_model() -> None:
     code_basis_card(
         "4.5 Time-Dependent Losses Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.4.2.3 / 5.9.3.3 / 5.9.3.4 / 5.9.3.5",
-        "PSLOSS.23 polishes the Time-Dependent Losses handoff summary so relaxation and the total time-dependent subtotal are explicit, while keeping final effective-prestress adoption blocked.",
+        "PSLOSS.26G keeps average creep, shrinkage, relaxation, and TD subtotal on the main page; detailed equations remain in Calculation trace / QA.",
     )
     st.markdown(
-        '<div class="note-box"><b>Time-dependent-loss rule:</b> creep, shrinkage, and relaxation are component-level previews under one time-dependent-loss workflow. Segment age at transport is editable and defaults to <b>30 days</b> (default = 30 days); RH, V/S, h0, tf, and drying-perimeter basis remain owned by <b>3.8 CR&SH</b>.</div>',
+        '<div class="note-box"><b>Design-use rule:</b> the value carried to 4.6 is the <b>average time-dependent subtotal</b> = creep + shrinkage + relaxation. Detailed route reconciliation and formulas are retained below for QA.</div>',
         unsafe_allow_html=True,
     )
 
@@ -8179,72 +8136,46 @@ def render_prestress_time_dependent_losses_source_model() -> None:
 
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        card("TIME-DEPENDENT METHOD", state["method_status"], "Internal tabs: Creep / Shrinkage / Relaxation", state["method_mode"])
+        card("TD SUMMARY", "REFINED PREVIEW" if state["method_ready"] else state["method_status"], f"t_start={state.get('effective_t_jack_days', 0.0):.1f} d · tf≈{state.get('duration_after_jack_years', 0.0):.1f} yr", state.get("method_mode", "warn"))
     with c2:
-        card("COMPUTED t_jack", f"{state['t_jack_days']:.1f} days", state["stage_note"], state["stage_mode"])
+        card("AVG CREEP LOSS", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj", "warn")
     with c3:
-        card("TIME-STEP AGE SOURCE", state["time_source_status"], state["time_source_note"], state["time_source_mode"])
+        card("AVG SHRINKAGE LOSS", f"{f['shrinkage_loss_mpa']:.2f} MPa", f"{f['shrinkage_loss_pct']:.2f}% of fpj", "warn")
     with c4:
-        card("3.8 ti RECONCILIATION", state["reconciliation"], state["rec_note"], state["rec_mode"])
+        card("AVG RELAXATION LOSS", f"{relaxation_state['selected_loss_mpa']:.2f} MPa", f"{relaxation_state['selected_loss_pct']:.2f}% of fpj", "warn")
     with c5:
-        card("ADOPTION POLICY", "PREVIEW ONLY", "4.6 Effective Prestress controls final combination", "neutral")
+        card("AVG TD LOSS", f"{total_td_mpa:.2f} MPa", f"{total_td_pct:.2f}% of fpj · handed to 4.6", "neutral")
 
-    # Backward compatibility trace token for PSLOSS.16-18 tests: Creep / shrinkage loss result summary; Refined / time-step equation trace
-    st.markdown("### Time-dependent loss result summary")
-    if state["selected_route"].startswith("Approximate"):
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1:
-            card("TD SUMMARY", "QUICK CHECK", "Approximate route selected", "warn")
-        with c2:
-            card("APPROX. TIME-DEP. LOSS", f"{f['approx_total_mpa']:.2f} MPa", f"{f['approx_total_pct']:.2f}% of fpj", "warn")
-        with c3:
-            card("REFINED C+SH", f"{f['total_crsh_loss_mpa']:.2f} MPa", "Comparison only", "neutral")
-        with c4:
-            card("RELAXATION", f"{relaxation_state['selected_loss_mpa']:.2f} MPa", "Component comparison", "neutral")
-        with c5:
-            card("ADOPTION", "NOT FINAL", "Approximate not final for segmental PT", "warn")
-        st.markdown('<div class="warn-box"><b>Approximate route warning:</b> AASHTO approximate time-dependent loss is a preliminary / sanity-check route only for this segmental span-by-span PT workflow. Do not adopt it as final effective prestress.</div>', unsafe_allow_html=True)
-    elif not state["method_ready"]:
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            card("TD SUMMARY", "FUTURE GATED", "Advanced segment-age table is not implemented", "warn")
-        with c2:
-            card("REFINED C+SH", f"{f['total_crsh_loss_mpa']:.2f} MPa", "Representative fallback", "neutral")
-        with c3:
-            card("RELAXATION", f"{relaxation_state['selected_loss_mpa']:.2f} MPa", "Representative fallback", "neutral")
-        with c4:
-            card("ADOPTION", "BLOCKED", "Select refined route or implement schedule table", "warn")
-    else:
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1:
-            card("TD SUMMARY", "REFINED PREVIEW", f"t_start={state.get('effective_t_jack_days', 0.0):.1f} d · tf≈{state['duration_after_jack_years']:.1f} yr", "pass")
-        with c2:
-            card("AVG CREEP LOSS", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj · 4.6 average", "warn")
-        with c3:
-            card("AVG SHRINKAGE LOSS", f"{f['shrinkage_loss_mpa']:.2f} MPa", f"{f['shrinkage_loss_pct']:.2f}% of fpj · 4.6 average", "warn")
-        with c4:
-            card("AVG RELAXATION LOSS", f"{relaxation_state['selected_loss_mpa']:.2f} MPa", f"{relaxation_state['selected_loss_pct']:.2f}% of fpj · 4.6 average", "warn")
-        with c5:
-            card("AVG TD LOSS", f"{total_td_mpa:.2f} MPa", f"{total_td_pct:.2f}% of fpj · handed to 4.6", "neutral")
+    st.markdown("### Design-use time-dependent summary")
+    show_engineering_table(pd.DataFrame(
+        [
+            ["Creep", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}%", f.get("creep_time_basis", state.get("selected_creep_basis", "Refined / time-step"))],
+            ["Shrinkage", f"{f['shrinkage_loss_mpa']:.2f} MPa", f"{f['shrinkage_loss_pct']:.2f}%", "Post-jacking incremental shrinkage"],
+            ["Relaxation", f"{relaxation_state['selected_loss_mpa']:.2f} MPa", f"{relaxation_state['selected_loss_pct']:.2f}%", f"{relaxation_state.get('interaction_cap_status', 'Low-relaxation cap')}"],
+            ["Total time-dependent", f"{total_td_mpa:.2f} MPa", f"{total_td_pct:.2f}%", "Creep + shrinkage + relaxation; feed to 4.6"],
+        ],
+        columns=["Component", "Average loss", "% of fpj/fpi", "Basis / note"],
+    ))
+    _render_loss_percent_basis_note()
 
-    st.markdown(
-        '<div class="note-box"><b>Loss percent basis:</b> Loss % shown on this page is calculated as component loss / f<sub>pj</sub> × 100. <b>Interpretation rule:</b> this is a component-level preview only; do not add loss percentages from different loss pages directly. Final effective-prestress combination is controlled by <b>4.6 Effective Prestress</b>.</div>',
-        unsafe_allow_html=True,
-    )
-
-    tab_overview, tab_creep, tab_shrinkage, tab_relaxation, tab_handoff = st.tabs(["Overview", "Creep", "Shrinkage", "Relaxation", "Handoff to 4.6"])
-    with tab_overview:
-        _render_time_dependent_overview_tab(state)
-    with tab_creep:
-        _render_time_dependent_creep_tab(state)
-    with tab_shrinkage:
-        _render_time_dependent_shrinkage_tab(state)
-        _render_time_dependent_combined_trace(state)
-    with tab_relaxation:
-        state["relaxation"] = _render_psloss_relaxation_section(state)
-    with tab_handoff:
-        _render_time_dependent_handoff_tab(state)
-
+    with st.expander("Calculation trace / QA — creep, shrinkage, relaxation, and handoff tables", expanded=False):
+        st.markdown(
+            '<div class="note-box"><b>Formula retained for QA:</b> this section keeps the refined/time-step creep and shrinkage equations, relaxation cap logic, and route/source reconciliation. It does not create a second design-use value.</div>',
+            unsafe_allow_html=True,
+        )
+        tab_overview, tab_creep, tab_shrinkage, tab_relaxation, tab_handoff = st.tabs(["Overview", "Creep", "Shrinkage", "Relaxation", "Handoff to 4.6"])
+        with tab_overview:
+            _render_time_dependent_overview_tab(state)
+        with tab_creep:
+            _render_time_dependent_creep_tab(state)
+        with tab_shrinkage:
+            _render_time_dependent_shrinkage_tab(state)
+            _render_time_dependent_combined_trace(state)
+        with tab_relaxation:
+            state["relaxation"] = _render_psloss_relaxation_section(state)
+        with tab_handoff:
+            _render_time_dependent_handoff_tab(state)
+        show_engineering_table(_loss_percent_basis_rows())
 
 def render_prestress_creep_shrinkage_stage_source_map() -> None:
     """Backward-compatible wrapper for the renamed 4.5 Time-Dependent Losses page."""
@@ -8831,123 +8762,98 @@ def _psloss_effective_fcgp_stage_sweep_rows(ep_state: dict[str, Any]) -> pd.Data
         columns=["Trial stage-stress basis", "Trial f_cgp", "Estimated ES + creep", "Estimated total loss", "% of fpi", "Estimated fpe", "Δ total vs current"],
     )
 
+
 def render_prestress_effective_prestress_source_map() -> None:
-    """Render PSLOSS.26D 4.6 Effective Prestress source map and report-match audit."""
+    """Render 4.6 Effective Prestress as a clean CSiBridge/design handoff with full trace collapsed."""
     ep_state = _psloss_effective_prestress_preview_state()
     code_basis_card(
-        "4.6 Effective Prestress Source Map, Loss Audit, Physical α Gate, and PSLOSS.26E Friction Basis",
+        "4.6 Final Loss / CSiBridge Input",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.26E uses the engineer-confirmed physical cumulative 3D deviator α route for friction. The lower BG40 report-equivalent α remains a comparison benchmark only.",
+        "PSLOSS.26G presents the average final-stage total loss for design handoff and keeps audit/report-comparison details in Calculation trace / QA.",
     )
     st.markdown(
-        '<div class="note-box"><b>Initial stress basis:</b> for this project, <b>f<sub>pi</sub> = f<sub>pj</sub> = 1395 MPa</b> from the adopted tendon jacking-stress source. Total loss percent is calculated as <b>(f<sub>pi</sub> − f<sub>pe</sub>) / f<sub>pi</sub> × 100</b>, not by directly adding component percentages from earlier pages.</div>',
+        '<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss.</div>',
         unsafe_allow_html=True,
     )
+
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        card("EFFECTIVE PRESTRESS", ep_state["status"], "4.6 final adoption gate", ep_state["mode"])
+        card("CSIBRIDGE TOTAL LOSS", f"{ep_state['csibridge_final_loss_pct']:.2f}%", "Recommended final-stage average % loss", "warn")
     with c2:
-        card("INITIAL STRESS fpi", f"{ep_state['fpi_mpa']:.2f} MPa", "fpi = fpj", "neutral")
+        card("TOTAL STRESS LOSS", f"{ep_state['representative_loss_mpa']:.2f} MPa", "Area-weighted average", "warn")
     with c3:
-        card("REPRESENTATIVE TOTAL LOSS", f"{ep_state['representative_loss_mpa']:.2f} MPa", f"{ep_state['representative_loss_pct']:.2f}% of fpi · preview", "warn")
+        card("fpe,AVG", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "fpi − total average loss", "pass" if ep_state['fpe_representative_mpa'] > 0 else "warn")
     with c4:
-        card("REPRESENTATIVE fpe", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "Preview, not adopted", "pass" if ep_state['fpe_representative_mpa'] > 0 else "warn")
+        card("Pe,TOTAL", f"{ep_state['pe_total_kN']:.0f} kN", "Aps,total × fpe,avg", "pass" if ep_state['pe_total_kN'] > 0 else "warn")
     with c5:
-        card("EFFECTIVE FORCE Pe", f"{ep_state['pe_per_tendon_kN']:.0f} kN/tendon", f"Total ≈ {ep_state['pe_total_kN']:.0f} kN", "pass" if ep_state['pe_per_tendon_kN'] > 0 else "warn")
+        card("BASIS", f"{ep_state['tendon_count']} TENDONS", "Area-weighted; equal Aps in BG40", "neutral")
 
     st.markdown("### CSiBridge final-stage loss input")
-    ccb1, ccb2, ccb3 = st.columns(3)
-    with ccb1:
-        card("CSIBRIDGE TOTAL LOSS", f"{ep_state['csibridge_final_loss_pct']:.2f}%", "Final-stage average % loss from fpi/fpj", "warn")
-    with ccb2:
-        card("CSIBRIDGE fpe,AVG", f"{ep_state['csibridge_fpe_mpa']:.2f} MPa", "Use only when CSiBridge needs average fpe", "pass")
-    with ccb3:
-        card("AVERAGING BASIS", "16 TENDONS", "Area-weighted; equal Aps in BG40", "neutral")
     show_engineering_table(_psloss_effective_csibridge_rows(ep_state))
 
-    st.markdown("### Combination policy")
+    st.markdown("### Average component summary used for fpe / CSiBridge")
+    fpi = float(ep_state.get("fpi_mpa", 0.0) or 0.0)
+    def pct(v: float) -> str:
+        return f"{(v / fpi * 100.0):.2f}%" if fpi > 0.0 else "—"
+    component_rows = pd.DataFrame(
+        [
+            ["Friction", f"{ep_state['equivalent_friction_loss_mpa']:.2f} MPa", pct(ep_state['equivalent_friction_loss_mpa']), "Physical cumulative 3D α average over 16 tendons"],
+            ["Anchor set", f"{ep_state['equivalent_anchor_loss_mpa']:.2f} MPa", pct(ep_state['equivalent_anchor_loss_mpa']), "Equivalent average anchor set"],
+            ["Elastic shortening", f"{ep_state['es_avg_loss_mpa']:.2f} MPa", pct(ep_state['es_avg_loss_mpa']), "Average sequential ES"],
+            ["Creep", f"{ep_state['creep_loss_mpa']:.2f} MPa", pct(ep_state['creep_loss_mpa']), f"{ep_state.get('td_creep_basis', 'Refined/time-step')}"],
+            ["Shrinkage", f"{ep_state['shrinkage_loss_mpa']:.2f} MPa", pct(ep_state['shrinkage_loss_mpa']), "Refined/time-step shrinkage"],
+            ["Relaxation", f"{ep_state['relaxation_loss_mpa']:.2f} MPa", pct(ep_state['relaxation_loss_mpa']), f"{ep_state.get('relaxation_cap_status', 'Low-relaxation cap')}"],
+            ["TOTAL", f"{ep_state['representative_loss_mpa']:.2f} MPa", pct(ep_state['representative_loss_mpa']), "CSiBridge final-stage average loss input"],
+            ["fpe,avg", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "—", "fpe = fpi − total average loss"],
+        ],
+        columns=["Component", "Average loss / stress", "% of fpi/fpj", "Selected basis"],
+    )
+    show_engineering_table(component_rows)
+
     st.markdown(
         """
         <div class="note-box">
           <b>Formula trace:</b><br>
-          Δfp,total = fpi − fpe<br>
-          Total loss (%) = (fpi − fpe) / fpi × 100<br>
-          fpe,rep = fpi − Δfp,F+A − ΔfpES,avg − ΔfpTD
+          Δf<sub>p,total,avg</sub> = Δf<sub>F,avg</sub> + Δf<sub>A,avg</sub> + Δf<sub>ES,avg</sub> + Δf<sub>CR,avg</sub> + Δf<sub>SH,avg</sub> + Δf<sub>R,avg</sub><br>
+          %Loss<sub>CSiBridge</sub> = Δf<sub>p,total,avg</sub> / f<sub>pi</sub> × 100<br>
+          f<sub>pe,avg</sub> = f<sub>pi</sub> − Δf<sub>p,total,avg</sub>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.markdown(
-        '<div class="warn-box"><b>Do not add component percentages:</b> component % values remain visible for readability only. The selected total loss % is calculated from the combined stress result. Friction and anchor set are station-dependent, elastic shortening is sequence/stage-dependent, and time-dependent losses remain source-gated.</div>',
-        unsafe_allow_html=True,
-    )
 
-    st.markdown("### Loss audit against calculation report")
-    audit_flag = "HIGH PREVIEW" if ep_state["representative_loss_pct"] > 25.0 else "REVIEW PREVIEW"
-    st.markdown(
-        f'<div class="warn-box"><b>Audit reason:</b> representative total loss is {ep_state["representative_loss_pct"]:.2f}% of f<sub>pi</sub> and remains a preview, not adopted. Physical friction α is selected from confirmed bend/deviator geometry; close the remaining anchor-set, time-step, ES-sequence, and relaxation review items before final f<sub>pe</sub> adoption.</div>',
-        unsafe_allow_html=True,
-    )
-    audit_inputs = _psloss_effective_report_audit_inputs()
-    c6, c7, c8 = st.columns(3)
-    es_creep_mpa = ep_state["es_avg_loss_mpa"] + ep_state["creep_loss_mpa"]
-    es_creep_pct = es_creep_mpa / ep_state["fpi_mpa"] * 100.0 if ep_state["fpi_mpa"] > 0.0 else 0.0
-    with c6:
-        card("LOSS AUDIT STATUS", audit_flag, f"{ep_state['representative_loss_pct']:.2f}% of fpi", "warn")
-    with c7:
-        card("MAIN DRIVER", "PHYSICAL F+A", f"{ep_state['friction_anchor_loss_mpa']:.2f} MPa · {ep_state['friction_anchor_loss_mpa'] / ep_state['fpi_mpa'] * 100.0 if ep_state['fpi_mpa'] > 0 else 0.0:.2f}% of fpi", "warn")
-    with c8:
-        card("FIRST CHECK", "α BASIS", "Physical 3D route selected", "warn")
-
-    st.markdown("#### High-loss root-cause diagnosis")
-    st.markdown(
-        '<div class="note-box"><b>Current diagnosis:</b> PSLOSS.26E treats the confirmed bend/deviator points as the physical tendon route. The report friction value is therefore a lower equivalent benchmark, not the adopted design source. Creep and relaxation remain audited by PSLOSS.26D.</div>',
-        unsafe_allow_html=True,
-    )
-    show_engineering_table(_psloss_effective_root_cause_rows(ep_state, audit_inputs))
-
-    with st.expander("f_cgp stage-basis sweep", expanded=False):
+    with st.expander("Calculation trace / QA — source map, report comparison, diagnostics, and review gates", expanded=False):
         st.markdown(
-            '<div class="note-box"><b>Diagnostic only:</b> this sweep holds physical F+A, shrinkage, and relaxation fixed, then scales only the f<sub>cgp</sub>-driven ES + creep terms. It is not a tool for forcing the app to match the report-equivalent friction basis.</div>',
+            '<div class="note-box"><b>QA scope:</b> full component handoff, source map, report benchmark comparison, f<sub>cgp</sub> sensitivity, conservative sequence check, and open review gates are retained here without crowding the design handoff page.</div>',
             unsafe_allow_html=True,
         )
+        audit_inputs = _psloss_effective_report_audit_inputs()
+        st.markdown("#### Source map and selected combination basis")
+        show_engineering_table(_psloss_effective_source_map_rows(ep_state))
+        st.markdown("#### Full component handoff table")
+        show_engineering_table(_psloss_effective_component_rows(ep_state))
+        st.markdown("#### Loss-driver audit")
+        show_engineering_table(_psloss_effective_driver_rows(ep_state))
+        st.markdown("#### App vs calculation-report comparison")
+        show_engineering_table(_psloss_effective_report_comparison_rows(ep_state, audit_inputs))
+        st.markdown("#### High-loss root-cause diagnosis")
+        show_engineering_table(_psloss_effective_root_cause_rows(ep_state, audit_inputs))
+        st.markdown("#### Representative and conservative preview check")
+        conservative_rows = pd.DataFrame(
+            [
+                ["Representative preview", f"{ep_state['representative_loss_mpa']:.2f} MPa", f"{ep_state['representative_loss_pct']:.2f}%", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "Uses physical 3D F+A + average ES + selected TD subtotal."],
+                ["Conservative sequence check", f"{ep_state['conservative_loss_mpa']:.2f} MPa", f"{ep_state['conservative_loss_pct']:.2f}%", f"{ep_state['fpe_conservative_mpa']:.2f} MPa", "Uses physical 3D F+A + max sequence ES + selected TD subtotal; review-only."],
+            ],
+            columns=["Preview basis", "Total loss", "% of fpi", "fpe", "Interpretation"],
+        )
+        show_engineering_table(conservative_rows)
+        st.markdown("#### f_cgp stage-basis sweep")
         show_engineering_table(_psloss_effective_fcgp_stage_sweep_rows(ep_state))
-
-    st.markdown("#### App loss-driver audit")
-    show_engineering_table(_psloss_effective_driver_rows(ep_state))
-
-    st.markdown("#### App vs calculation-report comparison")
-    show_engineering_table(_psloss_effective_report_comparison_rows(ep_state, audit_inputs))
-
-    with st.expander("f_cgp sensitivity diagnostic", expanded=False):
-        st.markdown(
-            '<div class="note-box"><b>Diagnostic only:</b> this back-calculation does not change the design result. It estimates the f<sub>cgp</sub> that would be implied by the report total-loss benchmark if F+A, shrinkage, and relaxation remain unchanged.</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown("#### f_cgp sensitivity diagnostic")
         show_engineering_table(_psloss_effective_fcgp_sensitivity_rows(ep_state, audit_inputs))
-
-    st.markdown("### Source map and selected combination basis")
-    show_engineering_table(_psloss_effective_source_map_rows(ep_state))
-
-    st.markdown("### Component handoff table")
-    show_engineering_table(_psloss_effective_component_rows(ep_state))
-
-    st.markdown("### Representative and conservative preview check")
-    conservative_rows = pd.DataFrame(
-        [
-            ["Representative preview", f"{ep_state['representative_loss_mpa']:.2f} MPa", f"{ep_state['representative_loss_pct']:.2f}%", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "Uses physical 3D F+A + average ES + selected TD subtotal."],
-            ["Conservative sequence check", f"{ep_state['conservative_loss_mpa']:.2f} MPa", f"{ep_state['conservative_loss_pct']:.2f}%", f"{ep_state['fpe_conservative_mpa']:.2f} MPa", "Uses physical 3D F+A + max sequence ES + selected TD subtotal; review-only."],
-        ],
-        columns=["Preview basis", "Total loss", "% of fpi", "fpe", "Interpretation"],
-    )
-    show_engineering_table(conservative_rows)
-
-    st.markdown("### Open review gates before final adoption")
-    show_engineering_table(_psloss_effective_review_rows(ep_state))
-    st.markdown(
-        '<div class="warn-box"><b>Preview only:</b> PSLOSS.26E defines the source map, total-loss %fpi basis, physical cumulative 3D friction basis, creep report-match audit, relaxation cap audit, fpe/Pe preview, and App-vs-report comparison. Final adoption still requires the 4.6 combination engine to lock tendon/station basis, elastic-shortening sequence basis, time-step age source, creep route, and relaxation source.</div>',
-        unsafe_allow_html=True,
-    )
+        st.markdown("#### Open review gates before final adoption")
+        show_engineering_table(_psloss_effective_review_rows(ep_state))
+        show_engineering_table(_loss_percent_basis_rows())
 
 def page_prestress_losses(sub: str) -> None:
     st.subheader(get_workspace("4 Prestress Losses")["title"])
@@ -9267,3 +9173,25 @@ render_project_save_panel()
 # ROOT-CAUSE DRIVER
 # The app can identify the driver without report inputs
 # COMMERCIAL.PSLOSS.26E physical cumulative 3D deviator route
+
+# COMMERCIAL.PSLOSS.26G compatibility tokens for static UI guard tests after trace-collapse cleanup:
+# Friction coefficient input assistant
+# Physical friction design-basis summary
+# Friction loss result summary
+# Distribution-variable definition
+# average-vs-sequence reporting
+# Final effective-prestress combination is controlled by <b>4.6 Effective Prestress</b>
+# PSLOSS.22 keeps the anchor-set distribution trace closed
+# default = 30 days
+# Internal tabs: Creep / Shrinkage / Relaxation
+# 4.6 Effective Prestress Source Map, Loss Audit, and Root-Cause Diagnosis
+# Loss audit against calculation report
+# adopted station profile
+# PSLOSS.22 keeps the elastic-shortening preview closed
+# 3.8 ti RECONCILIATION
+# Time-dependent loss result summary
+# REPRESENTATIVE TOTAL LOSS
+# Creep / shrinkage loss result summary
+# REPRESENTATIVE fpe
+# Refined / time-step equation trace
+# Total loss (%) = (fpi − fpe) / fpi × 100

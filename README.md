@@ -280,3 +280,20 @@ Schema
 
 Schema
 - 0.4.98-commercial-psloss26f-csibridge-average-loss-handoff
+
+
+## COMMERCIAL.PSLOSS.26G
+
+Clean Prestress-Loss Workspace and Collapsed Calculation Trace
+
+Schema:
+
+- 0.4.99-commercial-psloss26g-clean-loss-workspace-trace-collapse
+
+Changes:
+
+- Reorganized 4 Prestress Losses as a design-handoff workspace instead of an audit-heavy workspace.
+- Kept each loss page focused on the selected average loss, percent of fpi/fpj, downstream feed status, and CSiBridge/design-use value.
+- Moved formula blocks, substitution walkthroughs, tendon-by-tendon tables, report benchmark comparisons, source maps, and diagnostics into collapsed Calculation trace / QA expanders.
+- Preserved all engineering formulas and traceability while reducing main-page clutter.
+- Kept 4.6 focused on the CSiBridge final-stage total loss percent, fpe, Pe, and component average chain.
