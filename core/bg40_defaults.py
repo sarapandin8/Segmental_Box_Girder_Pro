@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.96-commercial-psloss26d-creep-relaxation-audit",
+        "schema_version": "0.4.97-commercial-psloss26e-physical-alpha-basis",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",

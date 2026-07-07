@@ -1,4 +1,4 @@
-# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.26A
+# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.26E
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.PSLOSS.26A
@@ -260,3 +260,13 @@ Schema
 
 Schema
 - 0.4.96-commercial-psloss26d-creep-relaxation-audit
+
+## COMMERCIAL.PSLOSS.26E
+
+- Changes the friction basis from report-equivalent / mismatch-gated comparison to the engineer-confirmed physical cumulative 3D deviator route. Bend point and physical deviator stations in the adopted 2.4 tendon layout are treated as real tendon direction-change/contact points.
+- Uses the physical 3D friction average as the selected 4.6 representative friction component, while retaining the 2D component-alpha route and BG40 report-equivalent alpha only as comparison traces.
+- Updates 4.2 Friction cards, alpha audit wording, 4.6 source map, component handoff, driver table, and App-vs-report comparison so the lower report friction value is no longer allowed to override physical tendon geometry.
+- Keeps 4.6 Effective Prestress in PREVIEW / REVIEW REQUIRED because ES sequence, time-step age source, relaxation/manufacturer basis, and final report adoption still need engineer sign-off.
+
+Schema
+- 0.4.97-commercial-psloss26e-physical-alpha-basis

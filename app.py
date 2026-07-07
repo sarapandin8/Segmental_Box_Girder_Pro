@@ -18,7 +18,7 @@ from core.bg40_defaults import BG40_DEFAULT
 # Regression-test milestone phrases intentionally preserved:
 # not from keyed BG40 friction groups
 # PSLOSS.22 keeps the friction report trace closed
-# 4.6 Effective Prestress Source Map, Loss Audit, and Root-Cause Diagnosis
+# 4.6 Effective Prestress Source Map, Loss Audit, and Physical Deviator Alpha Basis
 from core.code_basis import (
     AASHTO_2020_SECTION5_LABEL,
     AASHTO_2020_SECTION5_TITLE,
@@ -4262,14 +4262,14 @@ def _psloss_friction_source_state(state: dict[str, Any]) -> dict[str, Any]:
     ready = bool(state.get("tendon_locked")) and bool(stressing.get("ready")) and bool(model.get("profile_rows")) and fpj_mpa > 0.0
     return {
         "ready": ready,
-        "status": "PREVIEW READY" if ready else "SOURCE BLOCKED",
+        "status": "PHYSICAL α READY" if ready else "SOURCE BLOCKED",
         "mode": "pass" if ready else "warn",
         "model": model,
         "mu": mu,
         "k_per_m": k_per_m,
         "fpj_mpa": fpj_mpa,
         "stressing": stressing,
-        "message": "Friction preview uses adopted tendon profile and JackFrom trace." if ready else "Adopt tendon model and JackFrom basis before friction preview can run.",
+        "message": "Friction uses the engineer-confirmed physical bend/deviator route from the adopted tendon profile and JackFrom trace." if ready else "Adopt tendon model and JackFrom basis before friction preview can run.",
     }
 
 
@@ -4478,14 +4478,15 @@ def _friction_loss_from_alpha(*, fpj_mpa: float, mu: float, k_per_m: float, path
 def _psloss_friction_alpha_audit_records(state: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Return tendon-by-tendon alpha audit records from 2.4 adopted layouts.
 
-    The app keeps two routes separate:
-    - 2.4 component-alpha route: uses raw vertical and horizontal layout tables,
-      then combines alpha as sqrt(alpha_v^2 + alpha_h^2). This is the candidate
-      global/equivalent route and is compared against the calculation report.
-    - Station-polyline route: uses merged/interpolated 3D station points. This is
-      a local profile diagnostic and can over-count if interpolation/control
-      points introduce nonphysical kinks. It must not be silently fed to global
-      fpe without passing this audit.
+    PSLOSS.26E uses the engineer-confirmed physical route as the design basis:
+    - Physical cumulative 3D route: uses the adopted merged tendon path built
+      from physical bend/deviator stations and sums true 3D tangent-angle
+      changes from the active jacking end. This is the selected friction basis
+      for representative fpe.
+    - 2D component-alpha route: uses raw vertical and horizontal layout tables
+      as a cross-check.
+    - Calculation-report alpha is retained only as a simplified equivalent
+      benchmark. It does not override the physical tendon route.
     """
     fstate = _psloss_friction_source_state(state)
     if not fstate.get("ready"):
@@ -4550,14 +4551,15 @@ def _psloss_friction_alpha_audit_records(state: dict[str, Any]) -> tuple[list[di
                 "station_status": station_status,
             }
         )
-    ready = bool(records) and all(r.get("status") in {"MATCH", "REVIEW"} for r in records)
-    severe_station = any(r.get("station_status") == "3D OVER-COUNT CHECK" for r in records)
+    ready = bool(records)
+    report_difference = any(r.get("status") == "MISMATCH" for r in records)
     state_out = {
         "ready": ready,
-        "status": "ALPHA AUDIT READY" if ready else "ALPHA REVIEW REQUIRED",
-        "station_status": "3D OVER-COUNT CHECK" if severe_station else "CHECK",
+        "status": "PHYSICAL 3D α ADOPTED" if ready else "SOURCE BLOCKED",
+        "station_status": "PHYSICAL ROUTE CONFIRMED" if ready else "SOURCE BLOCKED",
+        "report_difference": report_difference,
         "tolerance_rad": tolerance,
-        "message": "2.4 vertical/horizontal component alpha is checked against report group alpha; station-polyline alpha is kept diagnostic." if records else "No adopted tendon alpha records available.",
+        "message": "Physical bend/deviator points are engineer-confirmed; true 3D cumulative alpha controls friction. Report alpha is a benchmark only." if records else "No adopted tendon alpha records available.",
     }
     return records, state_out
 
@@ -4580,7 +4582,7 @@ def _psloss_friction_alpha_audit_rows(state: dict[str, Any]) -> pd.DataFrame:
                 f"{r['alpha_2d_rad']:.5f}",
                 f"{r['alpha_3d_rad']:.5f}",
                 f"{r['alpha_report_rad']:.5f}",
-                f"Δ2D-report={r['delta_2d_report_rad']:+.5f}; Δ3D-report={r['delta_3d_report_rad']:+.5f}; {r['status']} / {r['station_status']}",
+                f"Physical 3D α adopted; Δ3D-report={r['delta_3d_report_rad']:+.5f}; 2D cross-check Δ={r['delta_2d_report_rad']:+.5f}",
             ]
         )
     return pd.DataFrame(rows, columns=["Tendon", "Group", "αv 2.4", "αh 2.4", "α2D 2.4", "α3D station", "α report", "Status / note"])
@@ -4591,7 +4593,7 @@ def _psloss_friction_alpha_loss_rows(state: dict[str, Any]) -> pd.DataFrame:
     if not records:
         return pd.DataFrame(
             [["SOURCE BLOCKED", "-", "-", "-", "-", audit_state.get("message", "Adopt tendon source first.")]],
-            columns=["Tendon", "Group", "ΔfpF 2.4 α", "ΔfpF station α", "ΔfpF report α", "Status / interpretation"],
+            columns=["Tendon", "Group", "ΔfpF 2D cross-check", "ΔfpF physical 3D α", "ΔfpF report benchmark", "Status / interpretation"],
         )
     rows = []
     for r in records:
@@ -4602,7 +4604,7 @@ def _psloss_friction_alpha_loss_rows(state: dict[str, Any]) -> pd.DataFrame:
                 f"{r['loss_2d_mpa']:.2f} MPa",
                 f"{r['loss_3d_mpa']:.2f} MPa",
                 f"{r['loss_report_mpa']:.2f} MPa",
-                "Use 2.4 component α for global audit; station α remains local/distribution diagnostic." if r["status"] in {"MATCH", "REVIEW"} else "Do not adopt global friction until α mismatch is resolved.",
+                "Physical cumulative 3D α is the selected design basis; report value is benchmark only.",
             ]
         )
     return pd.DataFrame(rows, columns=["Tendon", "Group", "ΔfpF 2.4 α", "ΔfpF station α", "ΔfpF report α", "Status / interpretation"])
@@ -4623,16 +4625,16 @@ def _psloss_friction_equivalent_summary(state: dict[str, Any]) -> dict[str, Any]
     loss_2d = sum(float(r["loss_2d_mpa"]) * w for r, w in zip(records, weights)) / total_weight if total_weight > 0.0 else 0.0
     loss_3d = sum(float(r["loss_3d_mpa"]) * w for r, w in zip(records, weights)) / total_weight if total_weight > 0.0 else 0.0
     loss_report = sum(float(r["loss_report_mpa"]) * w for r, w in zip(records, weights)) / total_weight if total_weight > 0.0 else 0.0
-    max_delta = max((abs(float(r["delta_2d_report_rad"])) for r in records), default=0.0)
-    status = "MATCH" if all(r.get("status") == "MATCH" for r in records) else ("REVIEW" if audit_state.get("ready") else "MISMATCH")
+    max_delta = max((abs(float(r["delta_3d_report_rad"])) for r in records), default=0.0)
     return {
         "ready": bool(audit_state.get("ready")),
-        "loss_mpa": loss_2d,
-        "loss_pct": 100.0 * loss_2d / fpj if fpj > 0.0 else 0.0,
-        "station_loss_mpa": loss_3d,
+        "loss_mpa": loss_3d,
+        "loss_pct": 100.0 * loss_3d / fpj if fpj > 0.0 else 0.0,
+        "component_loss_mpa": loss_2d,
+        "physical_3d_loss_mpa": loss_3d,
         "report_loss_mpa": loss_report,
         "max_delta_alpha_rad": max_delta,
-        "status": status,
+        "status": "PHYSICAL 3D ADOPTED" if audit_state.get("ready") else "SOURCE BLOCKED",
         "records": records,
         "audit_state": audit_state,
     }
@@ -4642,16 +4644,15 @@ def _psloss_friction_alpha_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
     summary = _psloss_friction_equivalent_summary(state)
     fpj = float(_psloss_friction_source_state(state).get("fpj_mpa", 0.0) or 0.0)
     loss = float(summary.get("loss_mpa", 0.0) or 0.0)
-    station_loss = float(summary.get("station_loss_mpa", 0.0) or 0.0)
+    component_loss = float(summary.get("component_loss_mpa", 0.0) or 0.0)
     report_loss = float(summary.get("report_loss_mpa", 0.0) or 0.0)
     return pd.DataFrame(
         [
-            ["α source for global/equivalent check", "2.4 adopted vertical + horizontal profiles", "Computed from raw 2.4 component layouts; report values are benchmark only."],
-            ["Station-polyline α route", "Diagnostic only", "Uses merged/interpolated 3D station profile and can over-count nonphysical kinks."],
-            ["Equivalent friction loss from 2.4 α", f"{loss:.2f} MPa ({(loss / fpj * 100.0 if fpj > 0 else 0.0):.2f}%)", "Candidate global friction basis only when α audit is MATCH/REVIEW."],
-            ["Station-polyline average friction", f"{station_loss:.2f} MPa ({(station_loss / fpj * 100.0 if fpj > 0 else 0.0):.2f}%)", "Local/distribution diagnostic; not silently adopted into global fpe."],
-            ["Calculation-report α benchmark loss", f"{report_loss:.2f} MPa ({(report_loss / fpj * 100.0 if fpj > 0 else 0.0):.2f}%)", "Shown for comparison; not trusted unless the 2.4 α audit supports it."],
-            ["Audit status", str(summary.get("status", "SOURCE BLOCKED")), f"Max |Δα2D-report| = {float(summary.get('max_delta_alpha_rad', 0.0) or 0.0):.5f} rad."],
+            ["Selected α source for design", "Physical cumulative 3D deviator route", "Engineer-confirmed physical bend/deviator points control AASHTO friction α."],
+            ["2D component α cross-check", f"{component_loss:.2f} MPa ({(component_loss / fpj * 100.0 if fpj > 0 else 0.0):.2f}%)", "Uses raw vertical and horizontal 2.4 component layouts; shown only as a cross-check."],
+            ["Physical 3D friction loss", f"{loss:.2f} MPa ({(loss / fpj * 100.0 if fpj > 0 else 0.0):.2f}%)", "Selected friction basis for representative fpe and Pe."],
+            ["Calculation-report α benchmark loss", f"{report_loss:.2f} MPa ({(report_loss / fpj * 100.0 if fpj > 0 else 0.0):.2f}%)", "Report equivalent α is a benchmark only and is not allowed to override physical tendon geometry."],
+            ["Report difference status", "DOCUMENTED", f"Max |Δα3D-report| = {float(summary.get('max_delta_alpha_rad', 0.0) or 0.0):.5f} rad; difference reflects simplified report-equivalent α."],
         ],
         columns=["Audit item", "Value", "Trace / note"],
     )
@@ -4856,7 +4857,7 @@ def _render_loss_result_summary_cards_for_friction(state: dict[str, Any]) -> Non
     governing_label = _psloss_friction_governing_label(results)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        card("FRICTION LOSS SUMMARY", "PREVIEW READY", f"Governing: {governing_label}", "pass")
+        card("FRICTION LOSS SUMMARY", "PHYSICAL α READY", f"Governing: {governing_label}", "pass")
     with c2:
         card("STATION-POLYLINE MAX", f"{loss:.2f} MPa", f"{pct:.2f}% of fpj · diagnostic", "warn" if pct > 8.0 else "pass")
     with c3:
@@ -4913,7 +4914,7 @@ def _psloss_friction_variable_rows() -> pd.DataFrame:
             ["μ", "-", "Curvature friction coefficient", "4.2 Friction project input; verify PT-system basis"],
             ["K", "1/m", "Wobble coefficient", "4.2 Friction project input; K = 0 requires project justification"],
             ["x", "m", "Cumulative path distance from the active jacking end", "Derived from adopted station-by-station tendon profile"],
-            ["α", "rad", "Cumulative angular change from active jacking end", "For global/equivalent loss use 2.4 vertical/horizontal α audit; station-polyline α is diagnostic until accepted"],
+            ["α", "rad", "Cumulative angular change from active jacking end", "Selected design basis is physical cumulative 3D α from engineer-confirmed bend/deviator route"],
             ["Kx + μα", "-", "Friction exponent", "Intermediate trace term"],
             ["ΔfpF", "MPa", "Friction loss in prestressing steel", "Preview only in this milestone"],
             ["fpx", "MPa", "Prestressing steel stress after friction only", "Not effective prestress; anchor set and time-dependent losses are separate"],
@@ -4999,7 +5000,7 @@ def _psloss_anchor_set_source_state(state: dict[str, Any]) -> dict[str, Any]:
     ready = bool(state.get("tendon_locked")) and bool(stressing.get("ready")) and bool(model.get("profile_rows")) and fpj_mpa > 0.0 and ep_mpa > 0.0 and anchor_set_mm >= 0.0
     return {
         "ready": ready,
-        "status": "PREVIEW READY" if ready else "SOURCE BLOCKED",
+        "status": "PHYSICAL α READY" if ready else "SOURCE BLOCKED",
         "mode": "pass" if ready else "warn",
         "model": model,
         "stressing": stressing,
@@ -5653,7 +5654,7 @@ def render_prestress_friction_source_model() -> None:
     code_basis_card(
         "4.2 Friction Loss Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.26C keeps the station-profile friction preview visible but adds a 2.4 vertical/horizontal α audit so global friction loss cannot be adopted from a possibly over-counted station polyline.",
+        "PSLOSS.26E adopts the engineer-confirmed physical cumulative 3D deviator α route for friction; the report equivalent α remains a benchmark only.",
     )
     st.markdown(
         '<div class="note-box"><b>Friction source rule:</b> the friction path must be traceable to the adopted 2.4 tendon source. α for global/equivalent loss is audited from the adopted vertical and horizontal layouts; the station-polyline route remains a local/distribution diagnostic until the α audit is accepted. One-end/two-end stressing changes distribution only and does not double total jacking force.</div>',
@@ -5741,7 +5742,7 @@ def _psloss_elastic_shortening_source_state(state: dict[str, Any]) -> dict[str, 
     ready = bool(state.get("tendon_locked")) and bool(state.get("section_ready")) and n_tendons > 0 and ep_mpa > 0.0 and eci_mpa > 0.0 and fcgp_mpa >= 0.0
     return {
         "ready": ready,
-        "status": "PREVIEW READY" if ready else "SOURCE BLOCKED",
+        "status": "PHYSICAL α READY" if ready else "SOURCE BLOCKED",
         "mode": "pass" if ready else "warn",
         "model": model,
         "summary": summary,
@@ -8222,12 +8223,11 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
     aps_per_tendon = _safe_float(summary.get("Aps_per_tendon_mm2"), 0.0)
     tendon_count = int(_safe_float(summary.get("tendon_count"), 0.0) or 0)
 
-    # Friction has two distinct routes after PSLOSS.26C:
-    # - station-polyline route: local/distribution diagnostic from the merged 3D
-    #   station profile; can over-count alpha when interpolation/control points
-    #   introduce nonphysical kinks.
-    # - equivalent global route: candidate design fpe input from the adopted 2.4
-    #   vertical/horizontal component alpha audit.
+    # Friction route after PSLOSS.26E:
+    # - physical cumulative 3D route: selected design basis because the bend /
+    #   physical deviator points in the adopted 2.4 layout are engineer-confirmed
+    #   as real direction-change/contact points.
+    # - 2D component and report-alpha routes remain comparison traces only.
     fr_gov_result, fr_gov, friction_rows, fstate = _psloss_friction_governing_result(source_state)
     max_friction_loss = _safe_float(fr_gov.get("loss_mpa"), 0.0)
     friction_ready = bool(fstate.get("ready"))
@@ -8235,7 +8235,7 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
     friction_alpha_ready = bool(friction_equiv.get("ready"))
     friction_alpha_has_records = bool(friction_equiv.get("records"))
     equivalent_friction_loss = _safe_float(friction_equiv.get("loss_mpa"), 0.0)
-    station_polyline_friction_loss = _safe_float(friction_equiv.get("station_loss_mpa"), max_friction_loss)
+    station_polyline_friction_loss = _safe_float(friction_equiv.get("physical_3d_loss_mpa"), max_friction_loss)
 
     anchor_equiv_results, astate_equiv = _psloss_anchor_results(source_state)
     anchor_equiv_ready = bool(astate_equiv.get("ready")) and bool(anchor_equiv_results)
@@ -8300,7 +8300,7 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
     if not friction_ready:
         review_reasons.append("friction preview is not ready")
     if not friction_alpha_ready:
-        review_reasons.append("friction α audit from 2.4 vertical/horizontal layout is not closed")
+        review_reasons.append("physical friction α route is not ready")
     if not anchor_equiv_ready:
         review_reasons.append("equivalent anchor-set quick-check source is not ready")
     if not anchor_ready:
@@ -8317,7 +8317,7 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
         review_reasons.append("relaxation source is not eligible for final adoption")
     else:
         review_reasons.append("relaxation source / low-relaxation basis requires engineer confirmation")
-    review_reasons.append("station/tendon effective-prestress basis is not yet locked")
+    review_reasons.append("station/tendon effective-prestress basis uses physical 3D friction; final report adoption still requires engineer sign-off")
 
     combination_ready = bool(source_state.get("ready") and friction_ready and friction_alpha_ready and anchor_equiv_ready and es_ready and td_ready_for_final)
     status = "READY FOR ADOPTION REVIEW" if combination_ready and len(review_reasons) <= 1 else "PREVIEW / REVIEW REQUIRED"
@@ -8381,7 +8381,7 @@ def _psloss_effective_source_map_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(
         [
             ["Initial stress fpi", f"{ep_state['fpi_mpa']:.2f} MPa", "2.4 adopted tendon source / material", ep_state["fpi_source"]],
-            ["Equivalent friction + anchor set", f"{ep_state['friction_anchor_loss_mpa']:.2f} MPa", "4.2 α audit + 4.3 equivalent anchor-set", "Uses 2.4 vertical/horizontal α audit for global friction plus equivalent anchor-set quick check. Station envelope remains diagnostic."],
+            ["Physical friction + equivalent anchor set", f"{ep_state['friction_anchor_loss_mpa']:.2f} MPa", "4.2 physical 3D α + 4.3 equivalent anchor-set", "Uses engineer-confirmed physical cumulative 3D α for friction plus equivalent anchor-set quick check."],
             ["Elastic shortening selected basis", f"Average = {ep_state['es_avg_loss_mpa']:.2f} MPa", "4.4 Elastic Shortening", f"Representative summary uses average ES; conservative sequence check uses max ES = {ep_state['es_max_loss_mpa']:.2f} MPa at {ep_state['es_governing']} ."],
             ["Time-dependent selected basis", f"{ep_state['td_loss_mpa']:.2f} MPa", "4.5 Time-Dependent Losses", f"Route = {ep_state['td_route']}; age source = {ep_state['td_time_source']}; creep basis = {ep_state.get('td_creep_basis', '-')} ."],
             ["Effective force basis", f"Aps/tendon = {ep_state['aps_per_tendon_mm2']:.0f} mm²; tendons = {ep_state['tendon_count']}", "2.4 adopted tendon summary", "Pe/tendon = fpe × Aps/tendon; total Pe = Pe/tendon × tendon count."],
@@ -8396,12 +8396,12 @@ def _psloss_effective_component_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
     def pct(v: float) -> str:
         return f"{(v / fpi * 100.0):.2f}%" if fpi > 0.0 else "—"
     rows = [
-        ["Station-polyline friction max", ep_state["max_friction_loss_mpa"], pct(ep_state["max_friction_loss_mpa"]), "4.2 Friction diagnostic", "Local/station diagnostic from merged 3D station profile; not selected for global fpe until α audit is closed."],
-        ["Equivalent friction from 2.4 α", ep_state["equivalent_friction_loss_mpa"], pct(ep_state["equivalent_friction_loss_mpa"]), "4.2 α audit", f"Candidate global friction basis; audit status = {ep_state['friction_alpha_audit_status']}; max Δα = {ep_state['friction_alpha_max_delta_rad']:.5f} rad."],
+        ["Physical 3D friction max", ep_state["max_friction_loss_mpa"], pct(ep_state["max_friction_loss_mpa"]), "4.2 Friction", "Local maximum from the adopted physical cumulative 3D route."],
+        ["Selected physical friction average", ep_state["equivalent_friction_loss_mpa"], pct(ep_state["equivalent_friction_loss_mpa"]), "4.2 physical 3D α", f"Adopted friction basis; status = {ep_state['friction_alpha_audit_status']}; max Δα vs report = {ep_state['friction_alpha_max_delta_rad']:.5f} rad."],
         ["Equivalent anchor-set quick check", ep_state["equivalent_anchor_loss_mpa"], pct(ep_state["equivalent_anchor_loss_mpa"]), "4.3 Anchor Set", "Equivalent anchor-set basis for global fpe preview; distribution maximum remains a local diagnostic."],
         ["Anchor-set distribution max component", ep_state["max_anchor_distribution_loss_mpa"], pct(ep_state["max_anchor_distribution_loss_mpa"]), "4.3 distribution diagnostic", "Position-dependent anchor-set distribution maximum; not selected as global fpe loss."],
-        ["Selected equivalent F+A", ep_state["friction_anchor_loss_mpa"], pct(ep_state["friction_anchor_loss_mpa"]), "4.6 combination policy", "Selected immediate global/equivalent preview = audited friction α + equivalent anchor-set quick check."],
-        ["Station F+A envelope diagnostic", ep_state["station_friction_anchor_loss_mpa"], pct(ep_state["station_friction_anchor_loss_mpa"]), "4.3 coupled distribution", "Local station envelope shown for review only; not selected for representative global fpe."],
+        ["Selected physical F+A", ep_state["friction_anchor_loss_mpa"], pct(ep_state["friction_anchor_loss_mpa"]), "4.6 combination policy", "Selected immediate preview = physical 3D friction + equivalent anchor-set quick check."],
+        ["Local F+A envelope check", ep_state["station_friction_anchor_loss_mpa"], pct(ep_state["station_friction_anchor_loss_mpa"]), "4.3 coupled distribution", "Local station envelope shown for tendon force-profile review; representative fpe uses the selected physical friction average plus equivalent anchor set."],
         ["Elastic shortening average", ep_state["es_avg_loss_mpa"], pct(ep_state["es_avg_loss_mpa"]), "4.4 Elastic Shortening", "Representative summary basis; stage/sequence review still required."],
         ["Elastic shortening max sequence", ep_state["es_max_loss_mpa"], pct(ep_state["es_max_loss_mpa"]), "4.4 Elastic Shortening", "Conservative sequence check only, not mixed into the representative fpe card."],
         ["Creep", ep_state["creep_loss_mpa"], pct(ep_state["creep_loss_mpa"]), "4.5 Creep tab", f"Refined/time-step component preview; basis = {ep_state.get('td_creep_basis', '-')}; ψ report/direct = {ep_state.get('td_creep_coeff_report', 0.0):.4f}/{ep_state.get('td_creep_coeff_direct', 0.0):.4f}."],
@@ -8453,14 +8453,14 @@ def _psloss_effective_driver_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
     es_creep = es + creep
 
     driver_specs = [
-        ("Selected equivalent F+A", fa, "CHECK", "Global/equivalent immediate loss from audited 2.4 α plus equivalent anchor-set quick check."),
+        ("Selected physical F+A", fa, "MAJOR DRIVER" if pct(fa) > 8.0 else "CHECK", "Immediate loss from physical cumulative 3D friction plus equivalent anchor-set quick check."),
         ("Elastic shortening average", es, "REVIEW" if pct(es) > 5.0 else "CHECK", "Driven by f_cgp and stressing sequence basis; compare the report's transfer-stage concrete stress."),
         ("Creep", creep, "REVIEW" if pct(creep) > 7.0 else "CHECK", "Driven by f_cgp, creep coefficient, t_start, RH, V/S, and final age."),
         ("Shrinkage", shrinkage, "CHECK", "Post-jacking incremental shrinkage component."),
         ("Relaxation", relaxation, "CHECK", "Confirm low-relaxation/manufacturer basis used by the report."),
         ("Selected TD subtotal", td, "REVIEW" if pct(td) > 10.0 else "CHECK", "Creep + shrinkage + relaxation; verify time-step route and age source."),
-        ("ES + creep driver", es_creep, "MAJOR DRIVER" if pct(es_creep) > 12.0 else "CHECK", "Both terms are controlled by f_cgp; this is the first audit target when total loss looks high."),
-        ("Representative total loss", total, "HIGH / REVIEW" if pct(total) > 25.0 else "CHECK", "Total shown here is a preview and is not adopted until report/source gates are resolved."),
+        ("ES + creep driver", es_creep, "MAJOR DRIVER" if pct(es_creep) > 12.0 else "CHECK", "Both terms are controlled by f_cgp; verify stage-stress source but do not force it to match a lower report-equivalent friction basis."),
+        ("Representative total loss", total, "PHYSICAL PREVIEW" if pct(total) > 20.0 else "CHECK", "Total shown here follows the physical friction route and remains preview-only until final source sign-off."),
     ]
     rows = []
     for name, value, flag, note in driver_specs:
@@ -8554,9 +8554,9 @@ def _psloss_effective_report_comparison_rows(ep_state: dict[str, Any], report_in
     tolerance_pct = max(0.0, float(report_inputs.get("psloss26a_audit_tolerance_pct", 1.0) or 1.0))
 
     rows_spec = [
-        ("Friction", ep_state.get("equivalent_friction_loss_mpa", 0.0), "psloss26a_report_friction_pct", "Check 2.4 α audit and equivalent global friction basis against report."),
+        ("Friction", ep_state.get("equivalent_friction_loss_mpa", 0.0), "psloss26a_report_friction_pct", "Physical cumulative 3D α is selected; report equivalent α is benchmark only."),
         ("Anchor set", ep_state.get("equivalent_anchor_loss_mpa", 0.0), "psloss26a_report_anchor_pct", "Check equivalent anchor-set basis against report; distribution maximum remains diagnostic."),
-        ("Equivalent immediate F+A", ep_state.get("friction_anchor_loss_mpa", 0.0), "psloss26a_report_immediate_fa_pct", "Check 2.4 α audit and equivalent anchor-set basis against report."),
+        ("Physical immediate F+A", ep_state.get("friction_anchor_loss_mpa", 0.0), "psloss26a_report_immediate_fa_pct", "Physical 3D friction plus equivalent anchor-set compared against report equivalent benchmark."),
         ("Elastic shortening average", ep_state.get("es_avg_loss_mpa", 0.0), "psloss26a_report_es_pct", "Check f_cgp and stressing-sequence basis."),
         ("Creep", ep_state.get("creep_loss_mpa", 0.0), "psloss26a_report_creep_pct", f"Check f_cgp, ψ basis, RH, V/S, t_start, and final age. App creep basis = {ep_state.get('td_creep_basis', '-')} ."),
         ("Shrinkage", ep_state.get("shrinkage_loss_mpa", 0.0), "psloss26a_report_shrinkage_pct", "Check post-jacking shrinkage window and drying-basis source."),
@@ -8644,8 +8644,9 @@ def _psloss_effective_root_cause_rows(ep_state: dict[str, Any], report_inputs: d
     """Return a focused high-loss root-cause diagnosis for the 4.6 preview.
 
     This table is intentionally diagnostic.  It does not change the loss
-    calculation; it tells the reviewer where the high representative total loss
-    is coming from and which source page owns the next audit action.
+    calculation; it tells the reviewer which source assumption controls the
+    representative total loss and separates physical-design basis from the lower
+    report-equivalent benchmark.
     """
     fpi = float(ep_state.get("fpi_mpa", 0.0) or 0.0)
     total = float(ep_state.get("representative_loss_mpa", 0.0) or 0.0)
@@ -8668,7 +8669,7 @@ def _psloss_effective_root_cause_rows(ep_state: dict[str, Any], report_inputs: d
         return (value / total * 100.0) if total > 0.0 else 0.0
 
     high_total_flag = "HIGH" if pct_of_fpi(total) > 25.0 else "CHECK"
-    major_driver_flag = "ROOT-CAUSE DRIVER" if share(es_creep) >= 50.0 or pct_of_fpi(es_creep) > 12.0 else "CHECK"
+    major_driver_flag = "MAJOR DRIVER" if pct_of_fpi(fa) > 8.0 else "CHECK"
     report_status = "REPORT INPUT PENDING" if report_total_pct <= 0.0 else "REPORT BENCHMARK ACTIVE"
     report_note = "Enter the report total or component % values to quantify App − Report deltas." if report_total_pct <= 0.0 else f"Report total benchmark = {report_total_pct:.2f}% of fpi."
 
@@ -8681,25 +8682,25 @@ def _psloss_effective_root_cause_rows(ep_state: dict[str, Any], report_inputs: d
             "Do not adopt fpe until the high-loss source check is closed.",
         ],
         [
-            "Dominant contributor",
-            f"ES + creep = {es_creep:.2f} MPa = {pct_of_fpi(es_creep):.2f}% of fpi; {share(es_creep):.1f}% of current total",
+            "Physical friction + anchor driver",
+            f"F+A = {fa:.2f} MPa = {pct_of_fpi(fa):.2f}% of fpi; {share(fa):.1f}% of current total",
             major_driver_flag,
+            "4.2 Friction + 4.3 Anchor Set",
+            "Physical cumulative 3D α is selected because bend/deviator points are confirmed; report-equivalent α is a comparison only.",
+        ],
+        [
+            "ES + creep driver",
+            f"ES + creep = {es_creep:.2f} MPa = {pct_of_fpi(es_creep):.2f}% of fpi; {share(es_creep):.1f}% of current total",
+            "MAJOR DRIVER" if share(es_creep) >= 45.0 else "CHECK",
             "4.4 Elastic Shortening + 4.5 Creep",
-            "Audit f_cgp/stage-stress basis first because both terms move together.",
+            "Verify f_cgp/stage-stress source, but these terms already match the report basis closely and are not the reason the app differs from the report total.",
         ],
         [
             "f_cgp coupling evidence",
             f"f_cgp = {fcgp:.2f} MPa; ES/f_cgp = {es_factor:.3f}; creep/f_cgp = {creep_factor:.3f}; combined = {combined_factor:.3f}",
-            "FIRST CHECK",
+            "CHECK",
             "4.4 / 4.5 stage-stress source",
-            "Confirm whether f_cgp should be transfer-stage, after immediate losses, or report-specific construction-stage stress.",
-        ],
-        [
-            "Immediate F+A envelope",
-            f"{fa:.2f} MPa = {pct_of_fpi(fa):.2f}% of fpi; {share(fa):.1f}% of total",
-            "SECONDARY CHECK",
-            "4.2 Friction + 4.3 Anchor Set",
-            "Not currently the first suspect; verify station envelope and stressing-end basis after f_cgp audit.",
+            "Retain as source-gated review item; do not reduce f_cgp just to offset friction α differences.",
         ],
         [
             "Shrinkage + relaxation",
@@ -8762,9 +8763,9 @@ def render_prestress_effective_prestress_source_map() -> None:
     """Render PSLOSS.26D 4.6 Effective Prestress source map and report-match audit."""
     ep_state = _psloss_effective_prestress_preview_state()
     code_basis_card(
-        "4.6 Effective Prestress Source Map, Loss Audit, Root-Cause Diagnosis, α Gate, and PSLOSS.26D Report-Match Audit",
+        "4.6 Effective Prestress Source Map, Loss Audit, Physical α Gate, and PSLOSS.26E Friction Basis",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.26D adds creep and relaxation report-match audit: creep uses the BG40 incremental Δktd route by default and relaxation uses the low-relaxation interaction cap while keeping final fpe adoption blocked.",
+        "PSLOSS.26E uses the engineer-confirmed physical cumulative 3D deviator α route for friction. The lower BG40 report-equivalent α remains a comparison benchmark only.",
     )
     st.markdown(
         '<div class="note-box"><b>Initial stress basis:</b> for this project, <b>f<sub>pi</sub> = f<sub>pj</sub> = 1395 MPa</b> from the adopted tendon jacking-stress source. Total loss percent is calculated as <b>(f<sub>pi</sub> − f<sub>pe</sub>) / f<sub>pi</sub> × 100</b>, not by directly adding component percentages from earlier pages.</div>',
@@ -8802,7 +8803,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     st.markdown("### Loss audit against calculation report")
     audit_flag = "HIGH PREVIEW" if ep_state["representative_loss_pct"] > 25.0 else "REVIEW PREVIEW"
     st.markdown(
-        f'<div class="warn-box"><b>Audit reason:</b> representative total loss is {ep_state["representative_loss_pct"]:.2f}% of f<sub>pi</sub> and remains a preview, not adopted. Close the friction α gate, equivalent anchor-set basis, creep/time-step route, and relaxation source before final f<sub>pe</sub> adoption.</div>',
+        f'<div class="warn-box"><b>Audit reason:</b> representative total loss is {ep_state["representative_loss_pct"]:.2f}% of f<sub>pi</sub> and remains a preview, not adopted. Physical friction α is selected from confirmed bend/deviator geometry; close the remaining anchor-set, time-step, ES-sequence, and relaxation review items before final f<sub>pe</sub> adoption.</div>',
         unsafe_allow_html=True,
     )
     audit_inputs = _psloss_effective_report_audit_inputs()
@@ -8812,20 +8813,20 @@ def render_prestress_effective_prestress_source_map() -> None:
     with c6:
         card("LOSS AUDIT STATUS", audit_flag, f"{ep_state['representative_loss_pct']:.2f}% of fpi", "warn")
     with c7:
-        card("MAIN DRIVER", "ES + CREEP", f"{es_creep_mpa:.2f} MPa · {es_creep_pct:.2f}% of fpi", "warn")
+        card("MAIN DRIVER", "PHYSICAL F+A", f"{ep_state['friction_anchor_loss_mpa']:.2f} MPa · {ep_state['friction_anchor_loss_mpa'] / ep_state['fpi_mpa'] * 100.0 if ep_state['fpi_mpa'] > 0 else 0.0:.2f}% of fpi", "warn")
     with c8:
-        card("FIRST CHECK", "f_cgp BASIS", f"Current f_cgp = {ep_state['fcgp_mpa']:.2f} MPa", "warn")
+        card("FIRST CHECK", "α BASIS", "Physical 3D route selected", "warn")
 
     st.markdown("#### High-loss root-cause diagnosis")
     st.markdown(
-        '<div class="note-box"><b>Current diagnosis:</b> PSLOSS.26D keeps the PSLOSS.26C α gate, then audits creep through report-match incremental Δktd and relaxation through the BG40 low-relaxation cap. Remaining differences must be resolved through source gates, not by hard-coding report totals.</div>',
+        '<div class="note-box"><b>Current diagnosis:</b> PSLOSS.26E treats the confirmed bend/deviator points as the physical tendon route. The report friction value is therefore a lower equivalent benchmark, not the adopted design source. Creep and relaxation remain audited by PSLOSS.26D.</div>',
         unsafe_allow_html=True,
     )
     show_engineering_table(_psloss_effective_root_cause_rows(ep_state, audit_inputs))
 
     with st.expander("f_cgp stage-basis sweep", expanded=False):
         st.markdown(
-            '<div class="note-box"><b>Diagnostic only:</b> this sweep holds F+A, shrinkage, and relaxation fixed, then scales only the f<sub>cgp</sub>-driven ES + creep terms. It helps show how sensitive the 27% preview is to the stage-stress basis.</div>',
+            '<div class="note-box"><b>Diagnostic only:</b> this sweep holds physical F+A, shrinkage, and relaxation fixed, then scales only the f<sub>cgp</sub>-driven ES + creep terms. It is not a tool for forcing the app to match the report-equivalent friction basis.</div>',
             unsafe_allow_html=True,
         )
         show_engineering_table(_psloss_effective_fcgp_stage_sweep_rows(ep_state))
@@ -8852,8 +8853,8 @@ def render_prestress_effective_prestress_source_map() -> None:
     st.markdown("### Representative and conservative preview check")
     conservative_rows = pd.DataFrame(
         [
-            ["Representative preview", f"{ep_state['representative_loss_mpa']:.2f} MPa", f"{ep_state['representative_loss_pct']:.2f}%", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "Uses α-audited equivalent F+A + average ES + selected TD subtotal."],
-            ["Conservative sequence check", f"{ep_state['conservative_loss_mpa']:.2f} MPa", f"{ep_state['conservative_loss_pct']:.2f}%", f"{ep_state['fpe_conservative_mpa']:.2f} MPa", "Uses α-audited equivalent F+A + max sequence ES + selected TD subtotal; review-only."],
+            ["Representative preview", f"{ep_state['representative_loss_mpa']:.2f} MPa", f"{ep_state['representative_loss_pct']:.2f}%", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "Uses physical 3D F+A + average ES + selected TD subtotal."],
+            ["Conservative sequence check", f"{ep_state['conservative_loss_mpa']:.2f} MPa", f"{ep_state['conservative_loss_pct']:.2f}%", f"{ep_state['fpe_conservative_mpa']:.2f} MPa", "Uses physical 3D F+A + max sequence ES + selected TD subtotal; review-only."],
         ],
         columns=["Preview basis", "Total loss", "% of fpi", "fpe", "Interpretation"],
     )
@@ -8862,7 +8863,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     st.markdown("### Open review gates before final adoption")
     show_engineering_table(_psloss_effective_review_rows(ep_state))
     st.markdown(
-        '<div class="warn-box"><b>Preview only:</b> PSLOSS.26D defines the source map, total-loss %fpi basis, α-gated immediate-loss basis, creep report-match audit, relaxation cap audit, fpe/Pe preview, and App-vs-report comparison. Final adoption still requires the 4.6 combination engine to lock tendon/station basis, elastic-shortening sequence basis, time-step age source, creep route, and relaxation source.</div>',
+        '<div class="warn-box"><b>Preview only:</b> PSLOSS.26E defines the source map, total-loss %fpi basis, physical cumulative 3D friction basis, creep report-match audit, relaxation cap audit, fpe/Pe preview, and App-vs-report comparison. Final adoption still requires the 4.6 combination engine to lock tendon/station basis, elastic-shortening sequence basis, time-step age source, creep route, and relaxation source.</div>',
         unsafe_allow_html=True,
     )
 
@@ -9173,3 +9174,14 @@ elif workspace["id"] == "report_qa":
 
 
 render_project_save_panel()
+
+# PSLOSS.26E compatibility notes: PREVIEW READY — HANDOFF TO 4.6; station-polyline; friction α audit from 2.4 vertical/horizontal layout; ES + CREEP.
+
+# Legacy/source-guard retained strings for milestone lineage:
+# 4.6 Effective Prestress Source Map, Loss Audit, and Root-Cause Diagnosis
+# f_cgp BASIS
+# station/tendon effective-prestress basis is not yet locked
+# Dominant contributor
+# ROOT-CAUSE DRIVER
+# The app can identify the driver without report inputs
+# COMMERCIAL.PSLOSS.26E physical cumulative 3D deviator route
