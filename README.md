@@ -225,3 +225,15 @@ Schema
 Schema
 - 0.4.93-commercial-psloss26a-effective-prestress-loss-audit
 
+
+## COMMERCIAL.PSLOSS.26B
+
+- Adds a focused high-loss root-cause diagnosis to 4.6 Effective Prestress without changing any prestress-loss calculation or adoption logic.
+- Explicitly identifies the current high representative loss as driven by elastic shortening + creep and traces both terms back to the f_cgp stage-stress basis.
+- Adds a diagnosis table with source owners and next actions for total loss, ES + creep, f_cgp coupling, immediate F+A, shrinkage/relaxation, and calculation-report benchmark status.
+- Adds an f_cgp stage-basis sensitivity sweep that holds F+A, shrinkage, and relaxation fixed and scales only the f_cgp-driven ES + creep block for audit triage.
+- Keeps calculation-report comparison inputs and f_cgp back-calculation from PSLOSS.26A; report values are still optional audit benchmarks and do not alter the app result.
+- Preserves all friction, anchor-set, elastic-shortening, creep, shrinkage, relaxation, save/load, report, and QA behavior; final fpe adoption remains blocked.
+
+Schema
+- 0.4.94-commercial-psloss26b-high-loss-root-cause
