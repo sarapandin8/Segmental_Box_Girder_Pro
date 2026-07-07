@@ -313,3 +313,21 @@ Changes:
 - Added an advanced-only manual override inside the Calculation trace / QA expander; enabling it marks the stage-stress source as `MANUAL OVERRIDE` and keeps final loss adoption in review.
 - Synchronized the selected stage-stress source with the legacy `prestress.fcgp_mpa` key so existing ES and creep formulas continue to use one source of truth.
 - Preserved the ES formula, average substitution, and tendon-by-tendon sequence trace in the collapsed QA expander.
+
+
+## COMMERCIAL.PSLOSS.26I
+
+Final loss status polish and stage-source consistency cleanup.
+
+Changes:
+
+- Locked 4.5 prestress-loss start age to the computed construction-map t_jack by default.
+- Renamed Time-step age source to Prestress-loss start age for clearer engineering intent.
+- Replaced ambiguous PREVIEW ONLY component cards with ACTIVE IN 4.6 / source-blocked status semantics.
+- Changed f_cgp wording from auto-calculated to source-derived/read-only unless a future staged-analysis calculation is wired.
+- Recolored average component cards that feed 4.6 as green/pass; diagnostic/local maxima remain orange/warn.
+- Replaced Section 4 trace expanders with toggles to reduce PDF glyph artifacts while keeping calculation trace available.
+
+Schema:
+
+- 0.4.101-commercial-psloss26i-final-loss-status-polish

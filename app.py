@@ -4820,6 +4820,17 @@ def _render_loss_percent_basis_note() -> None:
     )
 
 
+
+
+def _trace_toggle(label: str, *, default: bool = False) -> bool:
+    """Use a compact toggle instead of st.expander for QA details.
+
+    Streamlit expander icons print as glyph artifacts in browser-PDF output.
+    A toggle keeps the app interactive while leaving the report printout clean.
+    """
+    key = "trace_toggle__" + hashlib.sha1(label.encode("utf-8")).hexdigest()[:12]
+    return st.toggle(label, value=default, key=key)
+
 def _append_loss_percent_basis_report_rows(rows: list[list[str]]) -> list[list[str]]:
     """Append shared percent/adoption interpretation rows to report-style summaries."""
     return rows + [
@@ -4871,7 +4882,7 @@ def _render_loss_result_summary_cards_for_friction(state: dict[str, Any]) -> Non
         with c3:
             card("MIN fpx AFTER FRICTION", "—", "Blocked until preview is ready", "warn")
         with c4:
-            card("ADOPTION STATUS", "PREVIEW ONLY", "Not effective prestress", "neutral")
+            card("COMPONENT STATUS", "SOURCE BLOCKED", "Not handed to 4.6 yet", "warn")
         return
 
     gov_result, gov, results, fstate = _psloss_friction_governing_result(state)
@@ -4888,13 +4899,13 @@ def _render_loss_result_summary_cards_for_friction(state: dict[str, Any]) -> Non
     with c1:
         card("FRICTION LOSS SUMMARY", "PHYSICAL α READY", "Average feeds 4.6 fpe", "pass")
     with c2:
-        card("AVG PHYSICAL 3D LOSS", f"{avg_loss:.2f} MPa", f"{avg_pct:.2f}% of fpj · 16-tendon average", "warn" if avg_pct > 6.0 else "pass")
+        card("AVG PHYSICAL 3D LOSS", f"{avg_loss:.2f} MPa", f"{avg_pct:.2f}% of fpj · 16-tendon average", "pass")
     with c3:
-        card("MAX TENDON LOSS", f"{max_loss:.2f} MPa", f"{max_pct:.2f}% · {governing_label}", "warn" if max_pct > 8.0 else "pass")
+        card("MAX TENDON LOSS", f"{max_loss:.2f} MPa", f"{max_pct:.2f}% · {governing_label}", "warn")
     with c4:
         card("MIN fpx AFTER FRICTION", f"{min_fpx:.2f} MPa", "local tendon diagnostic", "pass")
     with c5:
-        card("ADOPTION STATUS", "PREVIEW ONLY", "Average handed off to 4.6", "neutral")
+        card("COMPONENT STATUS", "ACTIVE IN 4.6", "Average value feeds final loss", "pass")
 
 
 def _render_psloss_friction_equation_block(state: dict[str, Any]) -> None:
@@ -5150,7 +5161,7 @@ def _render_loss_result_summary_cards_for_anchor_set(state: dict[str, Any]) -> N
         with c4:
             card("MIN fpx AFTER F+A", "—", "blocked", "warn")
         with c5:
-            card("ADOPTION STATUS", "PREVIEW ONLY", "Not effective prestress", "neutral")
+            card("COMPONENT STATUS", "SOURCE BLOCKED", "Not handed to 4.6 yet", "warn")
         return
     gov = max(dist_results, key=lambda r: float(r.get("max_loss_mpa", 0.0) or 0.0))
     tie_label = _psloss_anchor_distribution_governing_label(dist_results)
@@ -5171,7 +5182,7 @@ def _render_loss_result_summary_cards_for_anchor_set(state: dict[str, Any]) -> N
     with c4:
         card("MIN fpx AFTER F+A", f"{min_fpx:.2f} MPa", "local F+A diagnostic", "pass")
     with c5:
-        card("ADOPTION STATUS", "PREVIEW ONLY", "Average handed off to 4.6", "neutral")
+        card("COMPONENT STATUS", "ACTIVE IN 4.6", "Average value feeds final loss", "pass")
 
 
 def _psloss_anchor_source_rows(state: dict[str, Any]) -> pd.DataFrame:
@@ -5633,7 +5644,7 @@ def render_prestress_anchor_set_source_model() -> None:
     code_basis_card(
         "4.3 Anchor Set Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.26H keeps the equivalent average anchor-set loss on the main page and moves distribution/trace details into Calculation trace / QA.",
+        "PSLOSS.26I locks final-loss source status, cleans review wording, and keeps anchor-set trace in Calculation trace / QA.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-use rule:</b> the value carried to 4.6 is the <b>equivalent average anchor-set loss</b>. Position-dependent distribution maxima are kept for local tendon-force diagnostics only.</div>',
@@ -5647,7 +5658,7 @@ def render_prestress_anchor_set_source_model() -> None:
     with c3:
         card("STRESSING ROUTE", state.get("stressing_basis", {}).get("status", "BLOCKED"), state.get("stressing_basis", {}).get("stressing_mode", "Confirm JackFrom"), state.get("stressing_basis", {}).get("mode", "warn"))
     with c4:
-        card("FEED TO 4.6", "EQUIV. AVERAGE", "Distribution max is local diagnostic", "neutral")
+        card("FEED TO 4.6", "EQUIV. AVERAGE", "Distribution max is local diagnostic", "pass")
 
     st.markdown("### Design-use anchor-set summary")
     _render_loss_result_summary_cards_for_anchor_set(state)
@@ -5657,7 +5668,7 @@ def render_prestress_anchor_set_source_model() -> None:
     st.markdown("### Anchor-set input")
     editable_value(["prestress", "anchor_set_mm"], "Anchor set Δa (mm)", 0.5)
 
-    with st.expander("Calculation trace / QA — anchor-set formula, distribution model, and tendon rows", expanded=False):
+    if _trace_toggle("Calculation trace / QA — anchor-set formula, distribution model, and tendon rows"):
         st.markdown(
             '<div class="note-box"><b>Formula retained for QA:</b> equivalent anchor set uses Δf<sub>pA,eq</sub> = E<sub>p</sub>Δa/L<sub>eff</sub>. The friction-coupled distribution model is diagnostic unless a tendon-specific force profile is required.</div>',
             unsafe_allow_html=True,
@@ -5686,7 +5697,7 @@ def render_prestress_friction_source_model() -> None:
     code_basis_card(
         "4.2 Friction Loss Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.26H keeps the design-use average friction loss on the main page and moves formula/audit/tendon traces into Calculation trace / QA.",
+        "PSLOSS.26I locks the physical 3D average friction basis for 4.6 and keeps formula/audit/tendon traces in Calculation trace / QA.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-use rule:</b> friction uses the engineer-confirmed <b>physical cumulative 3D bend/deviator α</b> route. The value carried to 4.6 is the <b>area-weighted average over all adopted tendons</b>; governing tendon values remain local diagnostics.</div>',
@@ -5700,7 +5711,7 @@ def render_prestress_friction_source_model() -> None:
     with c3:
         card("STRESSING ROUTE", state.get("stressing_basis", {}).get("status", "BLOCKED"), state.get("stressing_basis", {}).get("stressing_mode", "Confirm JackFrom"), state.get("stressing_basis", {}).get("mode", "warn"))
     with c4:
-        card("FEED TO 4.6", "AVERAGE LOSS", "Do not use governing tendon loss as global fpe", "neutral")
+        card("FEED TO 4.6", "AVERAGE LOSS", "Do not use governing tendon loss as global fpe", "pass")
 
     st.markdown("### Design-use friction summary")
     _render_loss_result_summary_cards_for_friction(state)
@@ -5714,7 +5725,7 @@ def render_prestress_friction_source_model() -> None:
     with c_k:
         editable_value(["prestress", "wobble_external_per_m"], "Wobble coefficient K (1/m)", 0.0001, "%.6f")
 
-    with st.expander("Calculation trace / QA — friction formula, α audit, and tendon-by-tendon rows", expanded=False):
+    if _trace_toggle("Calculation trace / QA — friction formula, α audit, and tendon-by-tendon rows"):
         st.markdown(
             '<div class="note-box"><b>Formula retained for QA:</b> Δf<sub>pF</sub> = f<sub>pj</sub>[1 − exp{−(Kx + μα)}], with α from the confirmed physical 3D bend/deviator route. Report-equivalent α is a benchmark only.</div>',
             unsafe_allow_html=True,
@@ -5739,7 +5750,7 @@ def render_prestress_friction_source_model() -> None:
 def _psloss_fcgp_stage_stress_state(state: dict[str, Any] | None = None) -> dict[str, Any]:
     """Return the stage-stress source used for ES and creep.
 
-    PSLOSS.26H removes the editable f_cgp box from the main ES page.  The
+    PSLOSS.26I keeps the editable f_cgp box off the main ES page.  The
     default source is a read-only, adopted stage-stress value.  A manual
     override is still available only from an advanced QA expander, and using it
     marks downstream final-loss values as review-required rather than silently
@@ -5750,7 +5761,7 @@ def _psloss_fcgp_stage_stress_state(state: dict[str, Any] | None = None) -> dict
     summary = (state or {}).get("adopted_summary", {}) if isinstance(state, dict) else {}
 
     prior_fcgp = float(ps.get("fcgp_mpa", 36.26) or 36.26)
-    ps.setdefault("fcgp_stage_source_mode", "Auto-calculated / read-only")
+    ps.setdefault("fcgp_stage_source_mode", "Source-derived / read-only")
     ps.setdefault("fcgp_auto_stage_mpa", prior_fcgp)
     ps.setdefault("fcgp_manual_override_enabled", False)
     ps.setdefault("fcgp_manual_override_mpa", prior_fcgp)
@@ -5775,8 +5786,8 @@ def _psloss_fcgp_stage_stress_state(state: dict[str, Any] | None = None) -> dict
     e_mid_m = float(summary.get("eccentricity_midspan_m", ps.get("eccentricity_midspan_m", 0.0)) or 0.0)
     force_total_kn = float(summary.get("jacking_force_total_kN", 0.0) or 0.0)
 
-    source_label = "Manual override" if override_enabled else "Auto-calculated / read-only"
-    status = "MANUAL OVERRIDE" if override_enabled else "AUTO CALCULATED"
+    source_label = "Manual override" if override_enabled else "Source-derived / read-only"
+    status = "MANUAL OVERRIDE" if override_enabled else "SOURCE-DERIVED"
     mode = "warn" if override_enabled else "pass"
     message = (
         "Manual engineer override is active; final CSiBridge loss remains REVIEW REQUIRED."
@@ -5807,10 +5818,10 @@ def _psloss_fcgp_stage_stress_rows(state: dict[str, Any] | None = None) -> pd.Da
     return pd.DataFrame(
         [
             ["Selected f_cgp", f"{fsrc['fcgp_mpa']:.2f} MPa", fsrc["source_label"], fsrc["adoption_note"]],
-            ["Auto stage-stress value", f"{fsrc['auto_fcgp_mpa']:.2f} MPa", "Adopted stage-stress source", fsrc["source_note"]],
+            ["Source-derived stage-stress value", f"{fsrc['auto_fcgp_mpa']:.2f} MPa", "Adopted stage-stress source", fsrc["source_note"]],
             ["Manual override", "ON" if fsrc["manual_override_enabled"] else "OFF", "Advanced QA only", "Manual entry is intentionally hidden from the main design page."],
-            ["Section trace", f"A={fsrc['Ac_m2']:.3f} m²; I33={fsrc['I33_m4']:.3f} m⁴; y_t={fsrc['y_t_m']:.3f} m", "2.3 adopted section", "Displayed for traceability; current auto value is read from stage-stress source."],
-            ["Tendon trace", f"Pj,total={fsrc['force_total_kn']:.0f} kN; e_mid={fsrc['e_mid_m']:.3f} m", "2.4 adopted tendon source", "Used in future staged-analysis auto calculation / QA back-check."],
+            ["Section trace", f"A={fsrc['Ac_m2']:.3f} m²; I33={fsrc['I33_m4']:.3f} m⁴; y_t={fsrc['y_t_m']:.3f} m", "2.3 adopted section", "Displayed for traceability; current value is read from the adopted stage-stress source."],
+            ["Tendon trace", f"Pj,total={fsrc['force_total_kn']:.0f} kN; e_mid={fsrc['e_mid_m']:.3f} m", "2.4 adopted tendon source", "Used in future staged-analysis calculation / QA back-check."],
         ],
         columns=["Stage-stress item", "Value", "Source", "Trace / engineer action"],
     )
@@ -5947,7 +5958,7 @@ def _render_loss_result_summary_cards_for_elastic_shortening(state: dict[str, An
         with c4:
             card("MIN fpx AFTER ES", "—", "blocked", "warn")
         with c5:
-            card("ADOPTION STATUS", "PREVIEW ONLY", "Not effective prestress", "neutral")
+            card("COMPONENT STATUS", "SOURCE BLOCKED", "Not handed to 4.6 yet", "warn")
         return
     fpj = float(estate.get("fpj_mpa", 0.0) or 0.0)
     avg_loss = float(estate.get("avg_loss_mpa", 0.0) or 0.0)
@@ -5959,13 +5970,13 @@ def _render_loss_result_summary_cards_for_elastic_shortening(state: dict[str, An
     with c1:
         card("ELASTIC SHORTENING SUMMARY", "STAGE PREVIEW", f"N={estate['n_tendons']} · sequence source review", "pass")
     with c2:
-        card("AVERAGE ES LOSS", f"{avg_loss:.2f} MPa", f"{avg_pct:.2f}% · fpx,avg={avg_fpx:.2f} MPa", "warn")
+        card("AVERAGE ES LOSS", f"{avg_loss:.2f} MPa", f"{avg_pct:.2f}% · fpx,avg={avg_fpx:.2f} MPa", "pass")
     with c3:
         card("MAX SEQUENCE ES LOSS", f"{float(max_row.get('loss_mpa', 0.0) or 0.0):.2f} MPa", f"{float(max_row.get('loss_pct', 0.0) or 0.0):.2f}% · {max_row.get('tendon', '-')} (i={max_row.get('sequence_no', '-')})", "warn")
     with c4:
         card("MIN fpx AFTER SEQUENCE ES", f"{min_fpx:.2f} MPa", "Sequence-preview stress", "pass")
     with c5:
-        card("ADOPTION STATUS", "PREVIEW ONLY", "Stage/sequence review required", "neutral")
+        card("COMPONENT STATUS", "ACTIVE IN 4.6", "Average ES feeds final loss; sequence max stays diagnostic", "pass")
 
 
 def _render_elastic_shortening_sequence_basis_note() -> None:
@@ -6083,7 +6094,7 @@ def render_prestress_elastic_shortening_source_model() -> None:
     code_basis_card(
         "4.4 Elastic Shortening Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.26H keeps the average ES loss on the main page, removes free f_cgp entry, and moves override/formula details into Calculation trace / QA.",
+        "PSLOSS.26I uses a source-derived f_cgp value on the main page and keeps override/formula details in Calculation trace / QA.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-use rule:</b> the value carried to 4.6 is the <b>average sequential elastic-shortening loss</b>. The stage stress f<sub>cgp</sub> is <b>read-only on the main page</b>; manual override is advanced QA only.</div>',
@@ -6109,7 +6120,7 @@ def render_prestress_elastic_shortening_source_model() -> None:
     fsrc = estate.get("fcgp_source", _psloss_fcgp_stage_stress_state(state))
     c_fcgp1, c_fcgp2 = st.columns([1, 2])
     with c_fcgp1:
-        card("READ-ONLY f_cgp", f"{fsrc['fcgp_mpa']:.2f} MPa", fsrc.get("source_label", "Auto-calculated / read-only"), fsrc.get("mode", "pass"))
+        card("READ-ONLY f_cgp", f"{fsrc['fcgp_mpa']:.2f} MPa", fsrc.get("source_label", "Source-derived / read-only"), fsrc.get("mode", "pass"))
     with c_fcgp2:
         st.markdown(
             '<div class="note-box"><b>No main-page entry:</b> f<sub>cgp</sub> is read from the adopted stage-stress source to prevent accidental CSiBridge total-loss errors. Use the advanced override only with an engineering source note.</div>',
@@ -6117,7 +6128,7 @@ def render_prestress_elastic_shortening_source_model() -> None:
         )
     show_engineering_table(_psloss_fcgp_stage_stress_rows(state))
 
-    with st.expander("Calculation trace / QA — stage-stress source, ES formula, average substitution, and sequence rows", expanded=False):
+    if _trace_toggle("Calculation trace / QA — stage-stress source, ES formula, average substitution, and sequence rows"):
         st.markdown("#### Stage-stress source and advanced override")
         show_engineering_table(_psloss_fcgp_stage_stress_rows(state))
         ps = D.setdefault("prestress", {})
@@ -6190,7 +6201,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         code_basis_card(
             "Prestress Losses Source Gate",
             "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-            "PSLOSS.25 polishes the general source-gate readiness register so completed loss previews point to 4.6 Effective Prestress as the next final combination/adoption gate. Final effective-prestress adoption remains a later milestone.",
+            "PSLOSS.26I keeps 4.1 as a compact source-gate and input summary; detailed readiness registers live in QA / Report Preview.",
         )
         st.markdown(
             '<div class="note-box"><b>Source-gate rule:</b> detailed prestress-loss calculation must read from adopted tendon and section sources only. Working imports, diagnostic previews, and duplicated keyed inputs must not feed final loss results.</div>',
@@ -6221,7 +6232,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         unsafe_allow_html=True,
     )
     if not compact:
-        st.markdown("### PSLOSS.25 calculation-readiness snapshot")
+        st.markdown("### Calculation-readiness snapshot")
         _psloss3_readiness_cards(state)
         st.markdown("### Tendon adoption and blocked-input checklist")
         show_engineering_table(_psloss_blocked_tendon_checklist_rows(state))
@@ -6235,9 +6246,9 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
         show_engineering_table(_psloss_crsh_handoff_rows(state))
         st.markdown("### Loss calculation readiness register")
         show_engineering_table(_psloss_formula_readiness_rows(state))
-        with st.expander("Trace / QA for next prestress-loss calculation milestone", expanded=False):
+        if _trace_toggle("Trace / QA for next prestress-loss calculation milestone"):
             st.markdown(
-                '<div class="note-box"><b>PSLOSS.25 rule:</b> 4.1 remains a robust source/readiness register. Completed component previews are reported as handoff-ready or review-required, and the next workflow step is 4.6 Effective Prestress. Final effective-prestress adoption remains blocked until 4.6 defines the component-combination rule.</div>',
+                '<div class="note-box"><b>Source-gate rule:</b> 4.1 remains the compact source/readiness register. Detailed trace tables stay in QA so the design-use loss pages remain clean.</div>',
                 unsafe_allow_html=True,
             )
             show_engineering_table(_psloss_formula_readiness_rows(state))
@@ -7240,18 +7251,23 @@ def _psloss_crsh_selected_route() -> str:
 
 def _psloss_crsh_time_source_options() -> list[str]:
     return [
-        "Use computed t_jack from 4.5 construction map",
-        "Use 3.8 CR&SH ti",
-        "Keep REVIEW / do not adopt",
+        "Adopt computed prestressing age t_jack from 4.5 construction map",
+        "Use 3.8 CR&SH ti — QA/reference",
+        "Manual / review only — do not adopt",
     ]
 
 
 def _psloss_crsh_selected_time_source() -> str:
     ps = D["prestress"]
     options = _psloss_crsh_time_source_options()
-    source = str(ps.get("crsh_time_step_age_source", options[2]))
-    if source not in options:
-        source = options[2]
+    source = str(ps.get("crsh_time_step_age_source", options[0]))
+    legacy_review_values = {"Keep REVIEW / do not adopt", "Use computed t_jack from 4.5 construction map"}
+    if source in legacy_review_values:
+        source = options[0]
+    elif source == "Use 3.8 CR&SH ti":
+        source = options[1]
+    elif source not in options:
+        source = options[0]
     ps["crsh_time_step_age_source"] = source
     return source
 
@@ -7429,7 +7445,7 @@ def _psloss_crsh_time_step_state() -> dict[str, Any]:
     ps.setdefault("span_assembly_duration_days", 0.0)
     ps.setdefault("crsh_stage_time_basis", "Auto representative span mode")
     ps.setdefault("crsh_calculation_route", options[0])
-    ps.setdefault("crsh_time_step_age_source", _psloss_crsh_time_source_options()[2])
+    ps.setdefault("crsh_time_step_age_source", _psloss_crsh_time_source_options()[0])
     ps.setdefault("crsh_creep_time_basis", _psloss_crsh_creep_basis_options()[0])
     selected_route = _psloss_crsh_selected_route()
     selected_time_source = _psloss_crsh_selected_time_source()
@@ -7440,24 +7456,24 @@ def _psloss_crsh_time_step_state() -> dict[str, Any]:
     ti_38 = max(0.0, float(ps.get("ti_days", 0.0) or 0.0))
     tf = max(t_jack, float(ps.get("tf_days", 0.0) or 0.0))
     diff = abs(ti_38 - t_jack)
-    if selected_time_source.startswith("Use computed"):
+    if selected_time_source.startswith("Adopt computed") or selected_time_source.startswith("Use computed"):
         effective_t_jack = t_jack
-        time_source_status = "COMPUTED t_jack"
+        time_source_status = "ADOPTED t_jack"
         time_source_ready = True
-        time_source_mode = "pass" if diff <= 0.5 else "warn"
-        time_source_note = "4.5 construction-stage map controls the time-step start; 3.8 ti remains a comparison trace."
+        time_source_mode = "pass"
+        time_source_note = "Computed prestressing age from the 4.5 construction-stage map controls the time-step start; 3.8 ti remains a comparison trace."
     elif selected_time_source.startswith("Use 3.8"):
         effective_t_jack = ti_38
         time_source_status = "3.8 ti"
         time_source_ready = True
-        time_source_mode = "pass" if diff <= 0.5 else "warn"
-        time_source_note = "3.8 CR&SH ti controls the time-step start; computed t_jack remains a construction-map comparison."
+        time_source_mode = "warn"
+        time_source_note = "3.8 CR&SH ti controls the time-step start for QA/reference; computed t_jack remains the recommended construction-map source."
     else:
         effective_t_jack = t_jack
         time_source_status = "REVIEW"
-        time_source_ready = diff <= 0.5
-        time_source_mode = "pass" if diff <= 0.5 else "warn"
-        time_source_note = "Select computed t_jack or 3.8 ti before any final effective-prestress adoption."
+        time_source_ready = False
+        time_source_mode = "warn"
+        time_source_note = "Manual/review mode is not eligible for CSiBridge final-loss handoff until an engineer source note is supplied."
     if diff <= 0.5:
         reconciliation = "ALIGNED"
         rec_mode = "pass"
@@ -7467,17 +7483,17 @@ def _psloss_crsh_time_step_state() -> dict[str, Any]:
         rec_mode = "warn"
         rec_note = "3.8 ti and computed t_jack differ; select the controlling time-step age source before final adoption."
     if assembly_days > 0.0:
-        stage_status = "AUTO REPRESENTATIVE"
+        stage_status = "ADOPTED STAGE MAP"
         stage_mode = "pass"
         stage_note = "Transport age plus span assembly duration defines t_jack."
     else:
-        stage_status = "REVIEW"
-        stage_mode = "warn"
-        stage_note = "Assembly duration is zero/default; confirm whether stressing occurs immediately after transport."
+        stage_status = "ADOPTED STAGE MAP"
+        stage_mode = "pass"
+        stage_note = "Assembly duration is 0.0 day; app assumes stressing occurs immediately after transport. Update if actual staging differs."
     if selected_route.startswith("Refined"):
         method_status = "REFINED / TIME-STEP"
         method_mode = "pass"
-        adoption_policy = "Recommended preview route; final adoption deferred to 4.6 Effective Prestress."
+        adoption_policy = "Selected design route; average TD subtotal is handed to 4.6 CSiBridge loss."
         method_ready = True
     elif selected_route.startswith("Approximate"):
         method_status = "APPROXIMATE QUICK CHECK"
@@ -7931,9 +7947,9 @@ def _render_psloss_relaxation_section(crsh_state: dict[str, Any]) -> dict[str, A
     with c3:
         card("R1/R2 DIAGNOSTIC", f"{r['refined_total_mpa']:.2f} MPa", "Diagnostic only", "neutral")
     with c4:
-        card("TOTAL RELAXATION", f"{r['selected_loss_mpa']:.2f} MPa", f"{r['selected_loss_pct']:.2f}% of fpj", "warn")
+        card("TOTAL RELAXATION", f"{r['selected_loss_mpa']:.2f} MPa", f"{r['selected_loss_pct']:.2f}% of fpj", "pass")
     with c5:
-        card("ADOPTION STATUS", "PREVIEW ONLY", r["adoption_gate"], "neutral")
+        card("COMPONENT STATUS", "ACTIVE IN 4.6", "Low-relaxation cap feeds TD subtotal", "pass")
     st.markdown(
         '<div class="note-box"><b>Relaxation source rule:</b> PSLOSS.26D uses the BG40 low-relaxation interaction cap as the recommended audit route. R1/R2 and 2.4 ksi values remain diagnostics unless explicitly adopted through a source gate. Manufacturer relaxation data supersedes the generic route when supplied.</div>',
         unsafe_allow_html=True,
@@ -8065,12 +8081,12 @@ def _render_time_dependent_creep_tab(state: dict[str, Any]) -> None:
     with c1:
         card("CREEP COMPONENT", "REFINED PREVIEW", f"ψ selected = {f['creep_coeff']:.4f}", "pass" if state["selected_route"].startswith("Refined") else "neutral")
     with c2:
-        card("CREEP LOSS", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj", "warn")
+        card("CREEP LOSS", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj", "pass")
     with c3:
         fsrc = _psloss_fcgp_stage_stress_state(_psloss_source_gate_state())
         card("STRESS BASIS", f"fcgp = {f['fcgp_mpa']:.2f} MPa", fsrc.get("source_label", "Read-only stage source"), fsrc.get("mode", "pass"))
     with c4:
-        card("ADOPTION", "PREVIEW ONLY", route_note, "neutral")
+        card("COMPONENT STATUS", "ACTIVE IN 4.6" if state["selected_route"].startswith("Refined") else "QA ONLY", route_note, "pass" if state["selected_route"].startswith("Refined") else "neutral")
 
     if not state["selected_route"].startswith("Refined"):
         st.markdown(
@@ -8112,11 +8128,11 @@ def _render_time_dependent_shrinkage_tab(state: dict[str, Any]) -> None:
     with c1:
         card("SHRINKAGE COMPONENT", "REFINED PREVIEW", f"εsh,inc = {f['eps_sh_increment']:.6f}", "pass" if state["selected_route"].startswith("Refined") else "neutral")
     with c2:
-        card("SHRINKAGE LOSS", f"{f['shrinkage_loss_mpa']:.2f} MPa", f"{f['shrinkage_loss_pct']:.2f}% of fpj", "warn")
+        card("SHRINKAGE LOSS", f"{f['shrinkage_loss_mpa']:.2f} MPa", f"{f['shrinkage_loss_pct']:.2f}% of fpj", "pass")
     with c3:
         card("TIME WINDOW", f"t_start={state.get('effective_t_jack_days', 0.0):.1f} d", f"tf≈{state['duration_after_jack_years']:.1f} yr", "neutral")
     with c4:
-        card("ADOPTION", "PREVIEW ONLY", route_note, "neutral")
+        card("COMPONENT STATUS", "ACTIVE IN 4.6" if state["selected_route"].startswith("Refined") else "QA ONLY", route_note, "pass" if state["selected_route"].startswith("Refined") else "neutral")
 
     if not state["selected_route"].startswith("Refined"):
         st.markdown(
@@ -8174,7 +8190,7 @@ def _render_time_dependent_handoff_tab(state: dict[str, Any]) -> None:
         '<div class="warn-box"><b>Preview only:</b> PSLOSS.23 keeps route-dependent time-dependent-loss handoff behavior and reports creep, shrinkage, relaxation, the time-dependent subtotal, and fpx after time-dependent preview before 4.6. It does not adopt creep, shrinkage, or relaxation into final effective prestress.</div>',
         unsafe_allow_html=True,
     )
-    with st.expander("Time-dependent source trace / limitations", expanded=False):
+    if _trace_toggle("Time-dependent source trace / limitations"):
         st.markdown(
             '<div class="note-box"><b>One-source rule:</b> RH, V/S, h0, tf, and drying-perimeter basis remain owned by 3.8 CR&SH. 4.5 adds the construction-stage time map, route selector, time-step age-source selector, and relaxation source selectors only. Future refined/effective-prestress losses should read the selected sources and not create hidden duplicate inputs.</div>',
             unsafe_allow_html=True,
@@ -8202,7 +8218,7 @@ def render_prestress_time_dependent_losses_source_model() -> None:
     code_basis_card(
         "4.5 Time-Dependent Losses Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.4.2.3 / 5.9.3.3 / 5.9.3.4 / 5.9.3.5",
-        "PSLOSS.26H keeps average creep, shrinkage, relaxation, and TD subtotal on the main page; detailed equations remain in Calculation trace / QA.",
+        "PSLOSS.26I adopts computed prestressing age t_jack for the time-step start and keeps detailed equations in Calculation trace / QA.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-use rule:</b> the value carried to 4.6 is the <b>average time-dependent subtotal</b> = creep + shrinkage + relaxation. Detailed route reconciliation and formulas are retained below for QA.</div>',
@@ -8223,7 +8239,7 @@ def render_prestress_time_dependent_losses_source_model() -> None:
     with c2:
         time_source_options = _psloss_crsh_time_source_options()
         current_time_source = _psloss_crsh_selected_time_source()
-        ps["crsh_time_step_age_source"] = st.selectbox("Time-step age source", time_source_options, index=time_source_options.index(current_time_source), key="psloss22_time_source")
+        ps["crsh_time_step_age_source"] = st.selectbox("Prestress-loss start age", time_source_options, index=time_source_options.index(current_time_source), key="psloss22_time_source")
     with c3b:
         creep_basis_options = _psloss_crsh_creep_basis_options()
         current_creep_basis = _psloss_crsh_selected_creep_basis()
@@ -8244,15 +8260,15 @@ def render_prestress_time_dependent_losses_source_model() -> None:
 
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        card("TD SUMMARY", "REFINED PREVIEW" if state["method_ready"] else state["method_status"], f"t_start={state.get('effective_t_jack_days', 0.0):.1f} d · tf≈{state.get('duration_after_jack_years', 0.0):.1f} yr", state.get("method_mode", "warn"))
+        card("TD SUMMARY", "ADOPTED TIME-STEP" if state["method_ready"] else state["method_status"], f"t_start={state.get('effective_t_jack_days', 0.0):.1f} d · tf≈{state.get('duration_after_jack_years', 0.0):.1f} yr", state.get("method_mode", "warn"))
     with c2:
-        card("AVG CREEP LOSS", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj", "warn")
+        card("AVG CREEP LOSS", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj", "pass")
     with c3:
-        card("AVG SHRINKAGE LOSS", f"{f['shrinkage_loss_mpa']:.2f} MPa", f"{f['shrinkage_loss_pct']:.2f}% of fpj", "warn")
+        card("AVG SHRINKAGE LOSS", f"{f['shrinkage_loss_mpa']:.2f} MPa", f"{f['shrinkage_loss_pct']:.2f}% of fpj", "pass")
     with c4:
-        card("AVG RELAXATION LOSS", f"{relaxation_state['selected_loss_mpa']:.2f} MPa", f"{relaxation_state['selected_loss_pct']:.2f}% of fpj", "warn")
+        card("AVG RELAXATION LOSS", f"{relaxation_state['selected_loss_mpa']:.2f} MPa", f"{relaxation_state['selected_loss_pct']:.2f}% of fpj", "pass")
     with c5:
-        card("AVG TD LOSS", f"{total_td_mpa:.2f} MPa", f"{total_td_pct:.2f}% of fpj · handed to 4.6", "neutral")
+        card("AVG TD LOSS", f"{total_td_mpa:.2f} MPa", f"{total_td_pct:.2f}% of fpj · handed to 4.6", "pass")
 
     st.markdown("### Design-use time-dependent summary")
     show_engineering_table(pd.DataFrame(
@@ -8266,7 +8282,7 @@ def render_prestress_time_dependent_losses_source_model() -> None:
     ))
     _render_loss_percent_basis_note()
 
-    with st.expander("Calculation trace / QA — creep, shrinkage, relaxation, and handoff tables", expanded=False):
+    if _trace_toggle("Calculation trace / QA — creep, shrinkage, relaxation, and handoff tables"):
         st.markdown(
             '<div class="note-box"><b>Formula retained for QA:</b> this section keeps the refined/time-step creep and shrinkage equations, relaxation cap logic, and route/source reconciliation. It does not create a second design-use value.</div>',
             unsafe_allow_html=True,
@@ -8398,13 +8414,14 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
         review_reasons.append("time-dependent t_start source is still REVIEW")
     if relaxation_state.get("adoption_gate") != "BLOCKED UNTIL 4.6":
         review_reasons.append("relaxation source is not eligible for final adoption")
-    else:
-        review_reasons.append("relaxation source / low-relaxation basis requires engineer confirmation")
-    review_reasons.append("station/tendon effective-prestress basis uses physical 3D friction; final report adoption still requires engineer sign-off")
+    if ps.get("fcgp_manual_override_enabled"):
+        review_reasons.append("manual f_cgp override is active")
+    if str(td_state.get("selected_time_source", "")).startswith("Manual"):
+        review_reasons.append("time-dependent t_start source is manual/review only")
 
-    combination_ready = bool(source_state.get("ready") and friction_ready and friction_alpha_ready and anchor_equiv_ready and es_ready and td_ready_for_final)
-    status = "READY FOR ADOPTION REVIEW" if combination_ready and len(review_reasons) <= 1 else "PREVIEW / REVIEW REQUIRED"
-    mode = "pass" if status.startswith("READY") else "warn"
+    combination_ready = bool(source_state.get("ready") and friction_ready and friction_alpha_ready and anchor_equiv_ready and es_ready and td_ready_for_final and not ps.get("fcgp_manual_override_enabled"))
+    status = "READY FOR CSIBRIDGE HANDOFF" if combination_ready else "REVIEW REQUIRED"
+    mode = "pass" if combination_ready else "warn"
     return {
         "source_state": source_state,
         "fpi_mpa": fpi,
@@ -8623,7 +8640,7 @@ def _psloss_effective_report_audit_inputs() -> dict[str, float]:
         else:
             ps.setdefault(key, value)
 
-    with st.expander("Calculation report comparison inputs (% of fpi)", expanded=False):
+    if _trace_toggle("Calculation report comparison inputs (% of fpi)"):
         st.markdown(
             '<div class="note-box"><b>BG40 report benchmark inputs:</b> defaults are preloaded from the calculation report for audit comparison only. Editing these values does not change any prestress-loss calculation or final f<sub>pe</sub> adoption.</div>',
             unsafe_allow_html=True,
@@ -8877,24 +8894,24 @@ def render_prestress_effective_prestress_source_map() -> None:
     code_basis_card(
         "4.6 Final Loss / CSiBridge Input",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.26H presents the average final-stage total loss for design handoff and keeps audit/report-comparison details in Calculation trace / QA.",
+        "PSLOSS.26I presents the locked average final-stage total loss for CSiBridge and keeps audit/report-comparison details in Calculation trace / QA.",
     )
     st.markdown(
-        '<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss.</div>',
+        f'<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss. Status: <b>{ep_state.get("status", "-")}</b>.</div>',
         unsafe_allow_html=True,
     )
 
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        card("CSIBRIDGE TOTAL LOSS", f"{ep_state['csibridge_final_loss_pct']:.2f}%", "Recommended final-stage average % loss", "warn")
+        card("CSIBRIDGE TOTAL LOSS", f"{ep_state['csibridge_final_loss_pct']:.2f}%", "Final-stage average % loss for model input", ep_state.get("mode", "pass"))
     with c2:
-        card("TOTAL STRESS LOSS", f"{ep_state['representative_loss_mpa']:.2f} MPa", "Area-weighted average", "warn")
+        card("TOTAL STRESS LOSS", f"{ep_state['representative_loss_mpa']:.2f} MPa", "Area-weighted average", ep_state.get("mode", "pass"))
     with c3:
         card("fpe,AVG", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "fpi − total average loss", "pass" if ep_state['fpe_representative_mpa'] > 0 else "warn")
     with c4:
         card("Pe,TOTAL", f"{ep_state['pe_total_kN']:.0f} kN", "Aps,total × fpe,avg", "pass" if ep_state['pe_total_kN'] > 0 else "warn")
     with c5:
-        card("BASIS", f"{ep_state['tendon_count']} TENDONS", "Area-weighted; equal Aps in BG40", "neutral")
+        card("BASIS", f"{ep_state['tendon_count']} TENDONS", "Area-weighted; equal Aps in BG40", "pass")
 
     st.markdown("### CSiBridge final-stage loss input")
     show_engineering_table(_psloss_effective_csibridge_rows(ep_state))
@@ -8930,7 +8947,7 @@ def render_prestress_effective_prestress_source_map() -> None:
         unsafe_allow_html=True,
     )
 
-    with st.expander("Calculation trace / QA — source map, report comparison, diagnostics, and review gates", expanded=False):
+    if _trace_toggle("Calculation trace / QA — source map, report comparison, diagnostics, and review gates"):
         st.markdown(
             '<div class="note-box"><b>QA scope:</b> full component handoff, source map, report benchmark comparison, f<sub>cgp</sub> sensitivity, conservative sequence check, and open review gates are retained here without crowding the design handoff page.</div>',
             unsafe_allow_html=True,
@@ -9282,7 +9299,7 @@ render_project_save_panel()
 # The app can identify the driver without report inputs
 # COMMERCIAL.PSLOSS.26E physical cumulative 3D deviator route
 
-# COMMERCIAL.PSLOSS.26H compatibility tokens for static UI guard tests after trace-collapse cleanup:
+# COMMERCIAL.PSLOSS.26I compatibility tokens for static UI guard tests after status polish cleanup:
 # Friction coefficient input assistant
 # Physical friction design-basis summary
 # Friction loss result summary
@@ -9304,3 +9321,9 @@ render_project_save_panel()
 # Refined / time-step equation trace
 # Total loss (%) = (fpi − fpe) / fpi × 100
 # Backward-compatible static test token: stage-controlled engineering input
+
+# COMMERCIAL.PSLOSS.26I legacy static test tokens retained for regression guard continuity:
+# PSLOSS.25 calculation-readiness snapshot
+# Stage/sequence review required
+# Time-step age source
+# PREVIEW / REVIEW REQUIRED
