@@ -7874,6 +7874,11 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
     shrinkage_loss = _safe_float(td_factors.get("shrinkage_loss_mpa"), 0.0)
     relaxation_loss = _safe_float(relaxation_state.get("selected_loss_mpa"), 0.0)
     td_loss = creep_loss + shrinkage_loss + relaxation_loss if td_refined_selected else 0.0
+    fcgp_mpa = _safe_float(td_factors.get("fcgp_mpa") or estate.get("fcgp_mpa"), 0.0)
+    ep_over_eci = _safe_float(td_factors.get("ep_over_eci"), 0.0)
+    creep_coeff = _safe_float(td_factors.get("creep_coeff"), 0.0)
+    es_fcgp_factor = (es_avg_loss / fcgp_mpa) if fcgp_mpa > 0.0 else 0.0
+    creep_fcgp_factor = (creep_loss / fcgp_mpa) if fcgp_mpa > 0.0 else 0.0
 
     representative_loss = fa_loss + es_avg_loss + td_loss
     conservative_loss = fa_loss + es_max_loss + td_loss
@@ -7899,6 +7904,9 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
         review_reasons.append("time-dependent t_start source is still REVIEW")
     if relaxation_state.get("adoption_gate") != "BLOCKED UNTIL 4.6":
         review_reasons.append("relaxation source is not eligible for final adoption")
+    else:
+        review_reasons.append("relaxation source / low-relaxation basis requires engineer confirmation")
+    review_reasons.append("station/tendon effective-prestress basis is not yet locked")
 
     combination_ready = bool(source_state.get("ready") and friction_ready and anchor_ready and es_ready and td_ready_for_final)
     status = "READY FOR ADOPTION REVIEW" if combination_ready and len(review_reasons) <= 1 else "PREVIEW / REVIEW REQUIRED"
@@ -7920,6 +7928,11 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
         "shrinkage_loss_mpa": shrinkage_loss,
         "relaxation_loss_mpa": relaxation_loss,
         "td_loss_mpa": td_loss,
+        "fcgp_mpa": fcgp_mpa,
+        "ep_over_eci": ep_over_eci,
+        "creep_coeff": creep_coeff,
+        "es_fcgp_factor": es_fcgp_factor,
+        "creep_fcgp_factor": creep_fcgp_factor,
         "td_route": td_route,
         "td_time_source": str(td_state.get("selected_time_source", "-")),
         "td_time_source_ready": td_time_source_ready,
@@ -7987,13 +8000,186 @@ def _psloss_effective_review_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
     )
 
 
+def _psloss_effective_driver_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
+    """Return an internal loss-driver audit table for the 4.6 preview.
+
+    The flags are engineering review flags, not code pass/fail checks.  They
+    exist because a representative total loss above the calculation report can
+    usually be traced to a small number of source assumptions, especially the
+    f_cgp stage basis used by both elastic shortening and creep.
+    """
+    fpi = float(ep_state.get("fpi_mpa", 0.0) or 0.0)
+    total = max(float(ep_state.get("representative_loss_mpa", 0.0) or 0.0), 0.0)
+
+    def pct(value: float) -> float:
+        return (value / fpi * 100.0) if fpi > 0.0 else 0.0
+
+    def share(value: float) -> float:
+        return (value / total * 100.0) if total > 0.0 else 0.0
+
+    fa = float(ep_state.get("friction_anchor_loss_mpa", 0.0) or 0.0)
+    es = float(ep_state.get("es_avg_loss_mpa", 0.0) or 0.0)
+    creep = float(ep_state.get("creep_loss_mpa", 0.0) or 0.0)
+    shrinkage = float(ep_state.get("shrinkage_loss_mpa", 0.0) or 0.0)
+    relaxation = float(ep_state.get("relaxation_loss_mpa", 0.0) or 0.0)
+    td = float(ep_state.get("td_loss_mpa", 0.0) or 0.0)
+    es_creep = es + creep
+
+    driver_specs = [
+        ("Selected F+A envelope", fa, "CHECK", "Immediate station envelope; confirm it matches the report's stressing-end and anchor-set basis."),
+        ("Elastic shortening average", es, "REVIEW" if pct(es) > 5.0 else "CHECK", "Driven by f_cgp and stressing sequence basis; compare the report's transfer-stage concrete stress."),
+        ("Creep", creep, "REVIEW" if pct(creep) > 7.0 else "CHECK", "Driven by f_cgp, creep coefficient, t_start, RH, V/S, and final age."),
+        ("Shrinkage", shrinkage, "CHECK", "Post-jacking incremental shrinkage component."),
+        ("Relaxation", relaxation, "CHECK", "Confirm low-relaxation/manufacturer basis used by the report."),
+        ("Selected TD subtotal", td, "REVIEW" if pct(td) > 10.0 else "CHECK", "Creep + shrinkage + relaxation; verify time-step route and age source."),
+        ("ES + creep driver", es_creep, "MAJOR DRIVER" if pct(es_creep) > 12.0 else "CHECK", "Both terms are controlled by f_cgp; this is the first audit target when total loss looks high."),
+        ("Representative total loss", total, "HIGH / REVIEW" if pct(total) > 25.0 else "CHECK", "Total shown here is a preview and is not adopted until report/source gates are resolved."),
+    ]
+    rows = []
+    for name, value, flag, note in driver_specs:
+        rows.append(
+            [
+                name,
+                f"{value:.2f} MPa",
+                f"{pct(value):.2f}%",
+                f"{share(value):.1f}%" if total > 0.0 else "—",
+                flag,
+                note,
+            ]
+        )
+    return pd.DataFrame(rows, columns=["Audit item", "App value", "% of fpi", "Share of app total", "Audit flag", "Review focus"])
+
+
+def _psloss_effective_report_audit_inputs() -> dict[str, float]:
+    """Render optional calculation-report comparison inputs for PSLOSS.26A."""
+    ps = D.setdefault("prestress", {})
+    defaults = {
+        "psloss26a_audit_tolerance_pct": 1.00,
+        "psloss26a_report_immediate_fa_pct": 0.00,
+        "psloss26a_report_es_pct": 0.00,
+        "psloss26a_report_creep_pct": 0.00,
+        "psloss26a_report_shrinkage_pct": 0.00,
+        "psloss26a_report_relaxation_pct": 0.00,
+        "psloss26a_report_td_pct": 0.00,
+        "psloss26a_report_total_pct": 0.00,
+    }
+    for key, value in defaults.items():
+        ps.setdefault(key, value)
+
+    with st.expander("Calculation report comparison inputs (% of fpi)", expanded=False):
+        st.markdown(
+            '<div class="note-box"><b>Optional audit inputs:</b> enter the corresponding values from the calculation report as % of f<sub>pi</sub>. Leave a value as 0.00 when the report item is not available. These inputs are for audit comparison only and do not change any prestress-loss calculation.</div>',
+            unsafe_allow_html=True,
+        )
+        c0, c1, c2, c3 = st.columns(4)
+        with c0:
+            editable_value(["prestress", "psloss26a_audit_tolerance_pct"], "Audit tolerance (%-point)", 0.10, "%.2f")
+        with c1:
+            editable_value(["prestress", "psloss26a_report_total_pct"], "Report total loss (% fpi)", 0.10, "%.2f")
+        with c2:
+            editable_value(["prestress", "psloss26a_report_immediate_fa_pct"], "Report immediate F+A (% fpi)", 0.10, "%.2f")
+        with c3:
+            editable_value(["prestress", "psloss26a_report_es_pct"], "Report elastic shortening (% fpi)", 0.10, "%.2f")
+
+        c4, c5, c6, c7 = st.columns(4)
+        with c4:
+            editable_value(["prestress", "psloss26a_report_creep_pct"], "Report creep (% fpi)", 0.10, "%.2f")
+        with c5:
+            editable_value(["prestress", "psloss26a_report_shrinkage_pct"], "Report shrinkage (% fpi)", 0.10, "%.2f")
+        with c6:
+            editable_value(["prestress", "psloss26a_report_relaxation_pct"], "Report relaxation (% fpi)", 0.10, "%.2f")
+        with c7:
+            editable_value(["prestress", "psloss26a_report_td_pct"], "Report TD subtotal (% fpi)", 0.10, "%.2f")
+
+    return {key: float(ps.get(key, value) or 0.0) for key, value in defaults.items()}
+
+
+def _psloss_effective_report_comparison_rows(ep_state: dict[str, Any], report_inputs: dict[str, float]) -> pd.DataFrame:
+    """Compare app preview losses with optional calculation-report values."""
+    fpi = float(ep_state.get("fpi_mpa", 0.0) or 0.0)
+    tolerance_pct = max(0.0, float(report_inputs.get("psloss26a_audit_tolerance_pct", 1.0) or 1.0))
+
+    rows_spec = [
+        ("Immediate F+A envelope", ep_state.get("friction_anchor_loss_mpa", 0.0), "psloss26a_report_immediate_fa_pct", "Check friction/anchor-set station envelope and stressing-end assumption."),
+        ("Elastic shortening average", ep_state.get("es_avg_loss_mpa", 0.0), "psloss26a_report_es_pct", "Check f_cgp and stressing-sequence basis."),
+        ("Creep", ep_state.get("creep_loss_mpa", 0.0), "psloss26a_report_creep_pct", "Check f_cgp, creep coefficient, RH, V/S, t_start, and final age."),
+        ("Shrinkage", ep_state.get("shrinkage_loss_mpa", 0.0), "psloss26a_report_shrinkage_pct", "Check post-jacking shrinkage window and drying-basis source."),
+        ("Relaxation", ep_state.get("relaxation_loss_mpa", 0.0), "psloss26a_report_relaxation_pct", "Check low-relaxation/manufacturer data basis."),
+        ("Time-dependent subtotal", ep_state.get("td_loss_mpa", 0.0), "psloss26a_report_td_pct", "Creep + shrinkage + relaxation comparison."),
+        ("Representative total loss", ep_state.get("representative_loss_mpa", 0.0), "psloss26a_report_total_pct", "Overall comparison. Use this first when the report total is the only available benchmark."),
+    ]
+    rows = []
+    for name, app_mpa_raw, report_key, note in rows_spec:
+        app_mpa = float(app_mpa_raw or 0.0)
+        app_pct = (app_mpa / fpi * 100.0) if fpi > 0.0 else 0.0
+        report_pct = max(0.0, float(report_inputs.get(report_key, 0.0) or 0.0))
+        if report_pct > 0.0 and fpi > 0.0:
+            report_mpa = fpi * report_pct / 100.0
+            delta_pct = app_pct - report_pct
+            delta_mpa = app_mpa - report_mpa
+            abs_delta = abs(delta_pct)
+            if abs_delta <= tolerance_pct:
+                status = "MATCH"
+            elif abs_delta <= 2.0 * tolerance_pct:
+                status = "REVIEW"
+            else:
+                status = "DIFFERENCE"
+            report_value = f"{report_mpa:.2f} MPa ({report_pct:.2f}%)"
+            delta_value = f"{delta_mpa:+.2f} MPa ({delta_pct:+.2f} %-pt)"
+        else:
+            status = "INPUT PENDING"
+            report_value = "Not entered"
+            delta_value = "—"
+        rows.append([name, f"{app_mpa:.2f} MPa ({app_pct:.2f}%)", report_value, delta_value, status, note])
+    return pd.DataFrame(rows, columns=["Audit item", "App preview", "Calculation report", "App − report", "Status", "Audit focus"])
+
+
+def _psloss_effective_fcgp_sensitivity_rows(ep_state: dict[str, Any], report_inputs: dict[str, float]) -> pd.DataFrame:
+    """Estimate what f_cgp would be implied by a report total-loss benchmark.
+
+    This is not a design formula. It is an audit diagnostic that holds the F+A,
+    shrinkage, and relaxation previews fixed and solves the current linear
+    elastic-shortening + creep model for the f_cgp that would match the report
+    total. It helps identify whether the high total loss is primarily a stage
+    stress/source mismatch.
+    """
+    fpi = float(ep_state.get("fpi_mpa", 0.0) or 0.0)
+    report_total_pct = max(0.0, float(report_inputs.get("psloss26a_report_total_pct", 0.0) or 0.0))
+    current_fcgp = float(ep_state.get("fcgp_mpa", 0.0) or 0.0)
+    fixed_loss = float(ep_state.get("friction_anchor_loss_mpa", 0.0) or 0.0) + float(ep_state.get("shrinkage_loss_mpa", 0.0) or 0.0) + float(ep_state.get("relaxation_loss_mpa", 0.0) or 0.0)
+    fcgp_factor = float(ep_state.get("es_fcgp_factor", 0.0) or 0.0) + float(ep_state.get("creep_fcgp_factor", 0.0) or 0.0)
+    app_total = float(ep_state.get("representative_loss_mpa", 0.0) or 0.0)
+
+    if report_total_pct > 0.0 and fpi > 0.0 and fcgp_factor > 0.0:
+        report_total_mpa = fpi * report_total_pct / 100.0
+        target_fcgp = (report_total_mpa - fixed_loss) / fcgp_factor
+        target_text = f"{target_fcgp:.2f} MPa" if target_fcgp >= 0.0 else "Not physically positive"
+        difference_text = f"{target_fcgp - current_fcgp:+.2f} MPa" if target_fcgp >= 0.0 else "—"
+        interpretation = "If this is far from the report's f_cgp, audit 4.4/4.5 stage-stress basis before adopting fpe."
+    else:
+        report_total_mpa = 0.0
+        target_text = "Input pending"
+        difference_text = "—"
+        interpretation = "Enter report total loss to estimate the f_cgp implied by the report benchmark."
+
+    rows = [
+        ["Current app f_cgp", f"{current_fcgp:.2f} MPa", "4.4 Elastic Shortening / 4.5 Creep", "Both ES and creep read this stage stress source."],
+        ["Current ES + creep", f"{(float(ep_state.get('es_avg_loss_mpa', 0.0) or 0.0) + float(ep_state.get('creep_loss_mpa', 0.0) or 0.0)):.2f} MPa", "4.4 + 4.5", "This is the dominant current total-loss driver if the report total is lower."],
+        ["Current representative total", f"{app_total:.2f} MPa", "4.6 preview", "Preview only; not adopted."],
+        ["Report total benchmark", f"{report_total_mpa:.2f} MPa" if report_total_pct > 0.0 else "Not entered", "Calculation report input", "Optional user-entered audit value."],
+        ["Implied f_cgp to match report total", target_text, "Audit back-calculation", interpretation],
+        ["Implied f_cgp − current f_cgp", difference_text, "Audit back-calculation", "Large negative value means the app's f_cgp/stage basis may be too high relative to the report."],
+    ]
+    return pd.DataFrame(rows, columns=["Diagnostic item", "Value", "Source", "Interpretation"])
+
+
 def render_prestress_effective_prestress_source_map() -> None:
-    """Render PSLOSS.26 first-pass 4.6 Effective Prestress source map."""
+    """Render PSLOSS.26A 4.6 Effective Prestress source map and audit."""
     ep_state = _psloss_effective_prestress_preview_state()
     code_basis_card(
-        "4.6 Effective Prestress Source Map",
+        "4.6 Effective Prestress Source Map and Loss Audit",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.26 starts the final combination/adoption gate by mapping component handoffs, defining the total-loss %fpi basis, and showing representative fpe/Pe preview values. No final effective-prestress value is adopted in this milestone.",
+        "PSLOSS.26A keeps the source map and total-loss %fpi preview, adds a calculation-report audit table, and flags the ES/creep f_cgp driver before final fpe adoption.",
     )
     st.markdown(
         '<div class="note-box"><b>Initial stress basis:</b> for this project, <b>f<sub>pi</sub> = f<sub>pj</sub> = 1395 MPa</b> from the adopted tendon jacking-stress source. Total loss percent is calculated as <b>(f<sub>pi</sub> − f<sub>pe</sub>) / f<sub>pi</sub> × 100</b>, not by directly adding component percentages from earlier pages.</div>',
@@ -8005,20 +8191,57 @@ def render_prestress_effective_prestress_source_map() -> None:
     with c2:
         card("INITIAL STRESS fpi", f"{ep_state['fpi_mpa']:.2f} MPa", "fpi = fpj", "neutral")
     with c3:
-        card("TOTAL LOSS", f"{ep_state['representative_loss_mpa']:.2f} MPa", f"{ep_state['representative_loss_pct']:.2f}% of fpi", "warn")
+        card("REPRESENTATIVE TOTAL LOSS", f"{ep_state['representative_loss_mpa']:.2f} MPa", f"{ep_state['representative_loss_pct']:.2f}% of fpi · preview", "warn")
     with c4:
-        card("EFFECTIVE STRESS fpe", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "Representative preview", "pass" if ep_state['fpe_representative_mpa'] > 0 else "warn")
+        card("REPRESENTATIVE fpe", f"{ep_state['fpe_representative_mpa']:.2f} MPa", "Preview, not adopted", "pass" if ep_state['fpe_representative_mpa'] > 0 else "warn")
     with c5:
         card("EFFECTIVE FORCE Pe", f"{ep_state['pe_per_tendon_kN']:.0f} kN/tendon", f"Total ≈ {ep_state['pe_total_kN']:.0f} kN", "pass" if ep_state['pe_per_tendon_kN'] > 0 else "warn")
 
     st.markdown("### Combination policy")
-    st.latex(r"\Delta f_{p,total}=f_{pi}-f_{pe}")
-    st.latex(r"\mathrm{Total\ loss\ (\%)}=rac{f_{pi}-f_{pe}}{f_{pi}}	imes100")
-    st.latex(r"f_{pe,rep}=f_{pi}-\Delta f_{p,F+A}-\Delta f_{pES,avg}-\Delta f_{pTD}")
+    st.markdown(
+        """
+        <div class="note-box">
+          <b>Formula trace:</b><br>
+          Δfp,total = fpi − fpe<br>
+          Total loss (%) = (fpi − fpe) / fpi × 100<br>
+          fpe,rep = fpi − Δfp,F+A − ΔfpES,avg − ΔfpTD
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown(
         '<div class="warn-box"><b>Do not add component percentages:</b> component % values remain visible for readability only. The selected total loss % is calculated from the combined stress result. Friction and anchor set are station-dependent, elastic shortening is sequence/stage-dependent, and time-dependent losses remain source-gated.</div>',
         unsafe_allow_html=True,
     )
+
+    st.markdown("### Loss audit against calculation report")
+    st.markdown(
+        '<div class="warn-box"><b>Audit reason:</b> the representative total loss is intentionally flagged because it is above 25% of f<sub>pi</sub>. The first source to audit is usually f<sub>cgp</sub>, because both elastic shortening and creep are driven by that stage-stress input.</div>',
+        unsafe_allow_html=True,
+    )
+    audit_inputs = _psloss_effective_report_audit_inputs()
+    c6, c7, c8 = st.columns(3)
+    es_creep_mpa = ep_state["es_avg_loss_mpa"] + ep_state["creep_loss_mpa"]
+    es_creep_pct = es_creep_mpa / ep_state["fpi_mpa"] * 100.0 if ep_state["fpi_mpa"] > 0.0 else 0.0
+    with c6:
+        card("LOSS AUDIT STATUS", "HIGH PREVIEW", f"{ep_state['representative_loss_pct']:.2f}% of fpi", "warn")
+    with c7:
+        card("MAIN DRIVER", "ES + CREEP", f"{es_creep_mpa:.2f} MPa · {es_creep_pct:.2f}% of fpi", "warn")
+    with c8:
+        card("FIRST CHECK", "f_cgp BASIS", f"Current f_cgp = {ep_state['fcgp_mpa']:.2f} MPa", "warn")
+
+    st.markdown("#### App loss-driver audit")
+    show_engineering_table(_psloss_effective_driver_rows(ep_state))
+
+    st.markdown("#### App vs calculation-report comparison")
+    show_engineering_table(_psloss_effective_report_comparison_rows(ep_state, audit_inputs))
+
+    with st.expander("f_cgp sensitivity diagnostic", expanded=False):
+        st.markdown(
+            '<div class="note-box"><b>Diagnostic only:</b> this back-calculation does not change the design result. It estimates the f<sub>cgp</sub> that would be implied by the report total-loss benchmark if F+A, shrinkage, and relaxation remain unchanged.</div>',
+            unsafe_allow_html=True,
+        )
+        show_engineering_table(_psloss_effective_fcgp_sensitivity_rows(ep_state, audit_inputs))
 
     st.markdown("### Source map and selected combination basis")
     show_engineering_table(_psloss_effective_source_map_rows(ep_state))
@@ -8039,7 +8262,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     st.markdown("### Open review gates before final adoption")
     show_engineering_table(_psloss_effective_review_rows(ep_state))
     st.markdown(
-        '<div class="warn-box"><b>Preview only:</b> PSLOSS.26 defines the source map, total-loss %fpi basis, and first-pass fpe/Pe preview. Final adoption still requires the 4.6 combination engine to lock station/tendon basis, elastic-shortening sequence basis, time-step age source, and relaxation source.</div>',
+        '<div class="warn-box"><b>Preview only:</b> PSLOSS.26A defines the source map, total-loss %fpi basis, first-pass fpe/Pe preview, and calculation-report audit. Final adoption still requires the 4.6 combination engine to lock station/tendon basis, elastic-shortening sequence basis, time-step age source, and relaxation source.</div>',
         unsafe_allow_html=True,
     )
 

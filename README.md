@@ -1,6 +1,8 @@
-# Segmental Box Girder Pro — COMMERCIAL.UI.SIDEBAR.2
+# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.26A
 
 This baseline carries forward the accepted commercial milestones and standards:
+- COMMERCIAL.PSLOSS.26A
+- COMMERCIAL.PSLOSS.26
 - COMMERCIAL.UI.SIDEBAR.2
 - COMMERCIAL.UI.SIDEBAR.1
 - COMMERCIAL.UI.HEADER.1
@@ -208,3 +210,18 @@ Current milestone focus — COMMERCIAL.UI.SIDEBAR.1
 
 Schema
 - 0.4.90-commercial-ui-sidebar1-clean-project-status
+
+## COMMERCIAL.PSLOSS.26A
+
+- Adds a 4.6 Effective Prestress loss audit against the calculation report while keeping the PSLOSS.26 source map and total-loss %fpi preview.
+- Flags the representative total loss when it exceeds the internal high-preview threshold and identifies ES + creep as the first f_cgp-driven audit target.
+- Adds optional report comparison inputs for immediate F+A, elastic shortening, creep, shrinkage, relaxation, time-dependent subtotal, and total loss as % of fpi.
+- Adds app-vs-report comparison rows with App − report delta and MATCH / REVIEW / DIFFERENCE / INPUT PENDING status.
+- Adds an f_cgp sensitivity diagnostic that estimates the f_cgp implied by a report total-loss benchmark without changing any design result.
+- Replaces fragile LaTeX formula rendering in 4.6 with a print-safe plain formula trace and relabels total loss/fpe cards as representative preview values.
+- Adds explicit review gates for station/tendon effective-prestress basis and relaxation-source confirmation.
+- Preserves all friction, anchor-set, elastic-shortening, creep, shrinkage, relaxation, save/load, and report logic/results; final fpe adoption remains blocked.
+
+Schema
+- 0.4.93-commercial-psloss26a-effective-prestress-loss-audit
+
