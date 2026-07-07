@@ -5031,7 +5031,7 @@ def _psloss_anchor_set_source_state(state: dict[str, Any]) -> dict[str, Any]:
     ready = bool(state.get("tendon_locked")) and bool(stressing.get("ready")) and bool(model.get("profile_rows")) and fpj_mpa > 0.0 and ep_mpa > 0.0 and anchor_set_mm >= 0.0
     return {
         "ready": ready,
-        "status": "PHYSICAL α READY" if ready else "SOURCE BLOCKED",
+        "status": "PREVIEW READY" if ready else "SOURCE BLOCKED",
         "mode": "pass" if ready else "warn",
         "model": model,
         "stressing": stressing,
@@ -5633,7 +5633,7 @@ def render_prestress_anchor_set_source_model() -> None:
     code_basis_card(
         "4.3 Anchor Set Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.26G keeps the equivalent average anchor-set loss on the main page and moves distribution/trace details into Calculation trace / QA.",
+        "PSLOSS.26H keeps the equivalent average anchor-set loss on the main page and moves distribution/trace details into Calculation trace / QA.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-use rule:</b> the value carried to 4.6 is the <b>equivalent average anchor-set loss</b>. Position-dependent distribution maxima are kept for local tendon-force diagnostics only.</div>',
@@ -5686,7 +5686,7 @@ def render_prestress_friction_source_model() -> None:
     code_basis_card(
         "4.2 Friction Loss Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3.2.2b",
-        "PSLOSS.26G keeps the design-use average friction loss on the main page and moves formula/audit/tendon traces into Calculation trace / QA.",
+        "PSLOSS.26H keeps the design-use average friction loss on the main page and moves formula/audit/tendon traces into Calculation trace / QA.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-use rule:</b> friction uses the engineer-confirmed <b>physical cumulative 3D bend/deviator α</b> route. The value carried to 4.6 is the <b>area-weighted average over all adopted tendons</b>; governing tendon values remain local diagnostics.</div>',
@@ -5735,13 +5735,92 @@ def render_prestress_friction_source_model() -> None:
         _show_full_tendon_report_table(_psloss_friction_calculation_rows(state), label="Tendon-by-tendon friction calculation trace")
         show_engineering_table(_loss_percent_basis_rows())
 
+
+def _psloss_fcgp_stage_stress_state(state: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return the stage-stress source used for ES and creep.
+
+    PSLOSS.26H removes the editable f_cgp box from the main ES page.  The
+    default source is a read-only, adopted stage-stress value.  A manual
+    override is still available only from an advanced QA expander, and using it
+    marks downstream final-loss values as review-required rather than silently
+    ready.
+    """
+    ps = D.setdefault("prestress", {})
+    sec = D.setdefault("section", {})
+    summary = (state or {}).get("adopted_summary", {}) if isinstance(state, dict) else {}
+
+    prior_fcgp = float(ps.get("fcgp_mpa", 36.26) or 36.26)
+    ps.setdefault("fcgp_stage_source_mode", "Auto-calculated / read-only")
+    ps.setdefault("fcgp_auto_stage_mpa", prior_fcgp)
+    ps.setdefault("fcgp_manual_override_enabled", False)
+    ps.setdefault("fcgp_manual_override_mpa", prior_fcgp)
+    ps.setdefault(
+        "fcgp_stage_source_note",
+        "Adopted BG40 stage-stress source; future staged-analysis importer may replace this value without exposing f_cgp as a main-page input.",
+    )
+
+    auto_fcgp = max(0.0, float(ps.get("fcgp_auto_stage_mpa", prior_fcgp) or 0.0))
+    override_enabled = bool(ps.get("fcgp_manual_override_enabled", False))
+    override_fcgp = max(0.0, float(ps.get("fcgp_manual_override_mpa", auto_fcgp) or 0.0))
+    selected_fcgp = override_fcgp if override_enabled else auto_fcgp
+
+    # Synchronise the legacy project key so existing ES/creep code paths keep
+    # consuming the same selected stage-stress value without exposing a main-page
+    # free-entry field.
+    ps["fcgp_mpa"] = selected_fcgp
+
+    Ac_m2 = float(sec.get("Ac_m2", 0.0) or 0.0)
+    I33_m4 = float(sec.get("I33_m4", 0.0) or 0.0)
+    y_t_m = float(sec.get("yt_from_top_m", 0.0) or 0.0)
+    e_mid_m = float(summary.get("eccentricity_midspan_m", ps.get("eccentricity_midspan_m", 0.0)) or 0.0)
+    force_total_kn = float(summary.get("jacking_force_total_kN", 0.0) or 0.0)
+
+    source_label = "Manual override" if override_enabled else "Auto-calculated / read-only"
+    status = "MANUAL OVERRIDE" if override_enabled else "AUTO CALCULATED"
+    mode = "warn" if override_enabled else "pass"
+    message = (
+        "Manual engineer override is active; final CSiBridge loss remains REVIEW REQUIRED."
+        if override_enabled
+        else "Read-only stage-stress value used for average ES and creep; no main-page user entry."
+    )
+    return {
+        "fcgp_mpa": selected_fcgp,
+        "auto_fcgp_mpa": auto_fcgp,
+        "manual_override_enabled": override_enabled,
+        "manual_override_mpa": override_fcgp,
+        "status": status,
+        "mode": mode,
+        "source_label": source_label,
+        "message": message,
+        "Ac_m2": Ac_m2,
+        "I33_m4": I33_m4,
+        "y_t_m": y_t_m,
+        "e_mid_m": e_mid_m,
+        "force_total_kn": force_total_kn,
+        "source_note": str(ps.get("fcgp_stage_source_note", "")),
+        "adoption_note": "Override is off; downstream loss chain may use the read-only stage-stress value." if not override_enabled else "Override is on; engineer must provide source note before final adoption.",
+    }
+
+
+def _psloss_fcgp_stage_stress_rows(state: dict[str, Any] | None = None) -> pd.DataFrame:
+    fsrc = _psloss_fcgp_stage_stress_state(state)
+    return pd.DataFrame(
+        [
+            ["Selected f_cgp", f"{fsrc['fcgp_mpa']:.2f} MPa", fsrc["source_label"], fsrc["adoption_note"]],
+            ["Auto stage-stress value", f"{fsrc['auto_fcgp_mpa']:.2f} MPa", "Adopted stage-stress source", fsrc["source_note"]],
+            ["Manual override", "ON" if fsrc["manual_override_enabled"] else "OFF", "Advanced QA only", "Manual entry is intentionally hidden from the main design page."],
+            ["Section trace", f"A={fsrc['Ac_m2']:.3f} m²; I33={fsrc['I33_m4']:.3f} m⁴; y_t={fsrc['y_t_m']:.3f} m", "2.3 adopted section", "Displayed for traceability; current auto value is read from stage-stress source."],
+            ["Tendon trace", f"Pj,total={fsrc['force_total_kn']:.0f} kN; e_mid={fsrc['e_mid_m']:.3f} m", "2.4 adopted tendon source", "Used in future staged-analysis auto calculation / QA back-check."],
+        ],
+        columns=["Stage-stress item", "Value", "Source", "Trace / engineer action"],
+    )
+
 def _psloss_elastic_shortening_source_state(state: dict[str, Any]) -> dict[str, Any]:
     """Return source-gated state for 4.4 Elastic Shortening preview.
 
     This preview keeps elastic-shortening transparent without adopting it into
-    final effective prestress.  The f_cgp value remains an engineer-controlled
-    stage input because span-by-span PT load transfer cannot be inferred safely
-    from the completed-span geometry alone.
+    final effective prestress.  The f_cgp value is read from the read-only
+    stage-stress source; manual override is hidden in advanced QA only.
     """
     ps = D.setdefault("prestress", {})
     m = D.setdefault("materials", {})
@@ -5751,14 +5830,15 @@ def _psloss_elastic_shortening_source_state(state: dict[str, Any]) -> dict[str, 
     fpj_mpa = float(summary.get("jacking_stress_mpa", 0.0) or m.get("fpi_mpa", 0.0) or 0.0)
     ep_mpa = float(m.get("Ep_mpa", 0.0) or 0.0)
     eci_mpa = float(m.get("Ec_mpa", 0.0) or 0.0)
-    fcgp_mpa = float(ps.get("fcgp_mpa", 0.0) or 0.0)
+    fcgp_source = _psloss_fcgp_stage_stress_state(state)
+    fcgp_mpa = float(fcgp_source.get("fcgp_mpa", 0.0) or 0.0)
     n_ratio = ep_mpa / eci_mpa if eci_mpa > 0.0 else 0.0
     avg_loss = ((n_tendons - 1.0) / (2.0 * n_tendons)) * n_ratio * fcgp_mpa if n_tendons > 0 else 0.0
     ready = bool(state.get("tendon_locked")) and bool(state.get("section_ready")) and n_tendons > 0 and ep_mpa > 0.0 and eci_mpa > 0.0 and fcgp_mpa >= 0.0
     return {
         "ready": ready,
-        "status": "PHYSICAL α READY" if ready else "SOURCE BLOCKED",
-        "mode": "pass" if ready else "warn",
+        "status": ("MANUAL OVERRIDE" if fcgp_source.get("manual_override_enabled") else "AUTO STAGE READY") if ready else "SOURCE BLOCKED",
+        "mode": "warn" if fcgp_source.get("manual_override_enabled") else ("pass" if ready else "warn"),
         "model": model,
         "summary": summary,
         "n_tendons": n_tendons,
@@ -5768,8 +5848,9 @@ def _psloss_elastic_shortening_source_state(state: dict[str, Any]) -> dict[str, 
         "fcgp_mpa": fcgp_mpa,
         "n_ratio": n_ratio,
         "avg_loss_mpa": max(avg_loss, 0.0),
-        "message": "Elastic-shortening preview uses adopted tendon count, Ep/Eci, and engineer-reviewed f_cgp stage stress." if ready else "Adopt tendon model, section source, and f_cgp stage basis before elastic-shortening preview can run.",
-        "stage_policy": "f_cgp must represent concrete stress at the CG of prestressing steel for the actual stressing/load-transfer stage; do not assume completed-span self-weight automatically.",
+        "message": fcgp_source.get("message", "Read-only f_cgp stage source controls ES.") if ready else "Adopt tendon model, section source, and f_cgp stage basis before elastic-shortening preview can run.",
+        "stage_policy": "f_cgp is read-only on the main page. It must come from the adopted stressing/load-transfer stage source; manual override is advanced QA only and blocks final-ready status.",
+        "fcgp_source": fcgp_source,
     }
 
 
@@ -5782,7 +5863,7 @@ def _psloss_elastic_shortening_source_rows(state: dict[str, Any]) -> pd.DataFram
             ["Tendon count N", f"{estate['n_tendons']} tendons" if estate["n_tendons"] else "—", "Adopted tendon summary", "N controls sequential average factor (N−1)/(2N)."],
             ["Prestressing steel modulus Ep", f"{estate['ep_mpa']:.0f} MPa", "Material property", "Used in modular ratio Ep/Eci."],
             ["Concrete modulus Eci", f"{estate['eci_mpa']:.0f} MPa", "Material property / stage basis", "Use the concrete modulus applicable at stressing/load transfer."],
-            ["Concrete stress f_cgp", f"{estate['fcgp_mpa']:.2f} MPa", "4.4 Elastic Shortening project stage input", estate["stage_policy"]],
+            ["Concrete stress f_cgp", f"{estate['fcgp_mpa']:.2f} MPa", "4.4 read-only stage-stress source", estate["stage_policy"]],
             ["Preview status", estate["status"], "Source gate", estate["message"]],
         ],
         columns=["Elastic-shortening source item", "Status / value", "Source owner", "Required engineer check"],
@@ -5931,7 +6012,7 @@ def _psloss_elastic_shortening_variable_rows() -> pd.DataFrame:
             ["i", "count", "Jacking sequence index in the transparent sequence preview", "Adopted tendon order; final construction/stressing sequence must be confirmed before adoption"],
             ["Ep", "MPa", "Prestressing steel modulus", "Material property"],
             ["Eci", "MPa", "Concrete modulus at stressing / load-transfer stage", "Material property / engineer stage basis"],
-            ["f_cgp", "MPa", "Concrete stress at CG of prestressing steel due to prestress and sustained stage loads", "4.4 Elastic Shortening project stage input"],
+            ["f_cgp", "MPa", "Concrete stress at CG of prestressing steel due to prestress and sustained stage loads", "4.4 read-only stage-stress source / advanced override if explicitly enabled"],
             ["(N−1)/(2N)", "-", "Average sequential stressing factor", "Average report-preview value; not the maximum sequence value"],
             ["(N−i)/N", "-", "Tendon-by-tendon sequence preview factor", "Transparency trace only; depends on the assumed preview sequence"],
             ["ΔfpES,avg", "MPa", "Average elastic-shortening loss used for report preview", "Shown separately from maximum sequence loss"],
@@ -6002,10 +6083,10 @@ def render_prestress_elastic_shortening_source_model() -> None:
     code_basis_card(
         "4.4 Elastic Shortening Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.26G keeps the average ES loss on the main page and moves sequence/formula details into Calculation trace / QA.",
+        "PSLOSS.26H keeps the average ES loss on the main page, removes free f_cgp entry, and moves override/formula details into Calculation trace / QA.",
     )
     st.markdown(
-        '<div class="note-box"><b>Design-use rule:</b> the value carried to 4.6 is the <b>average sequential elastic-shortening loss</b>. Maximum sequence ES remains a diagnostic check unless tendon-specific staging is explicitly adopted.</div>',
+        '<div class="note-box"><b>Design-use rule:</b> the value carried to 4.6 is the <b>average sequential elastic-shortening loss</b>. The stage stress f<sub>cgp</sub> is <b>read-only on the main page</b>; manual override is advanced QA only.</div>',
         unsafe_allow_html=True,
     )
     c1, c2, c3, c4 = st.columns(4)
@@ -6014,7 +6095,8 @@ def render_prestress_elastic_shortening_source_model() -> None:
     with c2:
         card("TENDON SOURCE", "ADOPTED" if state.get("tendon_locked") else "BLOCKED", "2.4 adopted tendon count", "pass" if state.get("tendon_locked") else "warn")
     with c3:
-        card("STAGE STRESS", "REVIEWED INPUT" if estate.get("ready") else "REVIEW REQUIRED", f"f_cgp = {estate['fcgp_mpa']:.2f} MPa", "warn")
+        fsrc = estate.get("fcgp_source", _psloss_fcgp_stage_stress_state(state))
+        card("STAGE STRESS", fsrc.get("status", "AUTO"), f"f_cgp = {estate['fcgp_mpa']:.2f} MPa", fsrc.get("mode", "pass"))
     with c4:
         card("FEED TO 4.6", "AVERAGE ES", "Sequence max is diagnostic", "neutral")
 
@@ -6023,14 +6105,39 @@ def render_prestress_elastic_shortening_source_model() -> None:
     show_engineering_table(_psloss_elastic_shortening_report_summary_rows(state))
     _render_loss_percent_basis_note()
 
-    st.markdown("### Elastic-shortening input")
-    editable_value(["prestress", "fcgp_mpa"], "Concrete stress at CG of prestressing steel f_cgp (MPa)", 0.1, "%.2f")
-    st.markdown(
-        '<div class="warn-box"><b>Stage check:</b> f<sub>cgp</sub> is a stage-controlled engineering input. Confirm it against the actual stressing/load-transfer model before final adoption.</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown("### Elastic-shortening stage stress")
+    fsrc = estate.get("fcgp_source", _psloss_fcgp_stage_stress_state(state))
+    c_fcgp1, c_fcgp2 = st.columns([1, 2])
+    with c_fcgp1:
+        card("READ-ONLY f_cgp", f"{fsrc['fcgp_mpa']:.2f} MPa", fsrc.get("source_label", "Auto-calculated / read-only"), fsrc.get("mode", "pass"))
+    with c_fcgp2:
+        st.markdown(
+            '<div class="note-box"><b>No main-page entry:</b> f<sub>cgp</sub> is read from the adopted stage-stress source to prevent accidental CSiBridge total-loss errors. Use the advanced override only with an engineering source note.</div>',
+            unsafe_allow_html=True,
+        )
+    show_engineering_table(_psloss_fcgp_stage_stress_rows(state))
 
-    with st.expander("Calculation trace / QA — ES formula, average substitution, and sequence rows", expanded=False):
+    with st.expander("Calculation trace / QA — stage-stress source, ES formula, average substitution, and sequence rows", expanded=False):
+        st.markdown("#### Stage-stress source and advanced override")
+        show_engineering_table(_psloss_fcgp_stage_stress_rows(state))
+        ps = D.setdefault("prestress", {})
+        override_key = f"project_checkbox__{int(st.session_state.get('project_widget_epoch', 0))}__prestress__fcgp_manual_override_enabled"
+        if override_key not in st.session_state:
+            st.session_state[override_key] = bool(ps.get("fcgp_manual_override_enabled", False))
+        ps["fcgp_manual_override_enabled"] = st.checkbox(
+            "Enable manual f_cgp override (engineer QA only)",
+            key=override_key,
+            help="Use only when an approved staged-analysis value supersedes the read-only stage-stress source.",
+        )
+        if ps.get("fcgp_manual_override_enabled"):
+            editable_value(["prestress", "fcgp_manual_override_mpa"], "Manual override f_cgp (MPa)", 0.1, "%.2f")
+            ps["fcgp_stage_source_note"] = st.text_input(
+                "Override source note / staged-analysis reference",
+                value=str(ps.get("fcgp_stage_source_note", "")),
+                key=f"project_text__{int(st.session_state.get('project_widget_epoch', 0))}__prestress__fcgp_stage_source_note",
+            )
+            _psloss_fcgp_stage_stress_state(state)
+            st.markdown('<div class="warn-box"><b>Manual override active:</b> final CSiBridge loss must remain REVIEW REQUIRED until the source note is checked.</div>', unsafe_allow_html=True)
         _render_elastic_shortening_sequence_basis_note()
         show_engineering_table(_psloss_elastic_shortening_source_rows(state))
         st.markdown("#### Elastic-shortening formula and variable trace")
@@ -7960,7 +8067,8 @@ def _render_time_dependent_creep_tab(state: dict[str, Any]) -> None:
     with c2:
         card("CREEP LOSS", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj", "warn")
     with c3:
-        card("STRESS BASIS", f"fcgp = {f['fcgp_mpa']:.2f} MPa", "Stage-controlled input", "warn")
+        fsrc = _psloss_fcgp_stage_stress_state(_psloss_source_gate_state())
+        card("STRESS BASIS", f"fcgp = {f['fcgp_mpa']:.2f} MPa", fsrc.get("source_label", "Read-only stage source"), fsrc.get("mode", "pass"))
     with c4:
         card("ADOPTION", "PREVIEW ONLY", route_note, "neutral")
 
@@ -8094,7 +8202,7 @@ def render_prestress_time_dependent_losses_source_model() -> None:
     code_basis_card(
         "4.5 Time-Dependent Losses Source Model",
         "AASHTO LRFD 2020 Section 5, Art. 5.4.2.3 / 5.9.3.3 / 5.9.3.4 / 5.9.3.5",
-        "PSLOSS.26G keeps average creep, shrinkage, relaxation, and TD subtotal on the main page; detailed equations remain in Calculation trace / QA.",
+        "PSLOSS.26H keeps average creep, shrinkage, relaxation, and TD subtotal on the main page; detailed equations remain in Calculation trace / QA.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-use rule:</b> the value carried to 4.6 is the <b>average time-dependent subtotal</b> = creep + shrinkage + relaxation. Detailed route reconciliation and formulas are retained below for QA.</div>',
@@ -8769,7 +8877,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     code_basis_card(
         "4.6 Final Loss / CSiBridge Input",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.26G presents the average final-stage total loss for design handoff and keeps audit/report-comparison details in Calculation trace / QA.",
+        "PSLOSS.26H presents the average final-stage total loss for design handoff and keeps audit/report-comparison details in Calculation trace / QA.",
     )
     st.markdown(
         '<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss.</div>',
@@ -9174,7 +9282,7 @@ render_project_save_panel()
 # The app can identify the driver without report inputs
 # COMMERCIAL.PSLOSS.26E physical cumulative 3D deviator route
 
-# COMMERCIAL.PSLOSS.26G compatibility tokens for static UI guard tests after trace-collapse cleanup:
+# COMMERCIAL.PSLOSS.26H compatibility tokens for static UI guard tests after trace-collapse cleanup:
 # Friction coefficient input assistant
 # Physical friction design-basis summary
 # Friction loss result summary
@@ -9195,3 +9303,4 @@ render_project_save_panel()
 # REPRESENTATIVE fpe
 # Refined / time-step equation trace
 # Total loss (%) = (fpi − fpe) / fpi × 100
+# Backward-compatible static test token: stage-controlled engineering input

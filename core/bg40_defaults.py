@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.99-commercial-psloss26g-clean-loss-workspace-trace-collapse",
+        "schema_version": "0.4.100-commercial-psloss26h-auto-fcgp-stage-stress",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -233,6 +233,11 @@ BG40_DEFAULT = {
         "V_over_S_in": 5.98,
         "h0_m": 0.3036,
         "fcgp_mpa": 36.26,
+        "fcgp_stage_source_mode": "Auto-calculated / read-only",
+        "fcgp_auto_stage_mpa": 36.26,
+        "fcgp_manual_override_enabled": False,
+        "fcgp_manual_override_mpa": 36.26,
+        "fcgp_stage_source_note": "Adopted BG40 stage-stress source; future staged-analysis importer may replace this value without exposing f_cgp as a main-page input.",
         "anchor_set_loss_mpa": 0.0,
         "relaxation_loss_mpa": 0.0,
         "tendon_friction_groups": [

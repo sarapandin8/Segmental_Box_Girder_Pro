@@ -297,3 +297,19 @@ Changes:
 - Moved formula blocks, substitution walkthroughs, tendon-by-tendon tables, report benchmark comparisons, source maps, and diagnostics into collapsed Calculation trace / QA expanders.
 - Preserved all engineering formulas and traceability while reducing main-page clutter.
 - Kept 4.6 focused on the CSiBridge final-stage total loss percent, fpe, Pe, and component average chain.
+
+## COMMERCIAL.PSLOSS.26H
+
+Auto f_cgp Stage-Stress Source
+
+Schema:
+
+- 0.4.100-commercial-psloss26h-auto-fcgp-stage-stress
+
+Changes:
+
+- Removed the main-page editable `f_cgp` number input from 4.4 Elastic Shortening to prevent accidental manual edits from corrupting ES, creep, and CSiBridge total-loss results.
+- Added a read-only `f_cgp` stage-stress source card and trace table on the 4.4 main page.
+- Added an advanced-only manual override inside the Calculation trace / QA expander; enabling it marks the stage-stress source as `MANUAL OVERRIDE` and keeps final loss adoption in review.
+- Synchronized the selected stage-stress source with the legacy `prestress.fcgp_mpa` key so existing ES and creep formulas continue to use one source of truth.
+- Preserved the ES formula, average substitution, and tendon-by-tendon sequence trace in the collapsed QA expander.
