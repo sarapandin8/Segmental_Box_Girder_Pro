@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.83-commercial-psloss23-td-handoff-relax-wording",
+        "schema_version": "0.4.96-commercial-psloss26d-creep-relaxation-audit",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -219,7 +219,8 @@ BG40_DEFAULT = {
         "crsh_stage_time_basis": "Auto representative span mode",
         "crsh_calculation_route": "Refined / time-step — Recommended",
         "crsh_time_step_age_source": "Keep REVIEW / do not adopt",
-        "relaxation_calculation_method": "AASHTO refined R1/R2 preview — Recommended",
+        "crsh_creep_time_basis": "BG40 report-match incremental Δktd — Recommended audit route",
+        "relaxation_calculation_method": "BG40 low-relaxation interaction cap — Recommended audit route",
         "relaxation_steel_type": "Low-relaxation strand",
         "relaxation_stress_basis": "Use fpj / jacking-stress preview",
         "u_outer_m": 25.98,
@@ -233,7 +234,7 @@ BG40_DEFAULT = {
         "h0_m": 0.3036,
         "fcgp_mpa": 36.26,
         "anchor_set_loss_mpa": 0.0,
-        "relaxation_loss_mpa": 29.7,
+        "relaxation_loss_mpa": 0.0,
         "tendon_friction_groups": [
             {"group": "T1–T2", "n": 4, "end_dp_m": 1.89, "midspan_dp_m": 2.15, "alpha_vert_rad": 0.0260, "alpha_horiz_rad": 0.0720},
             {"group": "T3–T4", "n": 4, "end_dp_m": 1.46, "midspan_dp_m": 2.15, "alpha_vert_rad": 0.0689, "alpha_horiz_rad": 0.0620},

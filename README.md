@@ -249,3 +249,14 @@ Schema
 
 Schema
 - 0.4.95-commercial-psloss26c-friction-alpha-gate
+
+## COMMERCIAL.PSLOSS.26D
+
+- Adds a creep report-match audit route for 4.5 Time-Dependent Losses: the selected route now uses BG40-style incremental `Δktd = ktd(tf) − ktd(t_start)` by default, while the former direct-elapsed `ktd(tf − t_start)` route is retained as diagnostic only.
+- Exposes selected ψ, report-match ψ, direct-elapsed diagnostic ψ, creep loss delta, and a PSLOSS.26D creep-basis audit table so inflated creep can be traced without hard-coding the report result.
+- Updates relaxation to use the BG40 low-relaxation interaction expression `0.30[20.0 - 0.4ΔfpES - 0.2(ΔfpSH + ΔfpCR)]` with negative values capped at `0.0 MPa`; the older AASHTO R1/R2 and 2.4 ksi routes remain visible only as diagnostics/quick checks.
+- Preloads the 4.6 App-vs-report benchmark table with BG40 report values for friction, anchor set, elastic shortening, creep, shrinkage, relaxation, total loss, and fpe. These are comparison inputs only and do not drive final adoption.
+- Keeps 4.6 Effective Prestress as PREVIEW / REVIEW REQUIRED. The app still does not certify final fpe until friction α, equivalent anchor set, ES sequence, creep route, relaxation basis, and final combination gates are closed.
+
+Schema
+- 0.4.96-commercial-psloss26d-creep-relaxation-audit

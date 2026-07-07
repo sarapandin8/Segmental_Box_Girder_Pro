@@ -7148,6 +7148,23 @@ def _psloss_crsh_selected_time_source() -> str:
     return source
 
 
+def _psloss_crsh_creep_basis_options() -> list[str]:
+    return [
+        "BG40 report-match incremental Δktd — Recommended audit route",
+        "AASHTO direct elapsed ktd — Diagnostic comparison",
+    ]
+
+
+def _psloss_crsh_selected_creep_basis() -> str:
+    ps = D["prestress"]
+    options = _psloss_crsh_creep_basis_options()
+    value = str(ps.get("crsh_creep_time_basis", options[0]))
+    if value not in options:
+        value = options[0]
+    ps["crsh_creep_time_basis"] = value
+    return value
+
+
 def _psloss_crsh_ktd(time_days: float, fci_ksi: float) -> float:
     """AASHTO 5.4.2.3.2 time-development factor for creep/shrinkage preview."""
     t = max(0.0, float(time_days or 0.0))
@@ -7183,22 +7200,35 @@ def _psloss_crsh_factor_preview(state: dict[str, Any]) -> dict[str, float]:
     Aps_total_mm2 = max(0.0, float(ps.get("Aps_total_mm2", 0.0) or 0.0))
 
     # AASHTO 5.4.2.3.2 / 5.4.2.3.3 material factors.
+    # PSLOSS.26D explicitly splits the BG40 report-match incremental Δktd
+    # route from the prior direct-elapsed diagnostic route.  The report-match
+    # route uses ktd(tf) - ktd(t_start), matching the BG40 hand calculation
+    # where Δktd = 0.999 - 0.517 = 0.482 for ti = 28 d and tf = 27,000 d.
     ks_creep = max(1.0, 1.45 - 0.13 * vs_in)
     khc = 1.56 - 0.008 * H
     kf = 5.0 / (1.0 + fci_ksi)
-    ktd_creep = _psloss_crsh_ktd(dt, fci_ksi)
+    ktd_elapsed = _psloss_crsh_ktd(dt, fci_ksi)
+    ktd_tf = _psloss_crsh_ktd(tf, fci_ksi)
+    ktd_tstart = _psloss_crsh_ktd(t_start, fci_ksi)
+    delta_ktd = max(0.0, ktd_tf - ktd_tstart)
+    ktd_creep_report = delta_ktd
+    ktd_creep_direct = ktd_elapsed
+    creep_time_basis = _psloss_crsh_selected_creep_basis()
+    ktd_creep = ktd_creep_report if creep_time_basis.startswith("BG40") else ktd_creep_direct
     ti_term = max(t_start, 1.0) ** (-0.118)
-    creep_coeff = max(0.0, 1.9 * ks_creep * khc * kf * ktd_creep * ti_term)
+    creep_coeff_report = max(0.0, 1.9 * ks_creep * khc * kf * ktd_creep_report * ti_term)
+    creep_coeff_direct = max(0.0, 1.9 * ks_creep * khc * kf * ktd_creep_direct * ti_term)
+    creep_coeff = creep_coeff_report if creep_time_basis.startswith("BG40") else creep_coeff_direct
 
     ks_sh = ks_creep
     khs = 2.00 - 0.014 * H
-    ktd_tf = _psloss_crsh_ktd(tf, fci_ksi)
-    ktd_tstart = _psloss_crsh_ktd(t_start, fci_ksi)
-    ktd_sh_increment = max(0.0, ktd_tf - ktd_tstart)
+    ktd_sh_increment = delta_ktd
     eps_sh_increment = max(0.0, ks_sh * khs * kf * ktd_sh_increment * 0.48e-3)
 
     ep_over_eci = (Ep / Eci) if Eci > 0.0 else 0.0
-    creep_loss_mpa = ep_over_eci * fcgp * creep_coeff
+    creep_loss_report_mpa = ep_over_eci * fcgp * creep_coeff_report
+    creep_loss_direct_mpa = ep_over_eci * fcgp * creep_coeff_direct
+    creep_loss_mpa = creep_loss_report_mpa if creep_time_basis.startswith("BG40") else creep_loss_direct_mpa
     shrinkage_loss_mpa = Ep * eps_sh_increment
     total_crsh_loss_mpa = creep_loss_mpa + shrinkage_loss_mpa
     fpx_after_crsh_mpa = fpj - total_crsh_loss_mpa
@@ -7233,9 +7263,19 @@ def _psloss_crsh_factor_preview(state: dict[str, Any]) -> dict[str, float]:
         "ks_creep": ks_creep,
         "khc": khc,
         "kf": kf,
+        "creep_time_basis": creep_time_basis,
+        "ktd_elapsed": ktd_elapsed,
+        "delta_ktd": delta_ktd,
+        "ktd_creep_report": ktd_creep_report,
+        "ktd_creep_direct": ktd_creep_direct,
         "ktd_creep": ktd_creep,
         "ti_term": ti_term,
+        "creep_coeff_report": creep_coeff_report,
+        "creep_coeff_direct": creep_coeff_direct,
         "creep_coeff": creep_coeff,
+        "creep_loss_report_mpa": creep_loss_report_mpa,
+        "creep_loss_direct_mpa": creep_loss_direct_mpa,
+        "creep_loss_delta_mpa": creep_loss_direct_mpa - creep_loss_report_mpa,
         "ks_shrinkage": ks_sh,
         "khs": khs,
         "ktd_tf": ktd_tf,
@@ -7282,8 +7322,10 @@ def _psloss_crsh_time_step_state() -> dict[str, Any]:
     ps.setdefault("crsh_stage_time_basis", "Auto representative span mode")
     ps.setdefault("crsh_calculation_route", options[0])
     ps.setdefault("crsh_time_step_age_source", _psloss_crsh_time_source_options()[2])
+    ps.setdefault("crsh_creep_time_basis", _psloss_crsh_creep_basis_options()[0])
     selected_route = _psloss_crsh_selected_route()
     selected_time_source = _psloss_crsh_selected_time_source()
+    selected_creep_basis = _psloss_crsh_selected_creep_basis()
     transport_age = max(0.0, float(ps.get("segment_age_at_transport_days", 30.0) or 0.0))
     assembly_days = max(0.0, float(ps.get("span_assembly_duration_days", 0.0) or 0.0))
     t_jack = transport_age + assembly_days
@@ -7343,6 +7385,7 @@ def _psloss_crsh_time_step_state() -> dict[str, Any]:
         "construction_method": str(ps.get("crsh_construction_method", "Span-by-span segmental with precast segments")),
         "selected_route": selected_route,
         "selected_time_source": selected_time_source,
+        "selected_creep_basis": selected_creep_basis,
         "transport_age_days": transport_age,
         "assembly_duration_days": assembly_days,
         "t_jack_days": t_jack,
@@ -7380,6 +7423,7 @@ def _psloss_crsh_source_rows(state: dict[str, Any]) -> pd.DataFrame:
         [
             ["Selected calculation route", state["selected_route"], "4.5 method selector", state["adoption_policy"]],
             ["Selected time-step age source", state.get("selected_time_source", "SOURCE PARTIAL"), "4.5 ti source selector", state["time_source_note"]],
+            ["Selected creep coefficient route", state.get("selected_creep_basis", "SOURCE PARTIAL"), "4.5 PSLOSS.26D creep-basis selector", "Report-match route uses incremental Δktd = ktd(tf) − ktd(t_start); direct elapsed ktd remains diagnostic only."],
             ["Construction method", state["construction_method"], "4.5 construction-stage input", "Span-by-span representative mode; not a duplicate CR&SH material input."],
             ["Segment age at transport", f"{state['transport_age_days']:.1f}", "days", "Editable in 4.5; default is 30 days."],
             ["Span assembly duration", f"{state['assembly_duration_days']:.1f}", "days", "Editable in 4.5; set to actual gantry-launcher assembly duration before final adoption."],
@@ -7449,7 +7493,9 @@ def _psloss_crsh_refined_summary_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Selected route", state["selected_route"], state["adoption_policy"]],
             ["Selected time-step age source", state.get("selected_time_source", "SOURCE PARTIAL"), f"effective start age = {state.get('effective_t_jack_days', 0.0):.1f} days; {state.get('time_source_note', '-')}"],
             ["Code basis", "AASHTO LRFD 2020 Art. 5.4.2.3 / 5.9.3.4 / 5.9.3.5", "Segmental construction should use time-step/stage-aware evaluation beyond preliminary design."],
-            ["Creep coefficient ψ(t_f,t_start)", f"{f['creep_coeff']:.4f}", "Computed from RH, V/S, fci, selected t_start and final time."],
+            ["Selected creep route", f.get("creep_time_basis", state.get("selected_creep_basis", "SOURCE PARTIAL")), "PSLOSS.26D separates report-match incremental Δktd from the prior direct-elapsed diagnostic route."],
+            ["Creep coefficient ψ selected", f"{f['creep_coeff']:.4f}", "Selected route coefficient; report-match ψ is shown against the diagnostic route below."],
+            ["ψ report-match / ψ diagnostic", f"{f['creep_coeff_report']:.4f} / {f['creep_coeff_direct']:.4f}", "Report-match uses Δktd = ktd(tf) − ktd(t_start); diagnostic uses ktd(tf − t_start)."],
             ["Incremental shrinkage strain εsh,inc", f"{f['eps_sh_increment']:.6f}", "Shrinkage after jacking only; pre-jacking shrinkage is not a direct tendon loss."],
             ["Creep loss preview", f"{f['creep_loss_mpa']:.2f} MPa ({f['creep_loss_pct']:.2f}%)", "Component loss / fpj × 100; do not add % directly across pages."],
             ["Shrinkage loss preview", f"{f['shrinkage_loss_mpa']:.2f} MPa ({f['shrinkage_loss_pct']:.2f}%)", "Component loss / fpj × 100; do not add % directly across pages."],
@@ -7472,14 +7518,33 @@ def _psloss_crsh_factor_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["ks", "-", f"{f['ks_creep']:.4f}", "max(1.0, 1.45 − 0.13 V/S)"],
             ["khc", "-", f"{f['khc']:.4f}", "1.56 − 0.008H"],
             ["kf", "-", f"{f['kf']:.4f}", "5/(1+f'ci)"],
-            ["ktd,creep", "-", f"{f['ktd_creep']:.4f}", "Time-development factor using Δt = tf − t_start"],
+            ["creep basis", "-", f.get("creep_time_basis", "SOURCE PARTIAL"), "Selected PSLOSS.26D creep coefficient route"],
+            ["ktd,creep selected", "-", f"{f['ktd_creep']:.4f}", "Selected time-development factor for creep"],
+            ["Δktd report-match", "-", f"{f['delta_ktd']:.4f}", "ktd(tf) − ktd(t_start); BG40 report-match route"],
+            ["ktd direct elapsed", "-", f"{f['ktd_elapsed']:.4f}", "Diagnostic prior app route using Δt = tf − t_start"],
             ["t_start^-0.118", "-", f"{f['ti_term']:.4f}", "Selected time-step start age at load application / jacking"],
-            ["ψ(t_f,t_start)", "-", f"{f['creep_coeff']:.4f}", "1.9 ks khc kf ktd t_start^-0.118"],
+            ["ψ selected", "-", f"{f['creep_coeff']:.4f}", "1.9 ks khc kf ktd t_start^-0.118"],
+            ["ψ report-match", "-", f"{f['creep_coeff_report']:.4f}", "Uses incremental Δktd; should reproduce BG40 ψ ≈ 0.306 for the report inputs"],
+            ["ψ diagnostic", "-", f"{f['creep_coeff_direct']:.4f}", "Uses direct elapsed ktd; retained as diagnostic only"],
             ["khs", "-", f"{f['khs']:.4f}", "2.00 − 0.014H"],
             ["ktd(tf) − ktd(t_start)", "-", f"{f['ktd_sh_increment']:.4f}", "Incremental shrinkage time-development after selected t_start"],
             ["εsh,inc", "strain", f"{f['eps_sh_increment']:.6f}", "ks khs kf Δktd × 0.48×10^-3"],
         ],
         columns=["Variable", "Unit", "Value", "Source / trace"],
+    )
+
+
+def _psloss_crsh_creep_basis_audit_rows(state: dict[str, Any]) -> pd.DataFrame:
+    f = state["factors"]
+    selected = f.get("creep_time_basis", state.get("selected_creep_basis", "SOURCE PARTIAL"))
+    return pd.DataFrame(
+        [
+            ["Selected creep coefficient basis", selected, f"ψ = {f['creep_coeff']:.4f}; ΔfpCR = {f['creep_loss_mpa']:.2f} MPa", "PREVIEW / REVIEW", "Feeds the 4.5 and 4.6 preview only; final fpe adoption remains blocked until source gates are closed."],
+            ["BG40 report-match incremental Δktd", f"Δktd = {f['delta_ktd']:.4f}", f"ψ report-match = {f['creep_coeff_report']:.4f}; ΔfpCR = {f['creep_loss_report_mpa']:.2f} MPa", "RECOMMENDED AUDIT ROUTE", "Uses ktd(tf) − ktd(t_start), matching the BG40 hand calculation route; not a hard-coded final value."],
+            ["AASHTO direct elapsed ktd — Diagnostic comparison", f"ktd(tf − t_start) = {f['ktd_elapsed']:.4f}", f"ψ diagnostic = {f['creep_coeff_direct']:.4f}; ΔfpCR = {f['creep_loss_direct_mpa']:.2f} MPa", "DIAGNOSTIC ONLY", "Retained to expose the former high-loss route; it must not feed global fpe unless explicitly adopted by a source gate."],
+            ["Direct − report-match difference", "diagnostic delta", f"{f['creep_loss_delta_mpa']:+.2f} MPa", "ROOT-CAUSE TRACE", "Large positive delta indicates the former direct-elapsed basis inflated creep relative to the report-match incremental route."],
+        ],
+        columns=["Audit item", "Coefficient / factor", "Loss trace", "Status", "Engineering interpretation"],
     )
 
 
@@ -7502,7 +7567,8 @@ def _psloss_crsh_approx_rows(state: dict[str, Any]) -> pd.DataFrame:
 
 def _psloss_relaxation_method_options() -> list[str]:
     return [
-        "AASHTO refined R1/R2 preview — Recommended",
+        "BG40 low-relaxation interaction cap — Recommended audit route",
+        "AASHTO refined R1/R2 preview — Diagnostic",
         "Low-relaxation 2.4 ksi quick check",
         "Manufacturer relaxation data — Future / gated",
     ]
@@ -7590,12 +7656,39 @@ def _psloss_relaxation_preview_state(crsh_state: dict[str, Any] | None = None) -
     refined_total_mpa = r1_mpa + r2_mpa
     quick_r1_mpa = ksi_to_mpa(1.2) if low_relaxation else 0.0
     quick_total_mpa = ksi_to_mpa(2.4) if low_relaxation else 0.0
-    if method.startswith("AASHTO refined"):
-        selected_loss = refined_total_mpa
-        method_status = "AASHTO R1/R2 PREVIEW"
+
+    # BG40 low-relaxation interaction cap route.  This route audits the report
+    # calculation instead of silently accepting the prior positive R1/R2 preview.
+    # Raw expression: ΔfpR = 0.30[20.0 - 0.4ΔfpES - 0.2(ΔfpSH + ΔfpCR)].
+    es_basis = "4.4 Elastic Shortening average preview"
+    try:
+        es_rows_for_relax, estate_for_relax = _psloss_elastic_shortening_sequence_results(_psloss_source_gate_state())
+        if estate_for_relax.get("ready"):
+            es_loss_mpa = _safe_float(estate_for_relax.get("avg_loss_mpa"), 0.0)
+        else:
+            es_loss_mpa = _safe_float(ps.get("relaxation_es_loss_mpa", 0.0), 0.0)
+            es_basis = "Fallback editable relaxation ES value; review 4.4 source gate"
+    except Exception:
+        es_loss_mpa = _safe_float(ps.get("relaxation_es_loss_mpa", 0.0), 0.0)
+        es_basis = "Fallback editable relaxation ES value; review 4.4 source gate"
+    creep_loss_mpa = _safe_float(f.get("creep_loss_mpa", 0.0), 0.0)
+    shrinkage_loss_mpa = _safe_float(f.get("shrinkage_loss_mpa", 0.0), 0.0)
+    interaction_raw_mpa = 0.30 * (20.0 - 0.4 * es_loss_mpa - 0.2 * (shrinkage_loss_mpa + creep_loss_mpa))
+    interaction_capped_mpa = max(interaction_raw_mpa, 0.0) if low_relaxation else 0.0
+    interaction_cap_status = "CAPPED AT 0.0 MPa" if interaction_raw_mpa < 0.0 and low_relaxation else "NO CAP ACTIVE"
+
+    if method.startswith("BG40 low-relaxation"):
+        selected_loss = interaction_capped_mpa
+        method_status = "LOW-RELAX INTERACTION CAP"
         method_mode = "pass" if low_relaxation and basis_ready else "warn"
-        selected_note = "Selected relaxation preview uses AASHTO R1/R2 simplified route; final 4.6 adoption remains blocked."
+        selected_note = "Selected relaxation uses the BG40 low-relaxation interaction expression and caps negative relaxation loss at 0.0 MPa."
         eligible = low_relaxation and basis_ready
+    elif method.startswith("AASHTO refined"):
+        selected_loss = refined_total_mpa
+        method_status = "AASHTO R1/R2 DIAGNOSTIC"
+        method_mode = "warn"
+        selected_note = "AASHTO R1/R2 remains visible as diagnostic; it must not override the BG40 low-relaxation cap without an explicit source gate."
+        eligible = False
     elif method.startswith("Low-relaxation"):
         selected_loss = quick_total_mpa
         method_status = "LOW-RELAX QUICK CHECK"
@@ -7633,6 +7726,13 @@ def _psloss_relaxation_preview_state(crsh_state: dict[str, Any] | None = None) -
         "refined_total_mpa": refined_total_mpa,
         "quick_r1_mpa": quick_r1_mpa,
         "quick_total_mpa": quick_total_mpa,
+        "es_loss_mpa": es_loss_mpa,
+        "es_basis": es_basis,
+        "creep_loss_mpa": creep_loss_mpa,
+        "shrinkage_loss_mpa": shrinkage_loss_mpa,
+        "interaction_raw_mpa": interaction_raw_mpa,
+        "interaction_capped_mpa": interaction_capped_mpa,
+        "interaction_cap_status": interaction_cap_status,
         "selected_loss_mpa": selected_loss,
         "selected_loss_pct": loss_pct,
         "fpx_after_relax_mpa": fpx_after_relax,
@@ -7650,6 +7750,9 @@ def _psloss_relaxation_source_rows(r: dict[str, Any]) -> pd.DataFrame:
             ["fpt", f"{r['fpt_mpa']:.2f}", "MPa", "Stress in prestressing steel used for relaxation preview."],
             ["fpy", f"{r['fpy_mpa']:.2f}", "MPa", "Yield stress of prestressing steel from material source."],
             ["KL", f"{r['KL']:.1f}", "-", "AASHTO steel-type factor; low-relaxation strand = 30."],
+            ["BG40 relaxation input ΔfpES", f"{r['es_loss_mpa']:.2f}", "MPa", r.get("es_basis", "4.4 Elastic Shortening average preview")],
+            ["BG40 relaxation input ΔfpCR + ΔfpSH", f"{r['creep_loss_mpa']:.2f} + {r['shrinkage_loss_mpa']:.2f}", "MPa", "Read from the selected 4.5 creep/shrinkage source route."],
+            ["Relaxation cap status", r["interaction_cap_status"], "BG40 low-relaxation cap", f"Raw = {r['interaction_raw_mpa']:.2f} MPa; capped = {r['interaction_capped_mpa']:.2f} MPa."],
             ["Relaxation preview status", r["adoption_gate"], "4.6 Effective Prestress", r["adoption_note"]],
         ],
         columns=["Source item", "Value", "Unit / owner", "Trace / engineer check"],
@@ -7662,9 +7765,10 @@ def _psloss_relaxation_report_rows(r: dict[str, Any]) -> pd.DataFrame:
             ["Calculation status", "PREVIEW READY" if r["selected_loss_mpa"] > 0.0 else "SOURCE GATED", "Source-gated relaxation preview; not final effective prestress."],
             ["Code basis", "AASHTO LRFD 2020 Art. 5.9.3.4.2c / 5.9.3.4.3c", "R1/R2 relaxation source-model route; manufacturer data may govern if supplied."],
             ["Selected method", r["method"], r["selected_note"]],
-            ["Stress ratio fpt/fpy", f"{r['ratio']:.4f}", "Relaxation term is active only above 0.55 fpy in the source equation."],
-            ["R1 relaxation preview", f"{r['r1_mpa']:.2f} MPa", "Transfer-to-intermediate period preview from AASHTO simplified equation."],
-            ["R2 relaxation preview", f"{r['r2_mpa']:.2f} MPa", "Final-period preview taken equal to R1 in the AASHTO source route."],
+            ["Stress ratio fpt/fpy", f"{r['ratio']:.4f}", "R1/R2 diagnostic term is active only above 0.55 fpy in the source equation."],
+            ["BG40 capped interaction relaxation", f"{r['interaction_capped_mpa']:.2f} MPa", f"Raw = 0.30[20.0 - 0.4({r['es_loss_mpa']:.2f}) - 0.2({r['shrinkage_loss_mpa']:.2f} + {r['creep_loss_mpa']:.2f})] = {r['interaction_raw_mpa']:.2f} MPa; {r['interaction_cap_status']}"],
+            ["R1 relaxation diagnostic", f"{r['r1_mpa']:.2f} MPa", "Diagnostic transfer-to-intermediate period preview from AASHTO simplified equation."],
+            ["R2 relaxation diagnostic", f"{r['r2_mpa']:.2f} MPa", "Diagnostic final-period preview taken equal to R1 in the AASHTO source route."],
             ["Selected relaxation loss", f"{r['selected_loss_mpa']:.2f} MPa ({r['selected_loss_pct']:.2f}%)", "Component loss / fpj × 100; do not add % directly across pages."],
             ["Low-relax quick check", f"{r['quick_total_mpa']:.2f} MPa", "2.4 ksi total quick-check comparison for low-relaxation strand."],
             ["fpx after relaxation", f"{r['fpx_after_relax_mpa']:.2f} MPa", "Relaxation-only stress preview based on the selected stress basis."],
@@ -7680,8 +7784,10 @@ def _psloss_relaxation_variable_rows(r: dict[str, Any]) -> pd.DataFrame:
             ["fpt", "MPa", "Prestressing steel stress immediately after the selected stress-basis point", "4.5 relaxation stress-basis selector"],
             ["fpy", "MPa", "Yield stress of prestressing steel", "Material source"],
             ["KL", "-", "Steel-type relaxation factor", "30 for low-relaxation strand; 7 for other prestressing steel unless manufacturer data govern"],
-            ["ΔfpR1", "MPa", "Relaxation loss for the first time-dependent period", "AASHTO refined simplified preview"],
-            ["ΔfpR2", "MPa", "Relaxation loss for the second time-dependent period", "AASHTO route takes ΔfpR2 = ΔfpR1"],
+            ["ΔfpR,BG40 raw", "MPa", "0.30[20.0 - 0.4ΔfpES - 0.2(ΔfpSH + ΔfpCR)]", "BG40 low-relaxation interaction expression"],
+            ["ΔfpR,BG40 capped", "MPa", "max(raw relaxation, 0.0) for low-relaxation strand", "Negative relaxation loss is capped at 0.0 MPa"],
+            ["ΔfpR1", "MPa", "Relaxation loss for the first time-dependent period", "AASHTO refined simplified preview; diagnostic route in PSLOSS.26D"],
+            ["ΔfpR2", "MPa", "Relaxation loss for the second time-dependent period", "AASHTO route takes ΔfpR2 = ΔfpR1; diagnostic route in PSLOSS.26D"],
             ["ΔfpR,total", "MPa", "Selected total relaxation preview", "Component preview only; final combination is owned by 4.6"],
             ["Loss %", "%", "Component relaxation loss divided by fpj", "Non-cumulative component-loss percentage"],
         ],
@@ -7713,15 +7819,15 @@ def _render_psloss_relaxation_section(crsh_state: dict[str, Any]) -> dict[str, A
     with c1:
         card("RELAXATION SUMMARY", r["method_status"], r["steel_type"], r["method_mode"])
     with c2:
-        card("R1 RELAXATION", f"{r['r1_mpa']:.2f} MPa", "AASHTO source period 1", "warn")
+        card("BG40 RAW RELAXATION", f"{r['interaction_raw_mpa']:.2f} MPa", r["interaction_cap_status"], "warn")
     with c3:
-        card("R2 RELAXATION", f"{r['r2_mpa']:.2f} MPa", "AASHTO source period 2", "warn")
+        card("R1/R2 DIAGNOSTIC", f"{r['refined_total_mpa']:.2f} MPa", "Diagnostic only", "neutral")
     with c4:
         card("TOTAL RELAXATION", f"{r['selected_loss_mpa']:.2f} MPa", f"{r['selected_loss_pct']:.2f}% of fpj", "warn")
     with c5:
         card("ADOPTION STATUS", "PREVIEW ONLY", r["adoption_gate"], "neutral")
     st.markdown(
-        '<div class="note-box"><b>Relaxation source rule:</b> relaxation is a component-level preview. The selected stress basis, steel relaxation class, and method must be reported before 4.6 can combine this value with friction, anchor set, elastic shortening, creep, and shrinkage. Manufacturer relaxation data supersedes the generic source route when supplied.</div>',
+        '<div class="note-box"><b>Relaxation source rule:</b> PSLOSS.26D uses the BG40 low-relaxation interaction cap as the recommended audit route. R1/R2 and 2.4 ksi values remain diagnostics unless explicitly adopted through a source gate. Manufacturer relaxation data supersedes the generic route when supplied.</div>',
         unsafe_allow_html=True,
     )
     st.markdown("#### Relaxation source trace")
@@ -7729,20 +7835,21 @@ def _render_psloss_relaxation_section(crsh_state: dict[str, Any]) -> dict[str, A
     st.markdown("#### Report-style relaxation summary")
     show_engineering_table(_psloss_relaxation_report_rows(r))
     st.markdown("#### Relaxation equation block")
-    st.latex(r"\Delta f_{pR1}=\frac{f_{pt}}{K_L}\left(\frac{f_{pt}}{f_{py}}-0.55\right)")
-    st.latex(r"\Delta f_{pR2}=\Delta f_{pR1}")
-    st.latex(r"\Delta f_{pR,total}=\Delta f_{pR1}+\Delta f_{pR2}")
-    st.latex(r"f_{px,R}=f_{pt}-\Delta f_{pR,total}")
+    st.latex(r"\Delta f_{pR,BG40,raw}=0.30\left[20.0-0.4\Delta f_{pES}-0.2(\Delta f_{pSH}+\Delta f_{pCR})\right]")
+    st.latex(r"\Delta f_{pR,BG40}=\max(\Delta f_{pR,BG40,raw},0.0)")
+    st.latex(r"\Delta f_{pR1}=\frac{f_{pt}}{K_L}\left(\frac{f_{pt}}{f_{py}}-0.55\right)\quad\mathrm{(diagnostic)}")
+    st.latex(r"\Delta f_{pR2}=\Delta f_{pR1}\quad\mathrm{(diagnostic)}")
+    st.latex(r"f_{px,R}=f_{pt}-\Delta f_{pR,selected}")
     st.markdown("#### Relaxation variable definition")
     show_engineering_table(_psloss_relaxation_variable_rows(r))
     st.markdown("#### Relaxation substitution")
-    st.latex(fr"\frac{{f_{{pt}}}}{{f_{{py}}}}=\frac{{{r['fpt_mpa']:.2f}}}{{{r['fpy_mpa']:.2f}}}={r['ratio']:.4f}")
-    st.latex(fr"\Delta f_{{pR1}}=\frac{{{r['fpt_mpa']:.2f}}}{{{r['KL']:.1f}}}\left({r['ratio']:.4f}-0.55\right)={r['r1_mpa']:.2f}\ \mathrm{{MPa}}")
-    st.latex(fr"\Delta f_{{pR2}}={r['r2_mpa']:.2f}\ \mathrm{{MPa}}")
-    st.latex(fr"\Delta f_{{pR,total}}={r['r1_mpa']:.2f}+{r['r2_mpa']:.2f}={r['selected_loss_mpa']:.2f}\ \mathrm{{MPa}}")
+    st.latex(fr"\Delta f_{{pR,BG40,raw}}=0.30[20.0-0.4({r['es_loss_mpa']:.2f})-0.2({r['shrinkage_loss_mpa']:.2f}+{r['creep_loss_mpa']:.2f})]={r['interaction_raw_mpa']:.2f}\ \mathrm{{MPa}}")
+    st.latex(fr"\Delta f_{{pR,BG40}}=\max({r['interaction_raw_mpa']:.2f},0.0)={r['interaction_capped_mpa']:.2f}\ \mathrm{{MPa}}")
+    st.latex(fr"\frac{{f_{{pt}}}}{{f_{{py}}}}=\frac{{{r['fpt_mpa']:.2f}}}{{{r['fpy_mpa']:.2f}}}={r['ratio']:.4f}\quad\Rightarrow\quad\Delta f_{{pR1,diag}}={r['r1_mpa']:.2f}\ \mathrm{{MPa}}")
+    st.latex(fr"\Delta f_{{pR,selected}}={r['selected_loss_mpa']:.2f}\ \mathrm{{MPa}}")
     st.latex(fr"f_{{px,R}}={r['fpt_mpa']:.2f}-{r['selected_loss_mpa']:.2f}={r['fpx_after_relax_mpa']:.2f}\ \mathrm{{MPa}}")
     st.markdown(
-        '<div class="warn-box"><b>Preview only:</b> PSLOSS.23 organizes relaxation as a Time-Dependent Losses component tab and reports it to the 4.6 handoff as preview-only. It does not adopt relaxation into final effective prestress.</div>',
+        '<div class="warn-box"><b>Preview only:</b> PSLOSS.26D organizes relaxation as a BG40 low-relaxation interaction-cap audit and reports it to the 4.6 handoff as preview-only. It does not adopt relaxation into final effective prestress.</div>',
         unsafe_allow_html=True,
     )
     return r
@@ -7789,7 +7896,7 @@ def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
         rows = [
             ["Selected method", selected, "4.6 may read refined component previews only after route and age-source review."],
             ["Selected time-step age source", state.get("selected_time_source", "SOURCE PARTIAL"), f"effective start age = {state.get('effective_t_jack_days', 0.0):.1f} days; {state.get('time_source_note', '-')}"],
-            ["Creep preview", f"{f['creep_loss_mpa']:.2f} MPa", "Selected refined component preview; final adoption not run here."],
+            ["Creep preview", f"{f['creep_loss_mpa']:.2f} MPa", f"Selected refined component preview; creep basis = {f.get('creep_time_basis', '-')}; final adoption not run here."],
             ["Shrinkage preview", f"{f['shrinkage_loss_mpa']:.2f} MPa", "Selected refined component preview; final adoption not run here."],
             ["Creep + shrinkage preview", f"{f['total_crsh_loss_mpa']:.2f} MPa", "Selected refined C+SH subtotal; do not add percentages directly across pages."],
             ["Relaxation preview", f"{r['selected_loss_mpa']:.2f} MPa", f"{r['method']}; final adoption not run here."],
@@ -7803,7 +7910,7 @@ def _psloss_crsh_handoff_rows(state: dict[str, Any]) -> pd.DataFrame:
             ["Selected method", selected, "Quick-check route only; not eligible for final segmental PT effective-prestress adoption."],
             ["Selected time-step age source", state.get("selected_time_source", "SOURCE PARTIAL"), "Stored for trace only; approximate route is still preliminary."],
             ["Approximate total time-dependent loss", f"{f['approx_total_mpa']:.2f} MPa", "Selected quick-check display value only; final adoption remains blocked."],
-            ["Refined creep preview", f"{f['creep_loss_mpa']:.2f} MPa", "Comparison only because approximate route is currently selected."],
+            ["Refined creep preview", f"{f['creep_loss_mpa']:.2f} MPa", f"Comparison only because approximate route is currently selected; creep basis = {f.get('creep_time_basis', '-')} ."],
             ["Refined shrinkage preview", f"{f['shrinkage_loss_mpa']:.2f} MPa", "Comparison only because approximate route is currently selected."],
             ["Refined C+SH preview", f"{f['total_crsh_loss_mpa']:.2f} MPa", "Comparison only; not selected handoff while approximate route is selected."],
             ["Relaxation preview", f"{r['selected_loss_mpa']:.2f} MPa", "Component comparison only; approximate route is not eligible for final."],
@@ -7848,7 +7955,7 @@ def _render_time_dependent_creep_tab(state: dict[str, Any]) -> None:
     route_note = "Selected refined component preview" if state["selected_route"].startswith("Refined") else "Comparison only for the selected route"
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        card("CREEP COMPONENT", "REFINED PREVIEW", f"ψ(tf,t_start) = {f['creep_coeff']:.4f}", "pass" if state["selected_route"].startswith("Refined") else "neutral")
+        card("CREEP COMPONENT", "REFINED PREVIEW", f"ψ selected = {f['creep_coeff']:.4f}", "pass" if state["selected_route"].startswith("Refined") else "neutral")
     with c2:
         card("CREEP LOSS", f"{f['creep_loss_mpa']:.2f} MPa", f"{f['creep_loss_pct']:.2f}% of fpj", "warn")
     with c3:
@@ -7873,14 +7980,18 @@ def _render_time_dependent_creep_tab(state: dict[str, Any]) -> None:
 
     st.markdown("### Creep factor / variable definition")
     creep_rows = _psloss_crsh_factor_rows(state)
-    show_engineering_table(creep_rows[creep_rows["Variable"].isin(["H", "V/S", "fci", "ks", "khc", "kf", "ktd_creep", "tᵢ^-0.118", "ψ(tf,t_start)"])])
+    show_engineering_table(creep_rows[creep_rows["Variable"].isin(["H", "V/S", "f'ci", "ks", "khc", "kf", "creep basis", "ktd,creep selected", "Δktd report-match", "ktd direct elapsed", "t_start^-0.118", "ψ selected", "ψ report-match", "ψ diagnostic"])])
+
+    st.markdown("### PSLOSS.26D creep basis audit")
+    show_engineering_table(_psloss_crsh_creep_basis_audit_rows(state))
 
     st.markdown("### Creep substitution")
     st.latex(fr"k_s=\max(1.0,1.45-0.13({f['V_over_S_in']:.2f}))={f['ks_creep']:.4f}")
     st.latex(fr"k_{{hc}}=1.56-0.008({f['H']:.1f})={f['khc']:.4f}")
     st.latex(fr"k_f=\frac{{5}}{{1+{f['fci_ksi']:.3f}}}={f['kf']:.4f}")
     st.latex(fr"t_{{start}}={state.get('effective_t_jack_days', 0.0):.1f}\ \mathrm{{days}}")
-    st.latex(fr"\psi=1.9({f['ks_creep']:.4f})({f['khc']:.4f})({f['kf']:.4f})({f['ktd_creep']:.4f})({f['ti_term']:.4f})={f['creep_coeff']:.4f}")
+    st.latex(fr"\Delta k_{{td}}=k_{{td}}(t_f)-k_{{td}}(t_{{start}})={f['ktd_tf']:.4f}-{f['ktd_tstart']:.4f}={f['delta_ktd']:.4f}")
+    st.latex(fr"\psi_{{selected}}=1.9({f['ks_creep']:.4f})({f['khc']:.4f})({f['kf']:.4f})({f['ktd_creep']:.4f})({f['ti_term']:.4f})={f['creep_coeff']:.4f}")
     st.latex(fr"\Delta f_{{pCR}}=\frac{{{f['Ep_mpa']:.0f}}}{{{f['Eci_mpa']:.0f}}}({f['fcgp_mpa']:.2f})({f['creep_coeff']:.4f})={f['creep_loss_mpa']:.2f}\ \mathrm{{MPa}}")
     st.latex(fr"f_{{px,CR}}={f['fpj_mpa']:.2f}-{f['creep_loss_mpa']:.2f}={f['fpj_mpa']-f['creep_loss_mpa']:.2f}\ \mathrm{{MPa}}")
 
@@ -7973,6 +8084,7 @@ def render_prestress_time_dependent_losses_source_model() -> None:
     ps.setdefault("crsh_construction_method", "Span-by-span segmental with precast segments")
     ps.setdefault("crsh_stage_time_basis", "Auto representative span mode")
     ps.setdefault("crsh_calculation_route", _psloss_crsh_route_options()[0])
+    ps.setdefault("crsh_creep_time_basis", _psloss_crsh_creep_basis_options()[0])
     ps.setdefault("relaxation_calculation_method", _psloss_relaxation_method_options()[0])
     ps.setdefault("relaxation_steel_type", _psloss_relaxation_steel_options()[0])
     ps.setdefault("relaxation_stress_basis", _psloss_relaxation_stress_basis_options()[0])
@@ -7988,7 +8100,7 @@ def render_prestress_time_dependent_losses_source_model() -> None:
     )
 
     route_options = _psloss_crsh_route_options()
-    c0, c1, c2 = st.columns([1.25, 1.05, 1.35])
+    c0, c1, c2, c3b = st.columns([1.25, 1.05, 1.35, 1.35])
     with c0:
         current_method = str(ps.get("crsh_construction_method", "Span-by-span segmental with precast segments"))
         method_options = ["Span-by-span segmental with precast segments", "Other / manual review"]
@@ -8002,6 +8114,10 @@ def render_prestress_time_dependent_losses_source_model() -> None:
         time_source_options = _psloss_crsh_time_source_options()
         current_time_source = _psloss_crsh_selected_time_source()
         ps["crsh_time_step_age_source"] = st.selectbox("Time-step age source", time_source_options, index=time_source_options.index(current_time_source), key="psloss22_time_source")
+    with c3b:
+        creep_basis_options = _psloss_crsh_creep_basis_options()
+        current_creep_basis = _psloss_crsh_selected_creep_basis()
+        ps["crsh_creep_time_basis"] = st.selectbox("Creep coefficient route", creep_basis_options, index=creep_basis_options.index(current_creep_basis), key="psloss26d_creep_basis")
 
     c3, c4 = st.columns(2)
     with c3:
@@ -8237,6 +8353,12 @@ def _psloss_effective_prestress_preview_state() -> dict[str, Any]:
         "creep_fcgp_factor": creep_fcgp_factor,
         "td_route": td_route,
         "td_time_source": str(td_state.get("selected_time_source", "-")),
+        "td_creep_basis": str(td_factors.get("creep_time_basis", td_state.get("selected_creep_basis", "-"))),
+        "td_creep_coeff_report": _safe_float(td_factors.get("creep_coeff_report"), 0.0),
+        "td_creep_coeff_direct": _safe_float(td_factors.get("creep_coeff_direct"), 0.0),
+        "td_creep_delta_mpa": _safe_float(td_factors.get("creep_loss_delta_mpa"), 0.0),
+        "relaxation_raw_mpa": _safe_float(relaxation_state.get("interaction_raw_mpa"), 0.0),
+        "relaxation_cap_status": str(relaxation_state.get("interaction_cap_status", "-")),
         "td_time_source_ready": td_time_source_ready,
         "representative_loss_mpa": representative_loss,
         "representative_loss_pct": (representative_loss / fpi * 100.0) if fpi > 0.0 else 0.0,
@@ -8261,7 +8383,7 @@ def _psloss_effective_source_map_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
             ["Initial stress fpi", f"{ep_state['fpi_mpa']:.2f} MPa", "2.4 adopted tendon source / material", ep_state["fpi_source"]],
             ["Equivalent friction + anchor set", f"{ep_state['friction_anchor_loss_mpa']:.2f} MPa", "4.2 α audit + 4.3 equivalent anchor-set", "Uses 2.4 vertical/horizontal α audit for global friction plus equivalent anchor-set quick check. Station envelope remains diagnostic."],
             ["Elastic shortening selected basis", f"Average = {ep_state['es_avg_loss_mpa']:.2f} MPa", "4.4 Elastic Shortening", f"Representative summary uses average ES; conservative sequence check uses max ES = {ep_state['es_max_loss_mpa']:.2f} MPa at {ep_state['es_governing']} ."],
-            ["Time-dependent selected basis", f"{ep_state['td_loss_mpa']:.2f} MPa", "4.5 Time-Dependent Losses", f"Route = {ep_state['td_route']}; age source = {ep_state['td_time_source']} ."],
+            ["Time-dependent selected basis", f"{ep_state['td_loss_mpa']:.2f} MPa", "4.5 Time-Dependent Losses", f"Route = {ep_state['td_route']}; age source = {ep_state['td_time_source']}; creep basis = {ep_state.get('td_creep_basis', '-')} ."],
             ["Effective force basis", f"Aps/tendon = {ep_state['aps_per_tendon_mm2']:.0f} mm²; tendons = {ep_state['tendon_count']}", "2.4 adopted tendon summary", "Pe/tendon = fpe × Aps/tendon; total Pe = Pe/tendon × tendon count."],
             ["Final adoption gate", ep_state["status"], "4.6 Effective Prestress", "Preview values are visible now; final adoption remains blocked until source review items are resolved."],
         ],
@@ -8282,9 +8404,9 @@ def _psloss_effective_component_rows(ep_state: dict[str, Any]) -> pd.DataFrame:
         ["Station F+A envelope diagnostic", ep_state["station_friction_anchor_loss_mpa"], pct(ep_state["station_friction_anchor_loss_mpa"]), "4.3 coupled distribution", "Local station envelope shown for review only; not selected for representative global fpe."],
         ["Elastic shortening average", ep_state["es_avg_loss_mpa"], pct(ep_state["es_avg_loss_mpa"]), "4.4 Elastic Shortening", "Representative summary basis; stage/sequence review still required."],
         ["Elastic shortening max sequence", ep_state["es_max_loss_mpa"], pct(ep_state["es_max_loss_mpa"]), "4.4 Elastic Shortening", "Conservative sequence check only, not mixed into the representative fpe card."],
-        ["Creep", ep_state["creep_loss_mpa"], pct(ep_state["creep_loss_mpa"]), "4.5 Creep tab", "Refined/time-step component preview."],
+        ["Creep", ep_state["creep_loss_mpa"], pct(ep_state["creep_loss_mpa"]), "4.5 Creep tab", f"Refined/time-step component preview; basis = {ep_state.get('td_creep_basis', '-')}; ψ report/direct = {ep_state.get('td_creep_coeff_report', 0.0):.4f}/{ep_state.get('td_creep_coeff_direct', 0.0):.4f}."],
         ["Shrinkage", ep_state["shrinkage_loss_mpa"], pct(ep_state["shrinkage_loss_mpa"]), "4.5 Shrinkage tab", "Post-jacking incremental shrinkage component preview."],
-        ["Relaxation", ep_state["relaxation_loss_mpa"], pct(ep_state["relaxation_loss_mpa"]), "4.5 Relaxation tab", "Selected relaxation component preview."],
+        ["Relaxation", ep_state["relaxation_loss_mpa"], pct(ep_state["relaxation_loss_mpa"]), "4.5 Relaxation tab", f"Selected relaxation component preview; raw BG40 interaction = {ep_state.get('relaxation_raw_mpa', 0.0):.2f} MPa; {ep_state.get('relaxation_cap_status', '-')}."],
         ["Selected time-dependent subtotal", ep_state["td_loss_mpa"], pct(ep_state["td_loss_mpa"]), "4.5 Handoff to 4.6", "Creep + shrinkage + relaxation for refined/time-step route only."],
         ["Representative selected total loss", ep_state["representative_loss_mpa"], pct(ep_state["representative_loss_mpa"]), "4.6 combination policy", "Calculated from the combined stress chain, not by adding displayed component percentages."],
         ["Representative fpe", ep_state["fpe_representative_mpa"], "—", "4.6 preview result", "fpe = fpi − selected total loss."],
@@ -8360,20 +8482,39 @@ def _psloss_effective_report_audit_inputs() -> dict[str, float]:
     ps = D.setdefault("prestress", {})
     defaults = {
         "psloss26a_audit_tolerance_pct": 1.00,
-        "psloss26a_report_immediate_fa_pct": 0.00,
-        "psloss26a_report_es_pct": 0.00,
-        "psloss26a_report_creep_pct": 0.00,
-        "psloss26a_report_shrinkage_pct": 0.00,
+        "psloss26a_report_friction_pct": 1.54,
+        "psloss26a_report_anchor_pct": 2.12,
+        "psloss26a_report_immediate_fa_pct": 3.66,
+        "psloss26a_report_es_pct": 6.55,
+        "psloss26a_report_creep_pct": 4.27,
+        "psloss26a_report_shrinkage_pct": 1.60,
         "psloss26a_report_relaxation_pct": 0.00,
-        "psloss26a_report_td_pct": 0.00,
-        "psloss26a_report_total_pct": 0.00,
+        "psloss26a_report_td_pct": 5.87,
+        "psloss26a_report_total_pct": 16.08,
+        "psloss26a_report_fpe_mpa": 1170.70,
     }
+    benchmark_keys = [
+        "psloss26a_report_friction_pct",
+        "psloss26a_report_anchor_pct",
+        "psloss26a_report_immediate_fa_pct",
+        "psloss26a_report_es_pct",
+        "psloss26a_report_creep_pct",
+        "psloss26a_report_shrinkage_pct",
+        "psloss26a_report_relaxation_pct",
+        "psloss26a_report_td_pct",
+        "psloss26a_report_total_pct",
+        "psloss26a_report_fpe_mpa",
+    ]
+    migrated_empty_benchmark = all(float(ps.get(key, 0.0) or 0.0) <= 0.0 for key in benchmark_keys)
     for key, value in defaults.items():
-        ps.setdefault(key, value)
+        if migrated_empty_benchmark and key in benchmark_keys:
+            ps[key] = value
+        else:
+            ps.setdefault(key, value)
 
     with st.expander("Calculation report comparison inputs (% of fpi)", expanded=False):
         st.markdown(
-            '<div class="note-box"><b>Optional audit inputs:</b> enter the corresponding values from the calculation report as % of f<sub>pi</sub>. Leave a value as 0.00 when the report item is not available. These inputs are for audit comparison only and do not change any prestress-loss calculation.</div>',
+            '<div class="note-box"><b>BG40 report benchmark inputs:</b> defaults are preloaded from the calculation report for audit comparison only. Editing these values does not change any prestress-loss calculation or final f<sub>pe</sub> adoption.</div>',
             unsafe_allow_html=True,
         )
         c0, c1, c2, c3 = st.columns(4)
@@ -8382,34 +8523,44 @@ def _psloss_effective_report_audit_inputs() -> dict[str, float]:
         with c1:
             editable_value(["prestress", "psloss26a_report_total_pct"], "Report total loss (% fpi)", 0.10, "%.2f")
         with c2:
-            editable_value(["prestress", "psloss26a_report_immediate_fa_pct"], "Report immediate F+A (% fpi)", 0.10, "%.2f")
+            editable_value(["prestress", "psloss26a_report_fpe_mpa"], "Report fpe (MPa)", 0.10, "%.2f")
         with c3:
-            editable_value(["prestress", "psloss26a_report_es_pct"], "Report elastic shortening (% fpi)", 0.10, "%.2f")
+            editable_value(["prestress", "psloss26a_report_immediate_fa_pct"], "Report immediate F+A (% fpi)", 0.10, "%.2f")
 
         c4, c5, c6, c7 = st.columns(4)
         with c4:
-            editable_value(["prestress", "psloss26a_report_creep_pct"], "Report creep (% fpi)", 0.10, "%.2f")
+            editable_value(["prestress", "psloss26a_report_friction_pct"], "Report friction (% fpi)", 0.10, "%.2f")
         with c5:
-            editable_value(["prestress", "psloss26a_report_shrinkage_pct"], "Report shrinkage (% fpi)", 0.10, "%.2f")
+            editable_value(["prestress", "psloss26a_report_anchor_pct"], "Report anchor set (% fpi)", 0.10, "%.2f")
         with c6:
-            editable_value(["prestress", "psloss26a_report_relaxation_pct"], "Report relaxation (% fpi)", 0.10, "%.2f")
+            editable_value(["prestress", "psloss26a_report_es_pct"], "Report elastic shortening (% fpi)", 0.10, "%.2f")
         with c7:
+            editable_value(["prestress", "psloss26a_report_creep_pct"], "Report creep (% fpi)", 0.10, "%.2f")
+
+        c8, c9, c10 = st.columns(3)
+        with c8:
+            editable_value(["prestress", "psloss26a_report_shrinkage_pct"], "Report shrinkage (% fpi)", 0.10, "%.2f")
+        with c9:
+            editable_value(["prestress", "psloss26a_report_relaxation_pct"], "Report relaxation (% fpi)", 0.10, "%.2f")
+        with c10:
             editable_value(["prestress", "psloss26a_report_td_pct"], "Report TD subtotal (% fpi)", 0.10, "%.2f")
 
     return {key: float(ps.get(key, value) or 0.0) for key, value in defaults.items()}
 
 
 def _psloss_effective_report_comparison_rows(ep_state: dict[str, Any], report_inputs: dict[str, float]) -> pd.DataFrame:
-    """Compare app preview losses with optional calculation-report values."""
+    """Compare app preview losses with BG40 calculation-report benchmark values."""
     fpi = float(ep_state.get("fpi_mpa", 0.0) or 0.0)
     tolerance_pct = max(0.0, float(report_inputs.get("psloss26a_audit_tolerance_pct", 1.0) or 1.0))
 
     rows_spec = [
+        ("Friction", ep_state.get("equivalent_friction_loss_mpa", 0.0), "psloss26a_report_friction_pct", "Check 2.4 α audit and equivalent global friction basis against report."),
+        ("Anchor set", ep_state.get("equivalent_anchor_loss_mpa", 0.0), "psloss26a_report_anchor_pct", "Check equivalent anchor-set basis against report; distribution maximum remains diagnostic."),
         ("Equivalent immediate F+A", ep_state.get("friction_anchor_loss_mpa", 0.0), "psloss26a_report_immediate_fa_pct", "Check 2.4 α audit and equivalent anchor-set basis against report."),
         ("Elastic shortening average", ep_state.get("es_avg_loss_mpa", 0.0), "psloss26a_report_es_pct", "Check f_cgp and stressing-sequence basis."),
-        ("Creep", ep_state.get("creep_loss_mpa", 0.0), "psloss26a_report_creep_pct", "Check f_cgp, creep coefficient, RH, V/S, t_start, and final age."),
+        ("Creep", ep_state.get("creep_loss_mpa", 0.0), "psloss26a_report_creep_pct", f"Check f_cgp, ψ basis, RH, V/S, t_start, and final age. App creep basis = {ep_state.get('td_creep_basis', '-')} ."),
         ("Shrinkage", ep_state.get("shrinkage_loss_mpa", 0.0), "psloss26a_report_shrinkage_pct", "Check post-jacking shrinkage window and drying-basis source."),
-        ("Relaxation", ep_state.get("relaxation_loss_mpa", 0.0), "psloss26a_report_relaxation_pct", "Check low-relaxation/manufacturer data basis."),
+        ("Relaxation", ep_state.get("relaxation_loss_mpa", 0.0), "psloss26a_report_relaxation_pct", f"Check BG40 low-relaxation interaction cap; raw = {ep_state.get('relaxation_raw_mpa', 0.0):.2f} MPa; {ep_state.get('relaxation_cap_status', '-')} ."),
         ("Time-dependent subtotal", ep_state.get("td_loss_mpa", 0.0), "psloss26a_report_td_pct", "Creep + shrinkage + relaxation comparison."),
         ("Representative total loss", ep_state.get("representative_loss_mpa", 0.0), "psloss26a_report_total_pct", "Overall comparison. Use this first when the report total is the only available benchmark."),
     ]
@@ -8436,6 +8587,16 @@ def _psloss_effective_report_comparison_rows(ep_state: dict[str, Any], report_in
             report_value = "Not entered"
             delta_value = "—"
         rows.append([name, f"{app_mpa:.2f} MPa ({app_pct:.2f}%)", report_value, delta_value, status, note])
+
+    report_fpe = max(0.0, float(report_inputs.get("psloss26a_report_fpe_mpa", 0.0) or 0.0))
+    app_fpe = float(ep_state.get("fpe_representative_mpa", 0.0) or 0.0)
+    if report_fpe > 0.0:
+        delta_fpe = app_fpe - report_fpe
+        delta_pctpt = (delta_fpe / fpi * 100.0) if fpi > 0.0 else 0.0
+        status = "MATCH" if abs(delta_pctpt) <= tolerance_pct else ("REVIEW" if abs(delta_pctpt) <= 2.0 * tolerance_pct else "DIFFERENCE")
+        rows.append(["Representative fpe", f"{app_fpe:.2f} MPa", f"{report_fpe:.2f} MPa", f"{delta_fpe:+.2f} MPa ({delta_pctpt:+.2f} %-pt of fpi)", status, "fpe comparison is an audit benchmark only; it does not adopt final effective prestress."])
+    else:
+        rows.append(["Representative fpe", f"{app_fpe:.2f} MPa", "Not entered", "—", "INPUT PENDING", "Report fpe benchmark not entered."])
     return pd.DataFrame(rows, columns=["Audit item", "App preview", "Calculation report", "App − report", "Status", "Audit focus"])
 
 
@@ -8598,12 +8759,12 @@ def _psloss_effective_fcgp_stage_sweep_rows(ep_state: dict[str, Any]) -> pd.Data
     )
 
 def render_prestress_effective_prestress_source_map() -> None:
-    """Render PSLOSS.26B 4.6 Effective Prestress source map and high-loss diagnosis."""
+    """Render PSLOSS.26D 4.6 Effective Prestress source map and report-match audit."""
     ep_state = _psloss_effective_prestress_preview_state()
     code_basis_card(
-        "4.6 Effective Prestress Source Map, Loss Audit, Root-Cause Diagnosis, and α Gate",
+        "4.6 Effective Prestress Source Map, Loss Audit, Root-Cause Diagnosis, α Gate, and PSLOSS.26D Report-Match Audit",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "PSLOSS.26C adds a friction α gate: global/equivalent friction must come from the adopted 2.4 vertical/horizontal tendon layouts, while station-polyline friction remains diagnostic until accepted.",
+        "PSLOSS.26D adds creep and relaxation report-match audit: creep uses the BG40 incremental Δktd route by default and relaxation uses the low-relaxation interaction cap while keeping final fpe adoption blocked.",
     )
     st.markdown(
         '<div class="note-box"><b>Initial stress basis:</b> for this project, <b>f<sub>pi</sub> = f<sub>pj</sub> = 1395 MPa</b> from the adopted tendon jacking-stress source. Total loss percent is calculated as <b>(f<sub>pi</sub> − f<sub>pe</sub>) / f<sub>pi</sub> × 100</b>, not by directly adding component percentages from earlier pages.</div>',
@@ -8657,7 +8818,7 @@ def render_prestress_effective_prestress_source_map() -> None:
 
     st.markdown("#### High-loss root-cause diagnosis")
     st.markdown(
-        '<div class="note-box"><b>Current diagnosis:</b> PSLOSS.26C separates immediate-loss basis into audited 2.4 component α and station-polyline diagnostic routes. Remaining high/difference drivers must be checked through ES, creep, relaxation, and calculation-report benchmarks before adoption.</div>',
+        '<div class="note-box"><b>Current diagnosis:</b> PSLOSS.26D keeps the PSLOSS.26C α gate, then audits creep through report-match incremental Δktd and relaxation through the BG40 low-relaxation cap. Remaining differences must be resolved through source gates, not by hard-coding report totals.</div>',
         unsafe_allow_html=True,
     )
     show_engineering_table(_psloss_effective_root_cause_rows(ep_state, audit_inputs))
@@ -8701,7 +8862,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     st.markdown("### Open review gates before final adoption")
     show_engineering_table(_psloss_effective_review_rows(ep_state))
     st.markdown(
-        '<div class="warn-box"><b>Preview only:</b> PSLOSS.26C defines the source map, total-loss %fpi basis, α-gated immediate-loss basis, first-pass fpe/Pe preview, calculation-report audit, and root-cause diagnosis. Final adoption still requires the 4.6 combination engine to lock tendon/station basis, elastic-shortening sequence basis, time-step age source, creep route, and relaxation source.</div>',
+        '<div class="warn-box"><b>Preview only:</b> PSLOSS.26D defines the source map, total-loss %fpi basis, α-gated immediate-loss basis, creep report-match audit, relaxation cap audit, fpe/Pe preview, and App-vs-report comparison. Final adoption still requires the 4.6 combination engine to lock tendon/station basis, elastic-shortening sequence basis, time-step age source, creep route, and relaxation source.</div>',
         unsafe_allow_html=True,
     )
 
