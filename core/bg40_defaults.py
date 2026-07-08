@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.102-commercial-tendon24h-auto-adopt-source-ux",
+        "schema_version": "0.4.103-commercial-tendon24i-span-source-consistency-polish",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -268,7 +268,7 @@ BG40_DEFAULT = {
         "friction_full_tendon_report_basis": "Tendon-by-tendon friction preview and calculation trace include a row-count note and display all adopted tendon rows in report review.",
     },
     "tendon_layout": {
-        "active_bridge_object": "B2_SPAN1",
+        "active_bridge_object": "B2_SPAN2",
         "map_bridge_objects_to_active": True,
         "positive_horiz_offset_direction": "left",
         "section_overlay_dimension_mode": "clean",

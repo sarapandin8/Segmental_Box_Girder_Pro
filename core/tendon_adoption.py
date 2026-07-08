@@ -224,8 +224,9 @@ def adopt_tendon_model(
     """Lock the current imported tendon model as downstream design source.
 
     This intentionally updates the prestress summary fields from the adopted
-    snapshot, not from raw imports.  Friction curvature/angle values remain a
-    separate later milestone.
+    snapshot, not from raw imports.  Physical bend/deviator geometry from this
+    locked source is consumed by the prestress-loss module for cumulative 3D
+    friction α.
     """
     if not model or not model.get("valid"):
         raise ValueError("Cannot adopt an invalid tendon model.")

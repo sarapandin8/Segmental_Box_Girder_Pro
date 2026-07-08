@@ -1,4 +1,11 @@
-# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.26E
+# Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4I
+
+This milestone adds COMMERCIAL.TENDON.2.4I — Active Span Source Consistency Polish:
+- Syncs the adopted tendon source to the active project span when BridgeObj mapping is enabled.
+- Migrates legacy adopted source labels such as B2_SPAN1 to active B2_SPAN2 when the working mapped model is otherwise unchanged and valid.
+- Marks JackFrom/stressing basis as ADOPTED / ACTIVE when the working model matches the locked downstream source.
+- Updates 2.4 source notes so physical bend/deviator geometry is explicitly the 4.2 friction α source.
+- Adds active-span tendon-source status into the 4.6 CSiBridge handoff gate.
 
 This baseline carries forward the accepted commercial milestones and standards:
 - COMMERCIAL.PSLOSS.26A
@@ -347,4 +354,4 @@ Changes:
 
 Schema:
 
-- 0.4.102-commercial-tendon24h-auto-adopt-source-ux
+- 0.4.103-commercial-tendon24i-span-source-consistency-polish
