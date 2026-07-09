@@ -1,3 +1,13 @@
+# Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4K
+
+This milestone adds **COMMERCIAL.TENDON.2.4K — Locked Source Button and Print Glyph Polish**:
+
+- Keeps the 2.4 tendon source locked workflow from TENDON.2.4J.
+- Hides the prominent Build / refresh action when the working tendon model already matches the adopted downstream source.
+- Moves working-model refresh to a small QA toggle and uses a secondary button, not a red/primary action.
+- Converts raw import data and tendon-location QA details from Streamlit expanders to print-safe toggles.
+- Keeps CSiBridge final-stage loss handoff unchanged at 21.36% when using the current BG40 example basis.
+
 # Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4J
 
 This milestone adds **COMMERCIAL.TENDON.2.4J — Downstream Span Source Propagation Fix**:

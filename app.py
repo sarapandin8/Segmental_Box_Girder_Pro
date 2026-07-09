@@ -6375,7 +6375,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
     code_basis_card(
         "4.1 Prestress Losses — Design Source Summary",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4J keeps 4.1 as a clean source summary and propagates the mapped active-span tendon source to downstream loss pages; detailed readiness registers are collapsed in Source trace / QA.",
+        "TENDON.2.4K keeps 4.1 as a clean source summary, uses the propagated active-span tendon source, and keeps QA traces behind print-safe toggles.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-source rule:</b> Section 4 calculations read only the adopted tendon source, adopted section properties, source-derived stage stress, and locked CR&SH/start-age basis. Working imports and local diagnostics do not feed the final CSiBridge loss.</div>',
@@ -6731,26 +6731,41 @@ def render_tendon_layout_reference() -> None:
             st.markdown("#### Import source trace")
             show_engineering_table(trace_preview)
 
-        if st.button("Build / refresh imported tendon layout model", type="primary", use_container_width=True):
-            model = _build_and_store_tendon_model()
-            if model.get("valid"):
-                st.success(f"Imported tendon working model built: {len(model.get('tendons', []))} tendons, span reference = {model.get('span_m', 0.0):.3f} m. Adopt it explicitly before downstream use.")
-            else:
-                st.error("Tendon model could not be built. Check imported tables and QA messages.")
-            st.rerun()
+        adopted_now = _active_adopted_tendon_model()
+        working_matches_adopted = bool(preview_model.get("valid") and adopted_now and _tendon_working_matches_adopted(preview_model))
+        if working_matches_adopted:
+            st.markdown(
+                '<div class="note-box"><b>Working tendon model is already locked:</b> the current imported/merged model matches the adopted downstream source. No build/refresh action is required.</div>',
+                unsafe_allow_html=True,
+            )
+            if _trace_toggle("Working model refresh / QA"):
+                if st.button("Refresh working tendon model", type="secondary", use_container_width=True):
+                    model = _build_and_store_tendon_model()
+                    if model.get("valid"):
+                        st.success(f"Refreshed working tendon model: {len(model.get('tendons', []))} tendons, span reference = {model.get('span_m', 0.0):.3f} m. Adopted source remains unchanged unless the model changes and is reviewed.")
+                    else:
+                        st.error("Tendon model could not be refreshed. Check imported tables and QA messages.")
+                    st.rerun()
+        else:
+            if st.button("Build / refresh imported tendon layout model", type="secondary", use_container_width=True):
+                model = _build_and_store_tendon_model()
+                if model.get("valid"):
+                    st.success(f"Imported tendon working model built: {len(model.get('tendons', []))} tendons, span reference = {model.get('span_m', 0.0):.3f} m. A valid first model auto-adopts; changed models require review before updating the adopted source.")
+                else:
+                    st.error("Tendon model could not be built. Check imported tables and QA messages.")
+                st.rerun()
 
-        if not general.empty or not vertical.empty or not horizontal.empty:
-            with st.expander("Raw import data / QA only", expanded=False):
-                st.caption("Raw CSiBridge rows are shown only for parser QA. Use the Adopted Tendon Data tab to explicitly lock the merged tendon model before downstream use.")
-                if not general.empty:
-                    st.markdown("##### Imported General tendon rows")
-                    show_engineering_table(general[[c for c in ["BridgeObj", "Tendon", "Material", "TendonArea", "Aps_mm2", "strand_label", "force_075fpu_kN", "Force", "JackFrom"] if c in general.columns]])
-                if not vertical.empty:
-                    st.markdown("##### Imported Vertical layout rows")
-                    show_engineering_table(vertical[[c for c in ["BridgeObj", "Tendon", "SegType", "x_m", "dp_top_m"] if c in vertical.columns]])
-                if not horizontal.empty:
-                    st.markdown("##### Imported Horizontal layout rows")
-                    show_engineering_table(horizontal[[c for c in ["BridgeObj", "Tendon", "SegType", "x_m", "horiz_off_m"] if c in horizontal.columns]])
+        if (not general.empty or not vertical.empty or not horizontal.empty) and _trace_toggle("Raw import data / QA only"):
+            st.caption("Raw CSiBridge rows are shown only for parser QA. Use the Adopted Tendon Data tab to confirm the locked downstream tendon model.")
+            if not general.empty:
+                st.markdown("##### Imported General tendon rows")
+                show_engineering_table(general[[c for c in ["BridgeObj", "Tendon", "Material", "TendonArea", "Aps_mm2", "strand_label", "force_075fpu_kN", "Force", "JackFrom"] if c in general.columns]])
+            if not vertical.empty:
+                st.markdown("##### Imported Vertical layout rows")
+                show_engineering_table(vertical[[c for c in ["BridgeObj", "Tendon", "SegType", "x_m", "dp_top_m"] if c in vertical.columns]])
+            if not horizontal.empty:
+                st.markdown("##### Imported Horizontal layout rows")
+                show_engineering_table(horizontal[[c for c in ["BridgeObj", "Tendon", "SegType", "x_m", "horiz_off_m"] if c in horizontal.columns]])
 
     model = _active_tendon_model()
     tendons_df, group_df, symmetry_df, qa_df = tendon_model_to_frames(model)
@@ -7339,13 +7354,13 @@ def render_tendon_layout_reference() -> None:
                     ] if c in overlay_table.columns
                 ]
                 table = overlay_table[table_cols].rename(columns={"display_x_mm": "Display x (mm)", "section_y_mm": "Section y (mm)"})
-                st.dataframe(_format_tendon_points_table(table), use_container_width=True, hide_index=True)
+                show_engineering_table(_format_tendon_points_table(table))
             else:
                 st.info("No tendon positions are available at this station.")
 
-            with st.expander("Tendon location QA · detailed notes", expanded=False):
+            if _trace_toggle("Tendon location QA · detailed notes"):
                 if not qa_points.empty:
-                    st.dataframe(_format_tendon_points_table(qa_points), use_container_width=True, hide_index=True)
+                    show_engineering_table(_format_tendon_points_table(qa_points))
                 else:
                     st.info("No tendon QA rows available at this station.")
         elif not props.get("valid"):
@@ -9239,7 +9254,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     code_basis_card(
         "4.6 Final Loss / CSiBridge Input",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4J verifies propagated active-span tendon-source consistency and keeps the locked average final-stage total loss for CSiBridge.",
+        "TENDON.2.4K keeps the locked average final-stage total loss for CSiBridge and uses print-safe source/QA controls.",
     )
     st.markdown(
         f'<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss. Status: <b>{ep_state.get("status", "-")}</b>.</div>',
@@ -9677,3 +9692,5 @@ render_project_save_panel()
 # Legacy source-guard phrases retained for regression coverage after 4.1 cleanup:
 # Jacking-force interpretation
 # Tendon adoption action required
+
+# COMMERCIAL.TENDON.2.4K static token: Build / refresh imported tendon layout model legacy label retained for tests; locked-source UI hides refresh controls when no action is required.
