@@ -3574,9 +3574,74 @@ def _build_and_store_tendon_model() -> dict[str, Any]:
 
 def _active_tendon_model() -> dict[str, Any]:
     tl = D.setdefault("tendon_layout", {})
+    project_obj = str(D.setdefault("project", {}).get("bridge_object", "") or "").strip()
+    if project_obj and bool(tl.get("map_bridge_objects_to_active", True)):
+        if str(tl.get("active_bridge_object") or "").strip() != project_obj:
+            tl["active_bridge_object"] = project_obj
+            tl["active_bridge_object_source"] = "Synced from active project span"
+            tl["active_bridge_object_sync_note"] = f"Tendon active BridgeObj changed to {project_obj} to match the active project span."
+            tl["model"] = {}
+        elif isinstance(tl.get("model"), dict) and tl.get("model") and str(tl["model"].get("active_bridge_object") or "").strip() != project_obj:
+            # A stale working model built before active-span mapping must not be
+            # reused by downstream pages.  Rebuild it so its mapped BridgeObj and
+            # fingerprint match the current active project span.
+            tl["model"] = {}
     if tl.get("model"):
         return tl["model"]
     return _build_and_store_tendon_model()
+
+
+def _normalise_adopted_tendon_source_span_to_active() -> bool:
+    """Propagate active-span mapping into the locked adopted tendon snapshot.
+
+    Directly opening Section 4 pages should be safe: they must not depend on the
+    user first visiting 2.4 to run the span-label migration.  When BridgeObj
+    mapping is enabled, the imported CSiBridge label (for example B2_SPAN1) is
+    treated as an import source label and the downstream design-source label is
+    the active project span (for example B2_SPAN2).
+    """
+    tl = D.setdefault("tendon_layout", {})
+    adopted = tl.get("adopted_model")
+    project_obj = str(D.setdefault("project", {}).get("bridge_object", "") or "").strip()
+    if not isinstance(adopted, dict) or not adopted.get("valid") or not project_obj:
+        return False
+    if not bool(tl.get("map_bridge_objects_to_active", True)):
+        return False
+    old_obj = str(adopted.get("active_bridge_object") or "").strip()
+    if old_obj == project_obj:
+        return False
+
+    adopted["active_bridge_object"] = project_obj
+    adopted["mapped_to_active_bridge_object"] = True
+    imported_objs = adopted.get("imported_bridge_objects")
+    if not isinstance(imported_objs, list):
+        imported_objs = [old_obj] if old_obj else []
+    adopted["imported_bridge_objects"] = imported_objs
+    for tendon in adopted.get("tendons", []) or []:
+        if isinstance(tendon, dict):
+            tendon["bridge_obj"] = project_obj
+    for row in adopted.get("profile_rows", []) or []:
+        if isinstance(row, dict):
+            row["BridgeObj"] = project_obj
+
+    fp = tendon_model_fingerprint(adopted)
+    y_t = float(D.setdefault("section", {}).get("yt_from_top_m", 0.0) or 0.0)
+    summary = build_tendon_downstream_summary(adopted, y_t_from_top_m=y_t)
+    tl["adopted_model"] = adopted
+    tl["adopted_model_fingerprint"] = fp
+    tl["adopted_downstream_summary"] = summary
+    tl["adopted_source_trace"] = build_tendon_source_trace(tl, adopted)
+    tl["adopted_span_migration_note"] = f"Adopted tendon source span label updated from {old_obj or '—'} to {project_obj} to match the active project span."
+    tl["adopted_span_migrated_at_utc"] = tl.get("adopted_at_utc", "")
+
+    ps = D.setdefault("prestress", {})
+    ps["num_tendons"] = int(summary.get("tendon_count", 0) or 0)
+    ps["Aps_per_tendon_mm2"] = float(summary.get("Aps_per_tendon_mm2", 0.0) or 0.0)
+    ps["Aps_total_mm2"] = float(summary.get("Aps_total_mm2", 0.0) or 0.0)
+    ps["dp_avg_end_m"] = float(summary.get("dp_avg_end_m", 0.0) or 0.0)
+    ps["dp_avg_midspan_m"] = float(summary.get("dp_avg_midspan_m", 0.0) or 0.0)
+    ps["eccentricity_midspan_m"] = float(summary.get("eccentricity_midspan_m", 0.0) or 0.0)
+    return True
 
 
 def _render_tendon_import_summary_cards(model: dict[str, Any]) -> None:
@@ -3818,6 +3883,7 @@ def _tendon_source_trace_frame(tl: dict[str, Any], model: dict[str, Any]) -> pd.
 
 def _active_adopted_tendon_model() -> dict[str, Any]:
     """Return the locked design-source tendon model, if one exists."""
+    _normalise_adopted_tendon_source_span_to_active()
     adopted = D.setdefault("tendon_layout", {}).get("adopted_model", {})
     return adopted if isinstance(adopted, dict) and adopted.get("valid") else {}
 
@@ -6309,7 +6375,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
     code_basis_card(
         "4.1 Prestress Losses — Design Source Summary",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4I / PSLOSS.26J keeps 4.1 as a clean one-page source summary; detailed readiness registers are collapsed in Source trace / QA.",
+        "TENDON.2.4J keeps 4.1 as a clean source summary and propagates the mapped active-span tendon source to downstream loss pages; detailed readiness registers are collapsed in Source trace / QA.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-source rule:</b> Section 4 calculations read only the adopted tendon source, adopted section properties, source-derived stage stress, and locked CR&SH/start-age basis. Working imports and local diagnostics do not feed the final CSiBridge loss.</div>',
@@ -9173,7 +9239,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     code_basis_card(
         "4.6 Final Loss / CSiBridge Input",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4I / PSLOSS.26I verifies active-span tendon-source consistency and keeps the locked average final-stage total loss for CSiBridge.",
+        "TENDON.2.4J verifies propagated active-span tendon-source consistency and keeps the locked average final-stage total loss for CSiBridge.",
     )
     st.markdown(
         f'<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss. Status: <b>{ep_state.get("status", "-")}</b>.</div>',

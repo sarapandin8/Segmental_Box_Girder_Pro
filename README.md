@@ -1,3 +1,13 @@
+# Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4J
+
+This milestone adds **COMMERCIAL.TENDON.2.4J — Downstream Span Source Propagation Fix**:
+
+- Propagates active-span BridgeObj mapping into the locked adopted tendon snapshot whenever downstream pages read the tendon source.
+- Directly opening Section 4 pages no longer depends on first visiting 2.4 to run the B2_SPAN1 → B2_SPAN2 migration.
+- Updates adopted tendon model fingerprint, downstream summary, source trace, and prestress handoff fields after span-label migration.
+- Keeps 2.4, 4.1, and 4.6 on the same adopted tendon source state for active-span consistency checks.
+- Preserves the CSiBridge final-stage average total loss handoff: 21.36% for the current BG40 dataset.
+
 # Segmental Box Girder Pro — COMMERCIAL.PSLOSS.26J
 
 
