@@ -348,7 +348,14 @@ hr {margin: 1rem 0;}
   [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"],
   [data-testid="stHeaderActionElements"], [data-testid="stElementToolbar"],
   .stDeployButton, .viewerBadge_container__1QSob, button[kind="header"] {display:none !important;}
-  [data-testid="stExpander"] summary svg, [data-testid="stToggle"] svg {display:none !important;}
+  [data-testid="stExpander"] summary svg, [data-testid="stToggle"] svg,
+  [data-testid="stRadio"] svg, [data-testid="stCheckbox"] svg,
+  [data-baseweb="radio"] svg, [data-baseweb="checkbox"] svg,
+  [data-baseweb="switch"] svg, [data-testid="stWidgetLabel"] svg,
+  .material-icons, .material-symbols-rounded, .material-symbols-outlined,
+  span[class*="material"], i[class*="material"] {display:none !important; visibility:hidden !important;}
+  [data-testid="stExpander"] details > summary::marker {content:"" !important;}
+  [data-testid="stExpander"] details > summary {list-style:none !important;}
 }
 
 </style>
@@ -6381,7 +6388,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
     code_basis_card(
         "4.1 Prestress Losses — Design Source Summary",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4K keeps 4.1 as a clean source summary, uses the propagated active-span tendon source, and keeps QA traces behind print-safe toggles.",
+        "TENDON.2.4M keeps locked tendon sources defaulted to Adopted Tendon Data on page entry and keeps QA traces behind print-safe toggles.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-source rule:</b> Section 4 calculations read only the adopted tendon source, adopted section properties, source-derived stage stress, and locked CR&SH/start-age basis. Working imports and local diagnostics do not feed the final CSiBridge loss.</div>',
@@ -6681,9 +6688,21 @@ def render_tendon_layout_reference() -> None:
     nav_adopted_model = _active_adopted_tendon_model()
     nav_working_matches_adopted = bool(nav_preview_model.get("valid") and nav_adopted_model and _tendon_working_matches_adopted(nav_preview_model))
     nav_fingerprint = str((nav_adopted_model or nav_preview_model or {}).get("model_fingerprint", ""))
-    if nav_working_matches_adopted and nav_fingerprint and st.session_state.get("tendon_layout_locked_default_fp") != nav_fingerprint:
-        st.session_state["tendon_layout_reference_inline_tab"] = "Adopted Tendon Data"
-        st.session_state["tendon_layout_locked_default_fp"] = nav_fingerprint
+    # TENDON.2.4M: if the source is locked and the working model already matches
+    # the adopted downstream source, the first view on entering 2.4 must be the
+    # adopted source, not the import/mapping workspace.  A user can still switch
+    # to Import / Mapping intentionally after entry; navigating away and back
+    # resets to the locked adopted source again.
+    if nav_working_matches_adopted:
+        if not st.session_state.get("tendon_layout_reference_seen_locked_entry", False):
+            st.session_state["tendon_layout_reference_inline_tab"] = "Adopted Tendon Data"
+            st.session_state["tendon_layout_reference_seen_locked_entry"] = True
+            st.session_state["tendon_layout_locked_default_fp"] = nav_fingerprint
+        elif nav_fingerprint and st.session_state.get("tendon_layout_locked_default_fp") != nav_fingerprint:
+            st.session_state["tendon_layout_reference_inline_tab"] = "Adopted Tendon Data"
+            st.session_state["tendon_layout_locked_default_fp"] = nav_fingerprint
+    else:
+        st.session_state["tendon_layout_reference_seen_locked_entry"] = False
     selected_tendon_reference_tab = render_inpage_horizontal_navigation(
         "2.4 Tendon Layout Reference internal tab",
         tendon_reference_tabs,
@@ -7591,6 +7610,9 @@ def page_bridge_geometry(sub: str) -> None:
     )
 
     sub = selected_bridge_subpage
+    if sub != "2.4 Tendon Layout Reference":
+        st.session_state["tendon_layout_reference_seen_locked_entry"] = False
+
     if sub == "2.1 Bridge Description":
         render_bridge_description()
     elif sub == "2.2 Geometry and Analysis Model":
@@ -9285,7 +9307,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     code_basis_card(
         "4.6 Final Loss / CSiBridge Input",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4K keeps the locked average final-stage total loss for CSiBridge and uses print-safe source/QA controls.",
+        "TENDON.2.4M keeps the locked average final-stage total loss for CSiBridge and uses print-safe source/QA controls.",
     )
     st.markdown(
         f'<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss. Status: <b>{ep_state.get("status", "-")}</b>.</div>',
@@ -9724,4 +9746,4 @@ render_project_save_panel()
 # Jacking-force interpretation
 # Tendon adoption action required
 
-# COMMERCIAL.TENDON.2.4K static token: Build / refresh imported tendon layout model legacy label retained for tests; locked-source UI hides refresh controls when no action is required.
+# COMMERCIAL.TENDON.2.4M static token: Build / refresh imported tendon layout model legacy label retained for tests; locked-source UI hides refresh controls when no action is required.

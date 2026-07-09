@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.107-commercial-tendon24l-locked-source-default-adopted-tab"
+PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 
