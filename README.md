@@ -1,3 +1,14 @@
+# Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4L
+
+This milestone adds **COMMERCIAL.TENDON.2.4L — Locked Source Default Adopted Tab and Update Controls Collapse**:
+
+- When the working tendon model already matches the adopted downstream source, the 2.4 internal tab defaults once to **Adopted Tendon Data** instead of **Import / Mapping**.
+- Upload, mapping, and refresh controls are hidden under **Update / replace tendon source** for locked sources.
+- The Import / Mapping page now shows a locked-source summary and source trace without suggesting the user must upload or rebuild anything.
+- Refresh remains available as a secondary QA action only after explicitly opening the update controls.
+- Adds print CSS to suppress common Streamlit toolbar/status glyph artifacts during browser PDF export.
+- Downstream prestress-loss values are unchanged: CSiBridge final loss = **21.36%**, total stress loss = **298.03 MPa**, fpe,avg = **1096.97 MPa**, Pe,total = **58,973 kN**.
+
 # Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4K
 
 This milestone adds **COMMERCIAL.TENDON.2.4K — Locked Source Button and Print Glyph Polish**:

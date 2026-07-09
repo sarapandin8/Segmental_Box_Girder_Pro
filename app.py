@@ -344,6 +344,12 @@ hr {margin: 1rem 0;}
 @media (max-width: 1100px) {.loads-closeout-grid {grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media (max-width: 640px) {.loads-closeout-grid {grid-template-columns:1fr;}}
 @media print {.loads-closeout-panel,.loads-qa-table {page-break-inside:avoid; break-inside:avoid;} .loads-qa-table td {font-size:0.72rem;} .loads-qa-table th {font-size:0.66rem;}}
+@media print {
+  [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"],
+  [data-testid="stHeaderActionElements"], [data-testid="stElementToolbar"],
+  .stDeployButton, .viewerBadge_container__1QSob, button[kind="header"] {display:none !important;}
+  [data-testid="stExpander"] summary svg, [data-testid="stToggle"] svg {display:none !important;}
+}
 
 </style>
 """
@@ -6671,37 +6677,58 @@ def render_tendon_layout_reference() -> None:
     if _trace_toggle("Tendon stressing-basis summary"):
         show_engineering_table(_tendon_stressing_basis_frame(model_for_summary))
     tendon_reference_tabs = ["Import / Mapping", "Elevation View", "Plan View", "3D Tendon View", "Section Overlay", "Adopted Tendon Data", "QA / Consistency"]
+    nav_preview_model = tl.get("model") if isinstance(tl.get("model"), dict) else {}
+    nav_adopted_model = _active_adopted_tendon_model()
+    nav_working_matches_adopted = bool(nav_preview_model.get("valid") and nav_adopted_model and _tendon_working_matches_adopted(nav_preview_model))
+    nav_fingerprint = str((nav_adopted_model or nav_preview_model or {}).get("model_fingerprint", ""))
+    if nav_working_matches_adopted and nav_fingerprint and st.session_state.get("tendon_layout_locked_default_fp") != nav_fingerprint:
+        st.session_state["tendon_layout_reference_inline_tab"] = "Adopted Tendon Data"
+        st.session_state["tendon_layout_locked_default_fp"] = nav_fingerprint
     selected_tendon_reference_tab = render_inpage_horizontal_navigation(
         "2.4 Tendon Layout Reference internal tab",
         tendon_reference_tabs,
         key="tendon_layout_reference_inline_tab",
+        default="Adopted Tendon Data" if nav_working_matches_adopted else "Import / Mapping",
         note_html='<div class="note-box"><b>2.4 Tendon Layout Reference workspace:</b> Active tab = {selected}. Import, plan/elevation/3D review, section overlay, adopted tendon data, and QA remain one source-gated tendon-reference workflow.</div>',
     )
 
     if selected_tendon_reference_tab == "Import / Mapping":
         subsection_title("Tendon import / mapping")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            gen = st.file_uploader("General tendon table (.xlsx/.csv)", type=["xlsx", "xls", "csv"], key="tendon_general_upload")
-            if gen is not None:
-                try:
-                    _parse_and_store_tendon_file(gen, "general")
-                except Exception as exc:  # noqa: BLE001
-                    st.error(f"Could not import General tendon table: {exc}")
-        with c2:
-            vert = st.file_uploader("Vertical layout table (.xlsx/.csv)", type=["xlsx", "xls", "csv"], key="tendon_vertical_upload")
-            if vert is not None:
-                try:
-                    _parse_and_store_tendon_file(vert, "vertical")
-                except Exception as exc:  # noqa: BLE001
-                    st.error(f"Could not import Vertical tendon table: {exc}")
-        with c3:
-            horiz = st.file_uploader("Horizontal layout table (.xlsx/.csv)", type=["xlsx", "xls", "csv"], key="tendon_horizontal_upload")
-            if horiz is not None:
-                try:
-                    _parse_and_store_tendon_file(horiz, "horizontal")
-                except Exception as exc:  # noqa: BLE001
-                    st.error(f"Could not import Horizontal tendon table: {exc}")
+        preview_model = tl.get("model") if isinstance(tl.get("model"), dict) else {}
+        adopted_now = _active_adopted_tendon_model()
+        working_matches_adopted = bool(preview_model.get("valid") and adopted_now and _tendon_working_matches_adopted(preview_model))
+        show_update_controls = not working_matches_adopted
+        if working_matches_adopted:
+            st.markdown(
+                '<div class="note-box"><b>Working tendon model is already locked:</b> the current imported/merged model matches the adopted downstream source. Upload, mapping, and refresh controls are hidden to prevent accidental source churn.</div>',
+                unsafe_allow_html=True,
+            )
+            show_update_controls = _trace_toggle("Update / replace tendon source")
+        if show_update_controls:
+            if working_matches_adopted:
+                st.warning("You are opening source replacement controls. Refreshing the working model does not update the adopted design source unless the changed model is reviewed and adopted.")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                gen = st.file_uploader("General tendon table (.xlsx/.csv)", type=["xlsx", "xls", "csv"], key="tendon_general_upload")
+                if gen is not None:
+                    try:
+                        _parse_and_store_tendon_file(gen, "general")
+                    except Exception as exc:  # noqa: BLE001
+                        st.error(f"Could not import General tendon table: {exc}")
+            with c2:
+                vert = st.file_uploader("Vertical layout table (.xlsx/.csv)", type=["xlsx", "xls", "csv"], key="tendon_vertical_upload")
+                if vert is not None:
+                    try:
+                        _parse_and_store_tendon_file(vert, "vertical")
+                    except Exception as exc:  # noqa: BLE001
+                        st.error(f"Could not import Vertical tendon table: {exc}")
+            with c3:
+                horiz = st.file_uploader("Horizontal layout table (.xlsx/.csv)", type=["xlsx", "xls", "csv"], key="tendon_horizontal_upload")
+                if horiz is not None:
+                    try:
+                        _parse_and_store_tendon_file(horiz, "horizontal")
+                    except Exception as exc:  # noqa: BLE001
+                        st.error(f"Could not import Horizontal tendon table: {exc}")
 
         general = _df_from_records(tl.get("general_rows", []))
         vertical = _df_from_records(tl.get("vertical_rows", []))
@@ -6713,17 +6740,25 @@ def render_tendon_layout_reference() -> None:
                     if obj and obj not in imported_objs:
                         imported_objs.append(obj)
         default_obj = tl.get("active_bridge_object") or D["project"].get("bridge_object") or (general["BridgeObj"].mode().iloc[0] if not general.empty and "BridgeObj" in general.columns else "B2_SPAN2")
-        c1, c2 = st.columns([1.0, 1.0])
-        with c1:
-            tl["active_bridge_object"] = st.text_input("Active BridgeObj for adopted tendon layout", value=str(default_obj), key="tendon_active_bridge_obj")
-        with c2:
-            tl["map_bridge_objects_to_active"] = st.checkbox("Map all imported BridgeObj values to active BridgeObj after review", value=bool(tl.get("map_bridge_objects_to_active", True)), key="tendon_map_bridge_obj")
-        if len(imported_objs) > 1:
-            st.warning(f"BridgeObj mismatch detected: {', '.join(imported_objs)}. Review and map to the active object only if this is an export label mismatch.")
-        elif imported_objs:
-            st.success(f"Imported BridgeObj: {', '.join(imported_objs)}")
+        if show_update_controls:
+            c1, c2 = st.columns([1.0, 1.0])
+            with c1:
+                tl["active_bridge_object"] = st.text_input("Active BridgeObj for adopted tendon layout", value=str(default_obj), key="tendon_active_bridge_obj")
+            with c2:
+                tl["map_bridge_objects_to_active"] = st.checkbox("Map all imported BridgeObj values to active BridgeObj after review", value=bool(tl.get("map_bridge_objects_to_active", True)), key="tendon_map_bridge_obj")
+            if len(imported_objs) > 1:
+                st.warning(f"BridgeObj mismatch detected: {', '.join(imported_objs)}. Review and map to the active object only if this is an export label mismatch.")
+            elif imported_objs:
+                st.success(f"Imported BridgeObj: {', '.join(imported_objs)}")
+            else:
+                st.info("Upload the three CSiBridge tendon tables to build the tendon model.")
         else:
-            st.info("Upload the three CSiBridge tendon tables to build the tendon model.")
+            imported_label = ", ".join(imported_objs) if imported_objs else "—"
+            st.markdown(
+                f'''<div class="result-card"><b>Locked source import summary</b> <span class="badge pass">NO UPDATE REQUIRED</span><br>
+                <span class="small-muted">Active BridgeObj: <b>{escape(str(default_obj))}</b> · Imported BridgeObj: <b>{escape(imported_label)}</b>. Open <b>Update / replace tendon source</b> only when the project tendon tables change.</span></div>''',
+                unsafe_allow_html=True,
+            )
 
         preview_model = tl.get("model") if isinstance(tl.get("model"), dict) else {}
         trace_preview = _tendon_source_trace_frame(tl, preview_model)
@@ -6734,11 +6769,7 @@ def render_tendon_layout_reference() -> None:
         adopted_now = _active_adopted_tendon_model()
         working_matches_adopted = bool(preview_model.get("valid") and adopted_now and _tendon_working_matches_adopted(preview_model))
         if working_matches_adopted:
-            st.markdown(
-                '<div class="note-box"><b>Working tendon model is already locked:</b> the current imported/merged model matches the adopted downstream source. No build/refresh action is required.</div>',
-                unsafe_allow_html=True,
-            )
-            if _trace_toggle("Working model refresh / QA"):
+            if show_update_controls and _trace_toggle("Working model refresh / QA"):
                 if st.button("Refresh working tendon model", type="secondary", use_container_width=True):
                     model = _build_and_store_tendon_model()
                     if model.get("valid"):
