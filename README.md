@@ -1,4 +1,13 @@
-# Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4I
+# Segmental Box Girder Pro — COMMERCIAL.PSLOSS.26J
+
+
+This milestone adds COMMERCIAL.PSLOSS.26J — Clean 4.1 General and PDF Export Polish:
+
+- Reworks 4.1 General into a compact design-source summary for Section 4 rather than a developer-style readiness page.
+- Keeps source-gate registers, blocked-input checks, tendon readiness, CR&SH handoff, and formula readiness in a collapsed Source trace / QA toggle.
+- Renders engineering tables as static HTML tables to avoid Streamlit dataframe toolbar/scroll glyphs in browser PDF exports.
+- Converts key 2.4 tendon-source expanders to trace toggles so `keyboard_arrow_right` artifacts are reduced in printed/PDF output.
+- Preserves the active-span tendon source consistency gate and the locked CSiBridge final-stage loss handoff from TENDON.2.4I / PSLOSS.26I.
 
 This milestone adds COMMERCIAL.TENDON.2.4I — Active Span Source Consistency Polish:
 - Syncs the adopted tendon source to the active project span when BridgeObj mapping is enabled.
