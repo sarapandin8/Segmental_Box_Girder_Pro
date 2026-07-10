@@ -75,6 +75,7 @@ from core.tendon_adoption import (
     build_tendon_detailed_qa_integrity,
     build_tendon_source_trace,
     build_tendon_stressing_basis_summary,
+    summarize_tendon_source_provenance,
     clear_adopted_tendon_model,
     normalise_jack_from,
     tendon_model_fingerprint,
@@ -361,7 +362,7 @@ hr {margin: 1rem 0;}
   [data-testid="stExpander"] details > summary::marker {content:"" !important;}
   [data-testid="stExpander"] details > summary {list-style:none !important;}
 
-  /* TENDON.2.4P: Chromium/Edge may print the sidebar scroll-arrow
+  /* TENDON.2.4Q: Chromium/Edge may print the sidebar scroll-arrow
      controls as Segoe Fluent private-use glyphs (U+EDDB/U+EDDC).
      Keep the sidebar visible, but remove its print-time scrolling UI. */
   section[data-testid="stSidebar"], [data-testid="stSidebar"],
@@ -6441,7 +6442,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
     code_basis_card(
         "4.1 Prestress Losses — Design Source Summary",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4P keeps fresh sessions in Import / Mapping, uses B2_SPAN1 as the fresh-project default span, verifies detailed adopted QA payloads, and cleans private-use print glyphs from the PDF text layer.",
+        "TENDON.2.4Q keeps the B2_SPAN1 fresh-project workflow, separates adopted calculation-payload readiness from original-file provenance, and clarifies project-save status labels.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-source rule:</b> Section 4 calculations read only the adopted tendon source, adopted section properties, source-derived stage stress, and locked CR&SH/start-age basis. Working imports and local diagnostics do not feed the final CSiBridge loss.</div>',
@@ -6743,7 +6744,7 @@ def render_tendon_layout_reference() -> None:
     nav_adopted_model = _active_adopted_tendon_model()
     nav_working_matches_adopted = bool(nav_preview_model.get("valid") and nav_adopted_model and _tendon_working_matches_adopted(nav_preview_model))
     nav_fingerprint = str((nav_adopted_model or nav_preview_model or {}).get("model_fingerprint", ""))
-    # TENDON.2.4P: if the source is locked and the working model already matches
+    # TENDON.2.4Q: if the source is locked and the working model already matches
     # the adopted downstream source, the first view on entering 2.4 must be the
     # adopted source, not the import/mapping workspace.  A user can still switch
     # to Import / Mapping intentionally after entry; navigating away and back
@@ -7581,15 +7582,23 @@ def render_tendon_layout_reference() -> None:
                     summary_for_display,
                 )
                 show_engineering_table(pd.DataFrame(integrity_rows))
-                integrity_ready = all(str(row.get("Status", "")).upper() == "READY" for row in integrity_rows)
-                if integrity_ready:
+                provenance_row = next((row for row in integrity_rows if row.get("Item") == "Source metadata provenance"), {})
+                payload_rows = [row for row in integrity_rows if row.get("Item") != "Source metadata provenance"]
+                payload_ready = all(str(row.get("Status", "")).upper() == "READY" for row in payload_rows)
+                provenance_status = str(provenance_row.get("Status", "REVIEW")).upper()
+                if payload_ready and provenance_status == "READY":
                     st.markdown(
-                        '<div class="result-card"><b>Detailed adopted-source payload: READY</b><br><span class="small-muted">Tendon rows, merged profile rows, group summary, downstream summary, and source trace are internally complete.</span></div>',
+                        '<div class="result-card"><b>Detailed adopted-source payload: READY — SOURCE METADATA READY</b><br><span class="small-muted">Tendon rows, merged profile rows, group summary, downstream summary, source trace, filenames, and SHA metadata are complete.</span></div>',
+                        unsafe_allow_html=True,
+                    )
+                elif payload_ready and provenance_status == "PARTIAL":
+                    st.markdown(
+                        '<div class="warn-box"><b>DETAILED PAYLOAD READY — SOURCE METADATA PARTIAL</b><br>The adopted calculation snapshot is internally complete and remains usable. One or more original upload filenames or SHA-256 values were not retained; the source table below is labelled RESTORED FROM PROJECT SNAPSHOT or SOURCE METADATA PARTIAL.</div>',
                         unsafe_allow_html=True,
                     )
                 else:
                     st.markdown(
-                        '<div class="warn-box"><b>Detailed adopted-source payload requires review.</b> One or more hidden QA tables are incomplete or inconsistent. Do not use the detailed export until the register above is READY.</div>',
+                        '<div class="warn-box"><b>Detailed adopted-source payload requires review.</b> One or more hidden QA tables or required source records are incomplete or inconsistent. Do not use the detailed export until the payload register is READY.</div>',
                         unsafe_allow_html=True,
                     )
 
@@ -7607,7 +7616,14 @@ def render_tendon_layout_reference() -> None:
                 show_engineering_table(_tendon_summary_frame_from_summary(summary_for_display))
 
                 st.markdown("#### Source trace used for adoption")
-                source_trace = tl.get("adopted_source_trace") if adopted_model else build_tendon_source_trace(tl, model)
+                source_trace = build_tendon_source_trace(tl, active_table_model)
+                if adopted_model:
+                    tl["adopted_source_trace"] = source_trace
+                provenance = summarize_tendon_source_provenance(source_trace)
+                if provenance["status"] == "PARTIAL":
+                    st.caption("Calculation snapshot is complete; original filename/SHA metadata is partial for one or more source tables.")
+                elif provenance["status"] == "REVIEW":
+                    st.warning(provenance["message"])
                 show_engineering_table(pd.DataFrame(source_trace))
         else:
             st.info("Build a valid tendon model to show adopted tendon data.")
@@ -9405,7 +9421,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     code_basis_card(
         "4.6 Final Loss / CSiBridge Input",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4P keeps the locked average final-stage total loss for CSiBridge, the B2_SPAN1 fresh-project default, compact adopted-source review, and detailed-QA integrity checks.",
+        "TENDON.2.4Q keeps the locked average final-stage total loss for CSiBridge while separating adopted payload readiness from partial source-file metadata provenance.",
     )
     st.markdown(
         f'<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss. Status: <b>{ep_state.get("status", "-")}</b>.</div>',
@@ -9747,11 +9763,19 @@ def render_project_save_panel() -> None:
     with st.sidebar:
         st.markdown("---")
         st.markdown("**PROJECT FILE**")
-        section_summary = section_persistence_summary(st.session_state.project)
+        project = st.session_state.project
+        section_summary = section_persistence_summary(project)
+        tendon_layout = project.get("tendon_layout", {}) if isinstance(project, dict) else {}
+        tendon_model = tendon_layout.get("adopted_model", {}) if isinstance(tendon_layout, dict) else {}
+        tendon_source_adopted = bool(isinstance(tendon_model, dict) and tendon_model.get("valid"))
         st.caption(
-            f"Save includes section rows: {section_summary['coordinate_rows']} · "
-            f"computed: {'yes' if section_summary['computed_section_available'] else 'no'} · "
-            f"adopted: {'yes' if section_summary['adopted_properties_available'] else 'no'}"
+            f"Section rows: {section_summary['coordinate_rows']} · "
+            f"computed section: {'yes' if section_summary['computed_section_available'] else 'no'} · "
+            f"adopted section properties: {'yes' if section_summary['adopted_properties_available'] else 'no'}"
+        )
+        st.caption(
+            f"Tendon source adopted: {'yes' if tendon_source_adopted else 'no'} · "
+            "Project snapshot available: yes"
         )
         st.download_button(
             "Save Project JSON",
@@ -9844,4 +9868,4 @@ render_project_save_panel()
 # Jacking-force interpretation
 # Tendon adoption action required
 
-# COMMERCIAL.TENDON.2.4P static token: Build / refresh imported tendon layout model legacy label retained for tests; locked-source UI hides refresh controls when no action is required.
+# COMMERCIAL.TENDON.2.4Q static token: source provenance is reported separately from adopted calculation-payload readiness; locked-source UI hides refresh controls when no action is required.

@@ -8,6 +8,7 @@ from core.tendon_adoption import (
     build_tendon_detailed_qa_integrity,
     build_tendon_source_trace,
     build_tendon_stressing_basis_summary,
+    summarize_tendon_source_provenance,
     clear_adopted_tendon_model,
     tendon_model_fingerprint,
     tendon_model_status,
@@ -78,12 +79,17 @@ def test_tendon_source_trace_and_downstream_summary_are_report_ready():
         "general_rows": [{}, {}],
         "vertical_rows": [{}, {}, {}],
         "horizontal_rows": [{}, {}, {}],
-        "source_meta": {"general": {"filename": "gen.xlsx"}},
+        "source_meta": {
+            "general": {"filename": "gen.xlsx", "sha256_12": "abc123abc123"},
+            "vertical": {"filename": "vert.xlsx", "sha256_12": "def456def456"},
+            "horizontal": {"filename": "horiz.xlsx", "sha256_12": "789abc789abc"},
+        },
     }
     trace = build_tendon_source_trace(tl, model)
     assert trace[0]["Source table"] == "General"
     assert trace[0]["Filename"] == "gen.xlsx"
     assert trace[0]["Status"] == "READY"
+    assert summarize_tendon_source_provenance(trace)["status"] == "READY"
     summary = build_tendon_downstream_summary(model, y_t_from_top_m=0.8)
     assert summary["source"] == "Adopted CSiBridge tendon layout model"
     assert summary["model_fingerprint"] == tendon_model_fingerprint(model)
@@ -123,6 +129,11 @@ def test_detailed_adopted_qa_integrity_register_is_ready_for_complete_model():
         "general_rows": [{}, {}],
         "vertical_rows": [{}, {}, {}, {}, {}, {}],
         "horizontal_rows": [{}, {}, {}, {}, {}, {}],
+        "source_meta": {
+            "general": {"filename": "gen.xlsx", "sha256_12": "abc123abc123"},
+            "vertical": {"filename": "vert.xlsx", "sha256_12": "def456def456"},
+            "horizontal": {"filename": "horiz.xlsx", "sha256_12": "789abc789abc"},
+        },
     }
     summary = adopt_tendon_model(tl, {}, model, y_t_from_top_m=0.8)
     rows = build_tendon_detailed_qa_integrity(model, tl, summary)
@@ -133,5 +144,27 @@ def test_detailed_adopted_qa_integrity_register_is_ready_for_complete_model():
     assert by_item["Merged profile table"]["Expected / basis"] == 6
     assert by_item["Tendon group summary"]["Available"] >= 1
     assert by_item["Downstream summary"]["Status"] == "READY"
-    assert by_item["Adoption source trace"]["Available"] >= 4
+    assert by_item["Source trace rows"]["Available"] >= 4
+    assert by_item["Source metadata provenance"]["Status"] == "READY"
     assert {row["Status"] for row in rows} == {"READY"}
+
+
+def test_project_snapshot_source_trace_is_usable_but_metadata_partial():
+    model = _model()
+    tl = {
+        "general_rows": [{}, {}],
+        "vertical_rows": [{}, {}, {}, {}, {}, {}],
+        "horizontal_rows": [{}, {}, {}, {}, {}, {}],
+    }
+    summary = adopt_tendon_model(tl, {}, model, y_t_from_top_m=0.8)
+    trace = build_tendon_source_trace(tl, model)
+    by_source = {row["Source table"]: row for row in trace}
+    assert by_source["General"]["Status"] == "RESTORED FROM PROJECT SNAPSHOT"
+    assert by_source["Vertical"]["Status"] == "RESTORED FROM PROJECT SNAPSHOT"
+    assert by_source["Horizontal"]["Status"] == "RESTORED FROM PROJECT SNAPSHOT"
+    provenance = summarize_tendon_source_provenance(trace)
+    assert provenance["status"] == "PARTIAL"
+    rows = build_tendon_detailed_qa_integrity(model, tl, summary)
+    by_item = {row["Item"]: row for row in rows}
+    assert by_item["Source trace rows"]["Status"] == "READY"
+    assert by_item["Source metadata provenance"]["Status"] == "PARTIAL"

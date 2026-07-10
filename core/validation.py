@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
-PROJECT_SCHEMA_VERSION = "0.4.110-commercial-tendon24p-print-text-layer-detailed-qa-integrity"
+PROJECT_SCHEMA_VERSION = "0.4.111-commercial-tendon24q-source-provenance-save-label-clarity"
 
 IssueLevel = Literal["ERROR", "WARNING", "INFO"]
 
@@ -109,6 +109,14 @@ def ensure_project_schema(project: Dict) -> Dict:
     from core.code_basis import migrate_project_code_basis
 
     data = migrate_project_code_basis(data)
+
+    tendon_layout = data.get("tendon_layout", {}) if isinstance(data, dict) else {}
+    adopted_model = tendon_layout.get("adopted_model", {}) if isinstance(tendon_layout, dict) else {}
+    if isinstance(adopted_model, dict) and adopted_model.get("valid"):
+        from core.tendon_adoption import build_tendon_source_trace
+
+        tendon_layout["adopted_source_trace"] = build_tendon_source_trace(tendon_layout, adopted_model)
+
     meta = data.setdefault("meta", {})
     original_schema = str(meta.get("loaded_schema_version") or meta.get("schema_version") or "-")
     # Always promote the active project schema marker to the active app schema while

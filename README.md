@@ -1,3 +1,21 @@
+# Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4Q
+
+This milestone adds **COMMERCIAL.TENDON.2.4Q — Source Provenance and Save Label Clarity**:
+
+- Separates adopted calculation-payload readiness from original upload-file provenance.
+- Source rows with complete filename and SHA-256 metadata remain `READY`.
+- Complete saved-project tendon rows without original upload metadata are labelled `RESTORED FROM PROJECT SNAPSHOT` rather than being over-certified.
+- Partly retained filename/SHA metadata is labelled `SOURCE METADATA PARTIAL`.
+- Detailed QA now reports `Source trace rows` and `Source metadata provenance` as separate checks.
+- A complete calculation snapshot with partial provenance displays `DETAILED PAYLOAD READY — SOURCE METADATA PARTIAL` and remains usable without hiding the audit limitation.
+- Project-load migration refreshes the adopted source trace using the new provenance rules.
+- The sidebar save panel distinguishes section rows, computed section, adopted section properties, tendon-source adoption, and project snapshot availability.
+- Prestress-loss values and the CSiBridge final-stage handoff remain unchanged.
+
+Schema:
+
+- 0.4.111-commercial-tendon24q-source-provenance-save-label-clarity
+
 # Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4P
 
 This milestone adds **COMMERCIAL.TENDON.2.4P — Print Text-Layer Cleanup and Detailed QA Integrity**:

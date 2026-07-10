@@ -54,11 +54,32 @@ def tendon_model_status(model: dict[str, Any] | None, tendon_layout: dict[str, A
     return {"status": "LOCKED", "mode": "pass", "message": "Adopted tendon model is the current downstream source of truth."}
 
 
+def _source_metadata_text(value: Any) -> str:
+    """Return a clean source-metadata value, treating UI placeholders as missing."""
+    text = str(value or "").strip()
+    if text in {"", "-", "—", "None", "null"}:
+        return ""
+    return text
+
+
 def build_tendon_source_trace(tendon_layout: dict[str, Any] | None, model: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Build report-ready source trace rows for tendon import/adoption."""
+    """Build report-ready source trace rows for tendon import/adoption.
+
+    Engineering payload completeness and original-file provenance are deliberately
+    separated. A saved project may contain complete adopted tendon rows while the
+    original upload filename/SHA metadata is unavailable. Such rows are labelled
+    ``RESTORED FROM PROJECT SNAPSHOT`` rather than being over-certified as READY.
+    """
     tl = tendon_layout or {}
     model = model or {}
     source_meta = tl.get("source_meta", {}) if isinstance(tl.get("source_meta"), dict) else {}
+
+    prior_rows: list[dict[str, Any]] = []
+    for candidate in (tl.get("adopted_source_trace"), model.get("source_trace_rows")):
+        if isinstance(candidate, list):
+            prior_rows.extend(row for row in candidate if isinstance(row, dict))
+    prior_by_label = {str(row.get("Source table", "")): row for row in prior_rows}
+
     row_specs = [
         ("General", "general_rows", "general", "Tendon, area, material, jack-from, force trace"),
         ("Vertical", "vertical_rows", "vertical", "Station x and dp from top surface"),
@@ -67,17 +88,43 @@ def build_tendon_source_trace(tendon_layout: dict[str, Any] | None, model: dict[
     rows: list[dict[str, Any]] = []
     for label, rows_key, meta_key, role in row_specs:
         records = tl.get(rows_key, []) if isinstance(tl.get(rows_key, []), list) else []
-        meta = source_meta.get(meta_key, {}) if isinstance(source_meta.get(meta_key, {}), dict) else {}
+        meta = source_meta.get(meta_key, {}) if isinstance(source_meta.get(meta_key), dict) else {}
+        prior = prior_by_label.get(label, {})
+
+        fallback_count = 0
+        if label == "General":
+            fallback_count = len(model.get("tendons", []) or [])
+        elif label in {"Vertical", "Horizontal"}:
+            fallback_count = len(model.get("profile_rows", []) or [])
+        try:
+            prior_count = int(prior.get("Imported rows") or 0)
+        except (TypeError, ValueError):
+            prior_count = 0
+        row_count = len(records) or prior_count or fallback_count
+
+        filename = _source_metadata_text(meta.get("filename")) or _source_metadata_text(prior.get("Filename"))
+        sha12 = _source_metadata_text(meta.get("sha256_12")) or _source_metadata_text(prior.get("File SHA-256 (12)"))
+
+        if row_count <= 0:
+            status = "MISSING"
+        elif filename and sha12:
+            status = "READY"
+        elif filename or sha12:
+            status = "SOURCE METADATA PARTIAL"
+        else:
+            status = "RESTORED FROM PROJECT SNAPSHOT"
+
         rows.append(
             {
                 "Source table": label,
-                "Imported rows": len(records),
-                "Filename": meta.get("filename", "-") or "-",
-                "File SHA-256 (12)": meta.get("sha256_12", "-") or "-",
+                "Imported rows": row_count,
+                "Filename": filename or "-",
+                "File SHA-256 (12)": sha12 or "-",
                 "Role": role,
-                "Status": "READY" if len(records) else "MISSING",
+                "Status": status,
             }
         )
+
     imported_objs = model.get("imported_bridge_objects", []) or []
     rows.append(
         {
@@ -90,6 +137,40 @@ def build_tendon_source_trace(tendon_layout: dict[str, Any] | None, model: dict[
         }
     )
     return rows
+
+
+def summarize_tendon_source_provenance(source_trace: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """Summarize original-file provenance without blocking a complete design snapshot."""
+    rows = [
+        row
+        for row in (source_trace or [])
+        if isinstance(row, dict) and str(row.get("Source table", "")) in {"General", "Vertical", "Horizontal"}
+    ]
+    statuses = [str(row.get("Status", "")).upper() for row in rows]
+    ready_count = sum(status == "READY" for status in statuses)
+    snapshot_count = sum(status == "RESTORED FROM PROJECT SNAPSHOT" for status in statuses)
+    partial_count = sum(status == "SOURCE METADATA PARTIAL" for status in statuses)
+    missing_count = sum(status in {"", "MISSING", "REVIEW"} for status in statuses)
+
+    if len(rows) == 3 and ready_count == 3:
+        status = "READY"
+        message = "Original filename and SHA-256 metadata are available for all three tendon source tables."
+    elif len(rows) == 3 and missing_count == 0:
+        status = "PARTIAL"
+        message = "The adopted calculation snapshot is complete, but original filename/SHA metadata is unavailable for one or more source tables."
+    else:
+        status = "REVIEW"
+        message = "One or more required tendon source tables or provenance records are missing."
+
+    return {
+        "status": status,
+        "ready_count": ready_count,
+        "snapshot_count": snapshot_count,
+        "partial_count": partial_count,
+        "missing_count": missing_count,
+        "source_count": len(rows),
+        "message": message,
+    }
 
 
 
@@ -219,13 +300,11 @@ def build_tendon_detailed_qa_integrity(
     tendon_layout: dict[str, Any] | None = None,
     downstream_summary: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Return explicit readiness checks for the detailed adopted-tendon QA payload.
+    """Return readiness checks for payload integrity and source provenance.
 
-    The compact Adopted Tendon Data view intentionally hides long tables. When an
-    engineer opens the detailed QA toggle, this register confirms that the
-    tendon-by-tendon table, merged profile table, group summary, downstream
-    summary, and source trace are internally complete before those tables are
-    rendered. No design value is changed by this check.
+    A complete saved-project snapshot can remain usable even when the original
+    upload filename/SHA metadata is unavailable. The register therefore reports
+    calculation-payload readiness separately from source-metadata provenance.
     """
     model = model or {}
     tl = tendon_layout or {}
@@ -233,13 +312,16 @@ def build_tendon_detailed_qa_integrity(
     profile_rows = model.get("profile_rows", []) if isinstance(model.get("profile_rows", []), list) else []
     group_rows = model.get("group_summary", []) if isinstance(model.get("group_summary", []), list) else []
     expected_profile_rows = sum(max(int(t.get("profile_point_count") or 0), 0) for t in tendons if isinstance(t, dict))
-    source_trace = tl.get("adopted_source_trace") if isinstance(tl.get("adopted_source_trace"), list) else build_tendon_source_trace(tl, model)
+    source_trace = build_tendon_source_trace(tl, model)
+    provenance = summarize_tendon_source_provenance(source_trace)
     summary = downstream_summary if isinstance(downstream_summary, dict) else build_tendon_downstream_summary(model)
 
     tendon_count = len(tendons)
     summary_tendon_count = int(summary.get("tendon_count") or 0)
     summary_area = float(summary.get("Aps_total_mm2") or 0.0)
     model_area = float(model.get("total_area_mm2") or 0.0)
+    trace_labels = {str(row.get("Source table", "")) for row in source_trace if isinstance(row, dict)}
+    required_trace_labels = {"General", "Vertical", "Horizontal", "BridgeObj mapping"}
 
     checks = [
         {
@@ -267,10 +349,16 @@ def build_tendon_detailed_qa_integrity(
             "Status": "READY" if summary_tendon_count == tendon_count and tendon_count > 0 and abs(summary_area - model_area) <= 1e-6 else "REVIEW",
         },
         {
-            "Item": "Adoption source trace",
+            "Item": "Source trace rows",
             "Available": len(source_trace),
             "Expected / basis": "General + Vertical + Horizontal + BridgeObj",
-            "Status": "READY" if len(source_trace) >= 4 else "REVIEW",
+            "Status": "READY" if required_trace_labels.issubset(trace_labels) else "REVIEW",
+        },
+        {
+            "Item": "Source metadata provenance",
+            "Available": f"{provenance['ready_count']} ready / {provenance['snapshot_count']} snapshot / {provenance['partial_count']} partial",
+            "Expected / basis": "Filename + SHA-256 for General / Vertical / Horizontal",
+            "Status": provenance["status"],
         },
     ]
     return checks
