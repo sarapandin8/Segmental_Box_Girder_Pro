@@ -66,7 +66,7 @@ def test_m22_fea_status_does_not_overstate_import_engine():
 
 def test_m3d_schema_version_is_updated():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
 
 
 def test_readme_documents_m3g_section_wind_csp_formatting_and_seismic_foundation():
@@ -693,7 +693,7 @@ def test_loads40_loads_closeout_and_reportqa_handoff():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.LOADS.40" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "render_loads_workspace_closeout_panel" in src
     assert "Loads workspace closeout and Report / QA handoff" in src
     assert "Closed for load-source scope" in src
@@ -711,7 +711,7 @@ def test_psloss1_source_gate_and_jacking_force_guard():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "render_prestress_losses_source_gate_panel" in src
     assert "Prestress Losses Source Gate" in src
     assert "SOURCE BLOCKED" in src
@@ -731,7 +731,7 @@ def test_psloss2_stressing_basis_gate_and_tendon_action():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.2" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "_psloss_stressing_basis_state" in src
     assert "STRESSING BASIS" in src
     assert "Tendon adoption action required" in src
@@ -751,7 +751,7 @@ def test_psloss3_adopted_tendon_and_formula_readiness_register():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.3" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "_psloss_adopted_tendon_readiness_rows" in src
     assert "_psloss_formula_readiness_rows" in src
     assert "PSLOSS.25 calculation-readiness snapshot" in src
@@ -770,7 +770,7 @@ def test_psloss4_friction_source_model_and_preview_gate():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.4" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "render_prestress_friction_source_model" in src
     assert "4.2 Friction Loss Source Model" in src
     assert "Friction coefficient input assistant" in src
@@ -790,7 +790,7 @@ def test_tendon2_jackfrom_source_note_visible_and_traced():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.TENDON.2" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "Stressing-basis source note" in src
     assert "General tendon table · JackFrom field" in src
     assert "not a duplicate Prestress Losses input" in src
@@ -802,7 +802,7 @@ def test_psloss5_friction_formula_trace_and_report_summary():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.5" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "Physical friction design-basis summary" in src
     assert "Friction formula and variable trace" in src
     assert "Governing tendon calculation walkthrough" in src
@@ -822,7 +822,7 @@ def test_psloss6_friction_equation_cards_and_consistent_formula_block():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.6" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "Friction loss result summary" in src
     assert "_render_loss_result_summary_cards_for_friction" in src
     assert "FRICTION LOSS SUMMARY" in src
@@ -842,7 +842,7 @@ def test_psloss7_friction_governing_tie_and_full_tendon_report_polish():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.7" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "_psloss_friction_governing_tie_results" in src
     assert "_psloss_friction_governing_label" in src
     assert "_show_full_tendon_report_table" in src
@@ -858,7 +858,7 @@ def test_psloss9_anchor_set_distribution_and_friction_coupling_preview():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.9" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "_psloss_anchor_distribution_results" in src
     assert "_render_psloss_anchor_distribution_equation_block" in src
     assert "Anchor-set distribution / friction-coupling preview" in src
@@ -873,7 +873,7 @@ def test_psloss10_anchor_set_distribution_wording_and_variable_trace_polish():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.10" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "Equivalent quick-check route" in src
     assert "The position-dependent friction-coupled distribution preview is shown below" in src
     assert "_psloss_anchor_distribution_variable_rows" in src
@@ -890,7 +890,7 @@ def test_psloss11_elastic_shortening_source_model_and_stage_preview():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.11" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "render_prestress_elastic_shortening_source_model" in src
     assert "_psloss_elastic_shortening_source_state" in src
     assert "_psloss_elastic_shortening_sequence_rows" in src
@@ -905,7 +905,7 @@ def test_psloss12_elastic_shortening_summary_consistency_and_sequence_basis():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.12" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "MAX SEQUENCE ES LOSS" in src
     assert "fpx,avg" in src
     assert "fpx after average ES" in src
@@ -922,7 +922,7 @@ def test_psloss13_loss_percent_basis_non_cumulative_standard():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.13" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "_loss_percent_basis_rows" in src
     assert "_render_loss_percent_basis_note" in src
     assert "_append_loss_percent_basis_report_rows" in src
@@ -939,7 +939,7 @@ def test_psloss14_header_and_next_step_consistency_cleanup():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.14" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "PSLOSS.22 keeps the friction report trace closed" in src
     assert "PSLOSS.22 keeps the anchor-set distribution trace closed" in src
     assert "PSLOSS.22 keeps the elastic-shortening preview closed" in src
@@ -955,7 +955,7 @@ def test_psloss16_18_creep_shrinkage_complete_preview():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     defaults_src = DEFAULTS_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.16–18" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert '"segment_age_at_transport_days": 30.0' in defaults_src
     assert "render_prestress_creep_shrinkage_stage_source_map" in src
     assert "Segment age at transport (days)" in src
@@ -979,7 +979,7 @@ def test_psloss20_route_dependent_handoff_and_selected_age_symbol_polish():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     defaults_src = DEFAULTS_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.20" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert '"crsh_time_step_age_source": "Adopt computed prestressing age t_jack from 4.5 construction map"' in defaults_src
     assert "Time-step age source" in src
     assert "Use computed t_jack from 4.5 construction map" in src
@@ -1003,7 +1003,7 @@ def test_psloss21_relaxation_source_model_and_gated_preview():
     defaults_src = DEFAULTS_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.21" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert '"relaxation_calculation_method": "BG40 low-relaxation interaction cap — Recommended audit route"' in defaults_src
     assert '"relaxation_steel_type": "Low-relaxation strand"' in defaults_src
     assert '"relaxation_stress_basis": "Use fpj / jacking-stress preview"' in defaults_src
@@ -1028,7 +1028,7 @@ def test_psloss22_time_dependent_loss_tabs_and_rename():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     report_schema_src = REPORT_SCHEMA_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.22" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "4.5 Time-Dependent Losses" in report_schema_src
     assert "4.5 Creep / Shrinkage" not in report_schema_src
     assert "4.5 Time-Dependent Losses Source Model" in src
@@ -1051,7 +1051,7 @@ def test_psloss23_time_dependent_handoff_summary_and_relaxation_wording_polish()
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.23" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "PSLOSS.26D organizes relaxation as a BG40 low-relaxation interaction-cap audit" in src
     assert "PSLOSS.23 keeps route-dependent time-dependent-loss handoff behavior" in src
     assert "TD preview subtotal" in src
@@ -1067,7 +1067,7 @@ def test_psloss24_crsh_source_gate_compatibility_fix():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.24" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "def _psloss_crsh_source_gate_handoff_rows" in src
     assert 'if "factors" not in state:' in src
     assert "Compatibility-safe 4.1 CR&SH source-gate handoff rows" in src
@@ -1083,7 +1083,7 @@ def test_psloss25_general_readiness_register_next_step_polish():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.25" in readme
     assert "COMMERCIAL.UI.PSLOSS.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "PSLOSS.25 calculation-readiness snapshot" in src
     assert "EFFECTIVE PRESTRESS" in src
     assert "4.6 Effective Prestress final combination gate is next" in src
@@ -1101,7 +1101,7 @@ def test_ui_psloss1_prestress_losses_uses_loads_style_horizontal_subpage_nav():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.UI.PSLOSS.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "def _sync_psloss_inline_subpage_to_sidebar" in src
     assert "psloss_inline_subpage" in src
     assert 'st.radio(\n        "Prestress Losses subpage"' in src
@@ -1116,7 +1116,7 @@ def test_ui_bridge1_bridge_geometry_uses_loads_style_horizontal_subpage_nav():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.UI.BRIDGE.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "def _sync_bridge_inline_subpage_to_sidebar" in src
     assert "bridge_inline_subpage" in src
     assert 'st.radio(\n        "Bridge Geometry / Section Properties subpage"' in src
@@ -1132,7 +1132,7 @@ def test_ui_header1_removes_global_project_context_banner_card():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     readme = README_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.UI.HEADER.1" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "hero-card" not in src
     assert "Active workspace:" not in src
     assert 'small_context("Workspace"' in src
@@ -1145,7 +1145,7 @@ def test_ui_sidebar2_removes_project_status_and_global_figure_system_from_sideba
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.UI.SIDEBAR.1" in readme
     assert "COMMERCIAL.UI.SIDEBAR.2" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "PROJECT STATUS" not in src
     assert "QA gate ready" not in src
     assert "ULS Flexure max DCR" not in src
@@ -1163,7 +1163,7 @@ def test_psloss26a_effective_prestress_loss_audit_and_formula_polish():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.26A" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "4.6 Effective Prestress Source Map, Loss Audit, and Root-Cause Diagnosis" in src
     assert "Loss audit against calculation report" in src
     assert "Calculation report comparison inputs (% of fpi)" in src
@@ -1185,7 +1185,7 @@ def test_psloss26b_high_loss_root_cause_diagnosis():
     readme = README_SOURCE.read_text(encoding="utf-8")
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.26B" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert "4.6 Effective Prestress Source Map, Loss Audit, and Root-Cause Diagnosis" in src
     assert "High-loss root-cause diagnosis" in src
     assert "_psloss_effective_root_cause_rows" in src
@@ -1204,7 +1204,7 @@ def test_psloss26d_creep_relaxation_report_match_audit():
     validation_src = VALIDATION_SOURCE.read_text(encoding="utf-8")
     defaults_src = DEFAULTS_SOURCE.read_text(encoding="utf-8")
     assert "COMMERCIAL.PSLOSS.26D" in readme
-    assert 'PROJECT_SCHEMA_VERSION = "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish"' in validation_src
+    assert 'PROJECT_SCHEMA_VERSION = "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish"' in validation_src
     assert '"crsh_creep_time_basis": "BG40 report-match incremental Δktd — Recommended audit route"' in defaults_src
     assert '"relaxation_calculation_method": "BG40 low-relaxation interaction cap — Recommended audit route"' in defaults_src
     assert "_psloss_crsh_creep_basis_options" in src
@@ -1221,3 +1221,13 @@ def test_psloss26d_creep_relaxation_report_match_audit():
     assert "psloss26a_report_friction_pct" in src
     assert "psloss26a_report_fpe_mpa" in src
     assert "PREVIEW / REVIEW REQUIRED" in src
+
+
+def test_tendon24o_compacts_adopted_tables_and_hides_print_sidebar_controls():
+    src = _src()
+    assert 'Detailed adopted tendon tables / QA' in src
+    assert 'Compact design-use summary' in src
+    assert '[data-testid="stSidebarCollapseButton"]' in src
+    assert 'button[aria-label="Open sidebar"]' in src
+    assert 'button[aria-label="Close sidebar"]' in src
+    assert 'TENDON.2.4O' in src

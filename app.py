@@ -347,6 +347,9 @@ hr {margin: 1rem 0;}
 @media print {
   [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"],
   [data-testid="stHeaderActionElements"], [data-testid="stElementToolbar"],
+  [data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"],
+  button[aria-label="Open sidebar"], button[aria-label="Close sidebar"],
+  button[aria-label*="sidebar" i], button[kind="headerNoPadding"],
   .stDeployButton, .viewerBadge_container__1QSob, button[kind="header"] {display:none !important;}
   [data-testid="stExpander"] summary svg, [data-testid="stToggle"] svg,
   [data-testid="stRadio"] svg, [data-testid="stCheckbox"] svg,
@@ -3575,7 +3578,7 @@ def _build_and_store_tendon_model() -> dict[str, Any]:
         general,
         vertical,
         horizontal,
-        active_bridge_object=(tl.get("active_bridge_object") or D["project"].get("bridge_object", "B2_SPAN2")),
+        active_bridge_object=(tl.get("active_bridge_object") or D["project"].get("bridge_object", "B2_SPAN1")),
         map_to_active_bridge_object=bool(tl.get("map_bridge_objects_to_active", True)),
         y_t_from_top_m=float(D["section"].get("yt_from_top_m", 0.0)),
     )
@@ -3609,9 +3612,9 @@ def _normalise_adopted_tendon_source_span_to_active() -> bool:
 
     Directly opening Section 4 pages should be safe: they must not depend on the
     user first visiting 2.4 to run the span-label migration.  When BridgeObj
-    mapping is enabled, the imported CSiBridge label (for example B2_SPAN1) is
+    mapping is enabled, the imported CSiBridge label (for example B2_SPAN2) is
     treated as an import source label and the downstream design-source label is
-    the active project span (for example B2_SPAN2).
+    the active project span (for example B2_SPAN1).
     """
     tl = D.setdefault("tendon_layout", {})
     adopted = tl.get("adopted_model")
@@ -6393,7 +6396,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
     code_basis_card(
         "4.1 Prestress Losses — Design Source Summary",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4N keeps fresh sessions in Import / Mapping until required tendon files exist, then locks valid sources for downstream use.",
+        "TENDON.2.4O keeps fresh sessions in Import / Mapping, uses B2_SPAN1 as the fresh-project default span, and keeps detailed adopted tables behind QA controls.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-source rule:</b> Section 4 calculations read only the adopted tendon source, adopted section properties, source-derived stage stress, and locked CR&SH/start-age basis. Working imports and local diagnostics do not feed the final CSiBridge loss.</div>',
@@ -6593,7 +6596,7 @@ def _ensure_adopted_tendon_source_span_consistency(model: dict[str, Any]) -> dic
 
     This is a source-label migration only: geometry, tendon count, Aps, JackFrom,
     and profile rows remain the current valid working model.  It prevents the
-    common B2_SPAN1 imported-label vs B2_SPAN2 active-span mismatch from leaking
+    common imported-label vs active-span mismatch from leaking
     into downstream prestress-loss pages.
     """
     tl = D.setdefault("tendon_layout", {})
@@ -6695,7 +6698,7 @@ def render_tendon_layout_reference() -> None:
     nav_adopted_model = _active_adopted_tendon_model()
     nav_working_matches_adopted = bool(nav_preview_model.get("valid") and nav_adopted_model and _tendon_working_matches_adopted(nav_preview_model))
     nav_fingerprint = str((nav_adopted_model or nav_preview_model or {}).get("model_fingerprint", ""))
-    # TENDON.2.4N: if the source is locked and the working model already matches
+    # TENDON.2.4O: if the source is locked and the working model already matches
     # the adopted downstream source, the first view on entering 2.4 must be the
     # adopted source, not the import/mapping workspace.  A user can still switch
     # to Import / Mapping intentionally after entry; navigating away and back
@@ -6765,7 +6768,7 @@ def render_tendon_layout_reference() -> None:
                 for obj in df["BridgeObj"].dropna().astype(str).unique().tolist():
                     if obj and obj not in imported_objs:
                         imported_objs.append(obj)
-        default_obj = tl.get("active_bridge_object") or D["project"].get("bridge_object") or (general["BridgeObj"].mode().iloc[0] if not general.empty and "BridgeObj" in general.columns else "B2_SPAN2")
+        default_obj = tl.get("active_bridge_object") or D["project"].get("bridge_object") or (general["BridgeObj"].mode().iloc[0] if not general.empty and "BridgeObj" in general.columns else "B2_SPAN1")
         if show_update_controls:
             c1, c2 = st.columns([1.0, 1.0])
             with c1:
@@ -7510,32 +7513,36 @@ def render_tendon_layout_reference() -> None:
                     st.rerun()
 
             active_table_model = adopted_model if adopted_model else model
-            active_table_label = "Adopted Tendon Layout Table — one row per tendon" if adopted_model else "Working imported model · not yet adopted — one row per tendon"
-            st.markdown(f"#### {active_table_label}")
-            if not adopted_model:
-                st.markdown('<div class="warn-box"><b>Not locked:</b> the table below is the current imported/merged model for review only.</div>', unsafe_allow_html=True)
             active_tendons_df, active_group_df, _, _ = tendon_model_to_frames(active_table_model)
             active_profile_df = tendon_model_to_profile_frame(active_table_model)
-            summary_display = _tendon_summary_display_frame(active_tendons_df)
-            show_engineering_table(summary_display)
-
-            st.markdown("#### Merged Tendon Profile Table — vertical + horizontal")
-            st.caption("Each row combines station x, vertical dp measured from top, and horizontal offset from CL for the same tendon control point. This table belongs to the active source shown above.")
-            profile_display = _tendon_profile_display_frame(active_profile_df)
-            show_engineering_table(profile_display)
-
-            st.markdown("#### Downstream tendon summary")
-            summary_for_display = adopted_summary or build_tendon_downstream_summary(model, y_t_from_top_m=float(D["section"].get("yt_from_top_m", 0.0)))
-            show_engineering_table(_tendon_summary_frame_from_summary(summary_for_display))
+            summary_for_display = adopted_summary or build_tendon_downstream_summary(
+                model,
+                y_t_from_top_m=float(D["section"].get("yt_from_top_m", 0.0)),
+            )
 
             st.markdown("#### Report-style tendon group summary")
+            st.caption("Compact design-use summary. Detailed tendon-by-tendon and station-by-station tables remain available under QA only.")
             show_engineering_table(active_group_df)
             st.markdown(
                 f'<div class="note-box"><b>One-source rule:</b> dp_avg,end = {active_table_model.get("dp_avg_end_m", 0.0):.3f} m; dp_avg,midspan = {active_table_model.get("dp_avg_midspan_m", 0.0):.3f} m; e_midspan = {active_table_model.get("eccentricity_midspan_m", 0.0):.3f} m using y_t = {D["section"].get("yt_from_top_m", 0.0):.3f} m. Physical bend/deviator geometry from this adopted tendon source is used by 4.2 Friction to compute cumulative 3D α; report-equivalent α remains a benchmark only.</div>',
                 unsafe_allow_html=True,
             )
 
-            if _trace_toggle("Source trace used for adoption"):
+            if _trace_toggle("Detailed adopted tendon tables / QA"):
+                active_table_label = "Adopted Tendon Layout Table — one row per tendon" if adopted_model else "Working imported model · not yet adopted — one row per tendon"
+                st.markdown(f"#### {active_table_label}")
+                if not adopted_model:
+                    st.markdown('<div class="warn-box"><b>Not locked:</b> the table below is the current imported/merged model for review only.</div>', unsafe_allow_html=True)
+                show_engineering_table(_tendon_summary_display_frame(active_tendons_df))
+
+                st.markdown("#### Merged Tendon Profile Table — vertical + horizontal")
+                st.caption("Each row combines station x, vertical dp measured from top, and horizontal offset from CL for the same tendon control point. This table belongs to the active source shown above.")
+                show_engineering_table(_tendon_profile_display_frame(active_profile_df))
+
+                st.markdown("#### Downstream tendon summary")
+                show_engineering_table(_tendon_summary_frame_from_summary(summary_for_display))
+
+                st.markdown("#### Source trace used for adoption")
                 source_trace = tl.get("adopted_source_trace") if adopted_model else build_tendon_source_trace(tl, model)
                 show_engineering_table(pd.DataFrame(source_trace))
         else:
@@ -9334,7 +9341,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     code_basis_card(
         "4.6 Final Loss / CSiBridge Input",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4N keeps the locked average final-stage total loss for CSiBridge and preserves fresh-import source gates.",
+        "TENDON.2.4O keeps the locked average final-stage total loss for CSiBridge, the B2_SPAN1 fresh-project default, and compact adopted-source review.",
     )
     st.markdown(
         f'<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss. Status: <b>{ep_state.get("status", "-")}</b>.</div>',
@@ -9773,4 +9780,4 @@ render_project_save_panel()
 # Jacking-force interpretation
 # Tendon adoption action required
 
-# COMMERCIAL.TENDON.2.4N static token: Build / refresh imported tendon layout model legacy label retained for tests; locked-source UI hides refresh controls when no action is required.
+# COMMERCIAL.TENDON.2.4O static token: Build / refresh imported tendon layout model legacy label retained for tests; locked-source UI hides refresh controls when no action is required.

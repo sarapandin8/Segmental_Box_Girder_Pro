@@ -1,3 +1,14 @@
+# Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4O
+
+This milestone adds **COMMERCIAL.TENDON.2.4O — Default Span, Compact Adopted Data, and Print Glyph Polish**:
+
+- Fresh projects now default to active span / BridgeObj **B2_SPAN1** in both project context and tendon-layout mapping. Loaded projects retain their saved span.
+- Fresh sessions with no tendon files still open at **Import / Mapping**; valid locked sources still default to **Adopted Tendon Data**.
+- The main Adopted Tendon Data view is compact: source status, stressing basis, and the four-row tendon group summary remain visible.
+- Tendon-by-tendon rows, merged station profiles, downstream full summary, and source trace move behind **Detailed adopted tendon tables / QA**.
+- Browser-print CSS additionally suppresses Streamlit sidebar open/close controls that can appear as private-use glyphs in PDF text extraction.
+- Prestress-loss calculation values and the CSiBridge final-stage handoff remain unchanged.
+
 # Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4N
 
 This milestone adds **COMMERCIAL.TENDON.2.4N — Fresh Import State Polish and Disabled Build Gate**:

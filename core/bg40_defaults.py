@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.108-commercial-tendon24m-locked-source-entry-default-print-polish",
+        "schema_version": "0.4.109-commercial-tendon24o-default-span-compact-adopted-print-polish",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -15,14 +15,14 @@ BG40_DEFAULT = {
     "project": {
         "name": "BG40",
         "description": "PT Segmental Box Girder · Track Doubling Project (Khon Kaen – Nong Khai)",
-        "bridge_object": "B2_SPAN2",
+        "bridge_object": "B2_SPAN1",
         "span_m": 40.0,
         "width_m": 11.2,
         "depth_m": 2.5,
         "design_code": "AASHTO LRFD 2020 Section 5 + EN Actions",
         "tendon_system": "External / Unbonded PT",
         "units": "kN, m, MPa, mm",
-        "workflow_note": "Three simply supported girder spans; one span is checked as BG40/B2_SPAN2.",
+        "workflow_note": "Three simply supported girder spans; one span is checked as BG40/B2_SPAN1.",
     },
 
     "code_basis": {
@@ -268,7 +268,7 @@ BG40_DEFAULT = {
         "friction_full_tendon_report_basis": "Tendon-by-tendon friction preview and calculation trace include a row-count note and display all adopted tendon rows in report review.",
     },
     "tendon_layout": {
-        "active_bridge_object": "B2_SPAN2",
+        "active_bridge_object": "B2_SPAN1",
         "map_bridge_objects_to_active": True,
         "positive_horiz_offset_direction": "left",
         "section_overlay_dimension_mode": "clean",

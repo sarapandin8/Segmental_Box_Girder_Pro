@@ -87,3 +87,18 @@ def test_project_json_migrates_legacy_section_coordinate_locations() -> None:
     assert len(loaded["section"]["coordinate_rows"]) == 8
     assert loaded["section"]["coordinate_rows"][0]["loop_name"] == "Structural Polygon 1"
     assert loaded["meta"]["schema_version"] == PROJECT_SCHEMA_VERSION
+
+
+def test_fresh_project_defaults_to_b2_span1_and_loaded_project_span_is_preserved() -> None:
+    from core.validation import ensure_project_schema
+
+    assert BG40_DEFAULT["project"]["bridge_object"] == "B2_SPAN1"
+    assert BG40_DEFAULT["tendon_layout"]["active_bridge_object"] == "B2_SPAN1"
+
+    loaded = json.loads(json.dumps(BG40_DEFAULT))
+    loaded["project"]["bridge_object"] = "USER_SPAN_X"
+    loaded["tendon_layout"]["active_bridge_object"] = "USER_SPAN_X"
+    migrated = ensure_project_schema(loaded)
+
+    assert migrated["project"]["bridge_object"] == "USER_SPAN_X"
+    assert migrated["tendon_layout"]["active_bridge_object"] == "USER_SPAN_X"
