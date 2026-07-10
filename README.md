@@ -1,3 +1,14 @@
+# Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4N
+
+This milestone adds **COMMERCIAL.TENDON.2.4N — Fresh Import State Polish and Disabled Build Gate**:
+
+- Fresh app sessions with no imported tendon tables remain correctly on **Import / Mapping**.
+- Invalid placeholder tendon models no longer show a deterministic working-model hash; the card now reads **NO WORKING MODEL** until the General / Vertical / Horizontal tables exist.
+- The **Build / refresh imported tendon layout model** action is disabled until all three required tendon tables are uploaded.
+- A clear missing-table message tells the user exactly which tendon source files are required before building.
+- Locked/adopted-source workflow from TENDON.2.4M is preserved: when a valid working model matches the adopted source, 2.4 defaults to **Adopted Tendon Data** and upload/refresh controls remain collapsed.
+- Prestress-loss values are unchanged: CSiBridge final loss = **21.36%**, total stress loss = **298.03 MPa**, `fpe,avg = 1096.97 MPa`, and `Pe,total = 58,973 kN`.
+
 # Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4M
 
 This milestone adds **COMMERCIAL.TENDON.2.4M — Locked Source Entry Default and Print Polish**:

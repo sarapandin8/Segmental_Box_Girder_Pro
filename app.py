@@ -3902,10 +3902,15 @@ def _active_adopted_tendon_model() -> dict[str, Any]:
 
 
 def _tendon_model_fingerprints(model: dict[str, Any]) -> tuple[str, str]:
-    """Return working/adopted fingerprints for compact source-gate UX."""
+    """Return working/adopted fingerprints for compact source-gate UX.
+
+    Invalid placeholder models are intentionally not fingerprinted in the UI.
+    A fresh session with no uploaded General / Vertical / Horizontal tables should
+    read as "No working model", not as a deterministic hash of an empty model.
+    """
     tl = D.setdefault("tendon_layout", {})
     adopted = _active_adopted_tendon_model()
-    working_fp = tendon_model_fingerprint(model) if isinstance(model, dict) and model else ""
+    working_fp = tendon_model_fingerprint(model) if isinstance(model, dict) and model.get("valid") else ""
     adopted_fp = str(tl.get("adopted_model_fingerprint") or tendon_model_fingerprint(adopted) or "")
     return working_fp, adopted_fp
 
@@ -6388,7 +6393,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
     code_basis_card(
         "4.1 Prestress Losses — Design Source Summary",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4M keeps locked tendon sources defaulted to Adopted Tendon Data on page entry and keeps QA traces behind print-safe toggles.",
+        "TENDON.2.4N keeps fresh sessions in Import / Mapping until required tendon files exist, then locks valid sources for downstream use.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-source rule:</b> Section 4 calculations read only the adopted tendon source, adopted section properties, source-derived stage stress, and locked CR&SH/start-age basis. Working imports and local diagnostics do not feed the final CSiBridge loss.</div>',
@@ -6533,6 +6538,8 @@ def _render_tendon_adoption_cards(model: dict[str, Any]) -> None:
     with c2:
         if matches:
             card("Current model", "MATCHES ADOPTED", working_fp or "—", "pass")
+        elif not bool(model.get("valid")):
+            card("Working model", "NO WORKING MODEL", "Upload General / Vertical / Horizontal tendon tables", "warn")
         else:
             card("Working model", working_fp or "—", "latest imported/merged model", "neutral")
     with c3:
@@ -6688,7 +6695,7 @@ def render_tendon_layout_reference() -> None:
     nav_adopted_model = _active_adopted_tendon_model()
     nav_working_matches_adopted = bool(nav_preview_model.get("valid") and nav_adopted_model and _tendon_working_matches_adopted(nav_preview_model))
     nav_fingerprint = str((nav_adopted_model or nav_preview_model or {}).get("model_fingerprint", ""))
-    # TENDON.2.4M: if the source is locked and the working model already matches
+    # TENDON.2.4N: if the source is locked and the working model already matches
     # the adopted downstream source, the first view on entering 2.4 must be the
     # adopted source, not the import/mapping workspace.  A user can still switch
     # to Import / Mapping intentionally after entry; navigating away and back
@@ -6797,7 +6804,27 @@ def render_tendon_layout_reference() -> None:
                         st.error("Tendon model could not be refreshed. Check imported tables and QA messages.")
                     st.rerun()
         else:
-            if st.button("Build / refresh imported tendon layout model", type="secondary", use_container_width=True):
+            missing_tables = [
+                label
+                for label, frame in (
+                    ("General", general),
+                    ("Vertical", vertical),
+                    ("Horizontal", horizontal),
+                )
+                if frame.empty
+            ]
+            import_inputs_ready = not missing_tables
+            if not import_inputs_ready:
+                st.info(
+                    "Upload all three tendon tables before building the tendon model. "
+                    f"Missing: {', '.join(missing_tables)}."
+                )
+            if st.button(
+                "Build / refresh imported tendon layout model",
+                type="secondary",
+                use_container_width=True,
+                disabled=not import_inputs_ready,
+            ):
                 model = _build_and_store_tendon_model()
                 if model.get("valid"):
                     st.success(f"Imported tendon working model built: {len(model.get('tendons', []))} tendons, span reference = {model.get('span_m', 0.0):.3f} m. A valid first model auto-adopts; changed models require review before updating the adopted source.")
@@ -9307,7 +9334,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     code_basis_card(
         "4.6 Final Loss / CSiBridge Input",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4M keeps the locked average final-stage total loss for CSiBridge and uses print-safe source/QA controls.",
+        "TENDON.2.4N keeps the locked average final-stage total loss for CSiBridge and preserves fresh-import source gates.",
     )
     st.markdown(
         f'<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss. Status: <b>{ep_state.get("status", "-")}</b>.</div>',
@@ -9746,4 +9773,4 @@ render_project_save_panel()
 # Jacking-force interpretation
 # Tendon adoption action required
 
-# COMMERCIAL.TENDON.2.4M static token: Build / refresh imported tendon layout model legacy label retained for tests; locked-source UI hides refresh controls when no action is required.
+# COMMERCIAL.TENDON.2.4N static token: Build / refresh imported tendon layout model legacy label retained for tests; locked-source UI hides refresh controls when no action is required.
