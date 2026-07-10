@@ -72,6 +72,7 @@ from core.section_geometry import calculate_section_properties, classify_point_i
 from core.tendon_adoption import (
     adopt_tendon_model,
     build_tendon_downstream_summary,
+    build_tendon_detailed_qa_integrity,
     build_tendon_source_trace,
     build_tendon_stressing_basis_summary,
     clear_adopted_tendon_model,
@@ -359,6 +360,50 @@ hr {margin: 1rem 0;}
   span[class*="material"], i[class*="material"] {display:none !important; visibility:hidden !important;}
   [data-testid="stExpander"] details > summary::marker {content:"" !important;}
   [data-testid="stExpander"] details > summary {list-style:none !important;}
+
+  /* TENDON.2.4P: Chromium/Edge may print the sidebar scroll-arrow
+     controls as Segoe Fluent private-use glyphs (U+EDDB/U+EDDC).
+     Keep the sidebar visible, but remove its print-time scrolling UI. */
+  section[data-testid="stSidebar"], [data-testid="stSidebar"],
+  section[data-testid="stSidebar"] > div, [data-testid="stSidebar"] > div,
+  [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+    overflow:visible !important;
+    overflow-y:visible !important;
+    height:auto !important;
+    max-height:none !important;
+    scrollbar-width:none !important;
+  }
+  section[data-testid="stSidebar"]::-webkit-scrollbar,
+  section[data-testid="stSidebar"] *::-webkit-scrollbar,
+  [data-testid="stSidebar"]::-webkit-scrollbar,
+  [data-testid="stSidebar"] *::-webkit-scrollbar {
+    width:0 !important;
+    height:0 !important;
+    display:none !important;
+    background:transparent !important;
+  }
+  section[data-testid="stSidebar"]::-webkit-scrollbar-button,
+  section[data-testid="stSidebar"] *::-webkit-scrollbar-button,
+  [data-testid="stSidebar"]::-webkit-scrollbar-button,
+  [data-testid="stSidebar"] *::-webkit-scrollbar-button {
+    width:0 !important;
+    height:0 !important;
+    display:none !important;
+    color:transparent !important;
+    background:transparent !important;
+  }
+
+  /* Material Symbols are controls, not report content. Hiding the actual
+     icon host prevents upload/control glyphs from entering PDF text layers. */
+  [data-testid="stIconMaterial"],
+  [data-testid="stFileUploaderDropzone"] [data-testid="stIconMaterial"],
+  [data-testid="stFileUploaderDropzone"] span[aria-hidden="true"] {
+    display:none !important;
+    visibility:hidden !important;
+    font-size:0 !important;
+    line-height:0 !important;
+    color:transparent !important;
+  }
 }
 
 </style>
@@ -6396,7 +6441,7 @@ def render_prestress_losses_source_gate_panel(*, compact: bool = False) -> dict[
     code_basis_card(
         "4.1 Prestress Losses — Design Source Summary",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4O keeps fresh sessions in Import / Mapping, uses B2_SPAN1 as the fresh-project default span, and keeps detailed adopted tables behind QA controls.",
+        "TENDON.2.4P keeps fresh sessions in Import / Mapping, uses B2_SPAN1 as the fresh-project default span, verifies detailed adopted QA payloads, and cleans private-use print glyphs from the PDF text layer.",
     )
     st.markdown(
         '<div class="note-box"><b>Design-source rule:</b> Section 4 calculations read only the adopted tendon source, adopted section properties, source-derived stage stress, and locked CR&SH/start-age basis. Working imports and local diagnostics do not feed the final CSiBridge loss.</div>',
@@ -6698,7 +6743,7 @@ def render_tendon_layout_reference() -> None:
     nav_adopted_model = _active_adopted_tendon_model()
     nav_working_matches_adopted = bool(nav_preview_model.get("valid") and nav_adopted_model and _tendon_working_matches_adopted(nav_preview_model))
     nav_fingerprint = str((nav_adopted_model or nav_preview_model or {}).get("model_fingerprint", ""))
-    # TENDON.2.4O: if the source is locked and the working model already matches
+    # TENDON.2.4P: if the source is locked and the working model already matches
     # the adopted downstream source, the first view on entering 2.4 must be the
     # adopted source, not the import/mapping workspace.  A user can still switch
     # to Import / Mapping intentionally after entry; navigating away and back
@@ -7529,6 +7574,25 @@ def render_tendon_layout_reference() -> None:
             )
 
             if _trace_toggle("Detailed adopted tendon tables / QA"):
+                st.markdown("#### Detailed QA integrity")
+                integrity_rows = build_tendon_detailed_qa_integrity(
+                    active_table_model,
+                    tl,
+                    summary_for_display,
+                )
+                show_engineering_table(pd.DataFrame(integrity_rows))
+                integrity_ready = all(str(row.get("Status", "")).upper() == "READY" for row in integrity_rows)
+                if integrity_ready:
+                    st.markdown(
+                        '<div class="result-card"><b>Detailed adopted-source payload: READY</b><br><span class="small-muted">Tendon rows, merged profile rows, group summary, downstream summary, and source trace are internally complete.</span></div>',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        '<div class="warn-box"><b>Detailed adopted-source payload requires review.</b> One or more hidden QA tables are incomplete or inconsistent. Do not use the detailed export until the register above is READY.</div>',
+                        unsafe_allow_html=True,
+                    )
+
                 active_table_label = "Adopted Tendon Layout Table — one row per tendon" if adopted_model else "Working imported model · not yet adopted — one row per tendon"
                 st.markdown(f"#### {active_table_label}")
                 if not adopted_model:
@@ -9341,7 +9405,7 @@ def render_prestress_effective_prestress_source_map() -> None:
     code_basis_card(
         "4.6 Final Loss / CSiBridge Input",
         "AASHTO LRFD 2020 Section 5, Art. 5.9.3",
-        "TENDON.2.4O keeps the locked average final-stage total loss for CSiBridge, the B2_SPAN1 fresh-project default, and compact adopted-source review.",
+        "TENDON.2.4P keeps the locked average final-stage total loss for CSiBridge, the B2_SPAN1 fresh-project default, compact adopted-source review, and detailed-QA integrity checks.",
     )
     st.markdown(
         f'<div class="note-box"><b>Use this page for CSiBridge:</b> f<sub>pi</sub> = f<sub>pj</sub>. The final-stage input is the <b>area-weighted average total loss percentage</b>, calculated from the combined average stress result; do not use the governing tendon loss. Status: <b>{ep_state.get("status", "-")}</b>.</div>',
@@ -9780,4 +9844,4 @@ render_project_save_panel()
 # Jacking-force interpretation
 # Tendon adoption action required
 
-# COMMERCIAL.TENDON.2.4O static token: Build / refresh imported tendon layout model legacy label retained for tests; locked-source UI hides refresh controls when no action is required.
+# COMMERCIAL.TENDON.2.4P static token: Build / refresh imported tendon layout model legacy label retained for tests; locked-source UI hides refresh controls when no action is required.

@@ -214,6 +214,68 @@ def build_tendon_downstream_summary(model: dict[str, Any] | None, *, y_t_from_to
     }
 
 
+def build_tendon_detailed_qa_integrity(
+    model: dict[str, Any] | None,
+    tendon_layout: dict[str, Any] | None = None,
+    downstream_summary: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Return explicit readiness checks for the detailed adopted-tendon QA payload.
+
+    The compact Adopted Tendon Data view intentionally hides long tables. When an
+    engineer opens the detailed QA toggle, this register confirms that the
+    tendon-by-tendon table, merged profile table, group summary, downstream
+    summary, and source trace are internally complete before those tables are
+    rendered. No design value is changed by this check.
+    """
+    model = model or {}
+    tl = tendon_layout or {}
+    tendons = model.get("tendons", []) if isinstance(model.get("tendons", []), list) else []
+    profile_rows = model.get("profile_rows", []) if isinstance(model.get("profile_rows", []), list) else []
+    group_rows = model.get("group_summary", []) if isinstance(model.get("group_summary", []), list) else []
+    expected_profile_rows = sum(max(int(t.get("profile_point_count") or 0), 0) for t in tendons if isinstance(t, dict))
+    source_trace = tl.get("adopted_source_trace") if isinstance(tl.get("adopted_source_trace"), list) else build_tendon_source_trace(tl, model)
+    summary = downstream_summary if isinstance(downstream_summary, dict) else build_tendon_downstream_summary(model)
+
+    tendon_count = len(tendons)
+    summary_tendon_count = int(summary.get("tendon_count") or 0)
+    summary_area = float(summary.get("Aps_total_mm2") or 0.0)
+    model_area = float(model.get("total_area_mm2") or 0.0)
+
+    checks = [
+        {
+            "Item": "Tendon-by-tendon table",
+            "Available": tendon_count,
+            "Expected / basis": int(model.get("tendon_count") or tendon_count),
+            "Status": "READY" if tendon_count > 0 else "MISSING",
+        },
+        {
+            "Item": "Merged profile table",
+            "Available": len(profile_rows),
+            "Expected / basis": expected_profile_rows,
+            "Status": "READY" if len(profile_rows) > 0 and len(profile_rows) == expected_profile_rows else "REVIEW",
+        },
+        {
+            "Item": "Tendon group summary",
+            "Available": len(group_rows),
+            "Expected / basis": "At least 1 group",
+            "Status": "READY" if len(group_rows) > 0 else "MISSING",
+        },
+        {
+            "Item": "Downstream summary",
+            "Available": f"{summary_tendon_count} tendons / {summary_area:,.0f} mm²",
+            "Expected / basis": f"{tendon_count} tendons / {model_area:,.0f} mm²",
+            "Status": "READY" if summary_tendon_count == tendon_count and tendon_count > 0 and abs(summary_area - model_area) <= 1e-6 else "REVIEW",
+        },
+        {
+            "Item": "Adoption source trace",
+            "Available": len(source_trace),
+            "Expected / basis": "General + Vertical + Horizontal + BridgeObj",
+            "Status": "READY" if len(source_trace) >= 4 else "REVIEW",
+        },
+    ]
+    return checks
+
+
 def adopt_tendon_model(
     tendon_layout: dict[str, Any],
     prestress: dict[str, Any],

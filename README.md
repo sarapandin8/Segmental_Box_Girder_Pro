@@ -1,3 +1,18 @@
+# Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4P
+
+This milestone adds **COMMERCIAL.TENDON.2.4P — Print Text-Layer Cleanup and Detailed QA Integrity**:
+
+- Keeps the accepted B2_SPAN1 fresh-project default and compact Adopted Tendon Data workflow from TENDON.2.4O.
+- Tightens browser-print CSS around the Streamlit sidebar scroll container so Edge/Chromium scrollbar arrow controls do not leak as Segoe Fluent private-use glyphs in PDF text extraction.
+- Hides Streamlit Material Symbols control glyphs, including file-uploader icons, from browser-print output while keeping their on-screen behavior unchanged.
+- Adds an explicit **Detailed QA integrity** table when `Detailed adopted tendon tables / QA` is opened. It verifies tendon rows, merged profile rows, group summary rows, downstream summary, and source trace before rendering the detailed tables.
+- Adds automated integrity tests for the detailed QA payload and static print selectors.
+- Prestress-loss calculations and the CSiBridge final-stage handoff remain unchanged: 21.36% total loss, 298.03 MPa total stress loss, fpe,avg = 1096.97 MPa, and Pe,total = 58,973 kN.
+
+Schema:
+
+- 0.4.110-commercial-tendon24p-print-text-layer-detailed-qa-integrity
+
 # Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4O
 
 This milestone adds **COMMERCIAL.TENDON.2.4O — Default Span, Compact Adopted Data, and Print Glyph Polish**:

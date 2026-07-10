@@ -5,6 +5,7 @@ import pandas as pd
 from core.tendon_adoption import (
     adopt_tendon_model,
     build_tendon_downstream_summary,
+    build_tendon_detailed_qa_integrity,
     build_tendon_source_trace,
     build_tendon_stressing_basis_summary,
     clear_adopted_tendon_model,
@@ -114,3 +115,23 @@ def test_stressing_basis_flags_missing_or_mixed_jackfrom_for_review():
     missing = build_tendon_stressing_basis_summary(model)
     assert missing["status"] == "MISSING"
     assert missing["ready"] is False
+
+
+def test_detailed_adopted_qa_integrity_register_is_ready_for_complete_model():
+    model = _model()
+    tl = {
+        "general_rows": [{}, {}],
+        "vertical_rows": [{}, {}, {}, {}, {}, {}],
+        "horizontal_rows": [{}, {}, {}, {}, {}, {}],
+    }
+    summary = adopt_tendon_model(tl, {}, model, y_t_from_top_m=0.8)
+    rows = build_tendon_detailed_qa_integrity(model, tl, summary)
+    by_item = {row["Item"]: row for row in rows}
+
+    assert by_item["Tendon-by-tendon table"]["Available"] == 2
+    assert by_item["Merged profile table"]["Available"] == 6
+    assert by_item["Merged profile table"]["Expected / basis"] == 6
+    assert by_item["Tendon group summary"]["Available"] >= 1
+    assert by_item["Downstream summary"]["Status"] == "READY"
+    assert by_item["Adoption source trace"]["Available"] >= 4
+    assert {row["Status"] for row in rows} == {"READY"}
