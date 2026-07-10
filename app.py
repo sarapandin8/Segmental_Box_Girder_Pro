@@ -67,6 +67,15 @@ from core.aashto_seismic import (
     substructure_options,
 )
 from core.formatting import format_engineering_table, format_engineering_value
+from core.fea_results import (
+    FORCE_COMPONENTS,
+    STAGE_LABELS,
+    FEAResultImportError,
+    cross_stage_station_consistency,
+    global_component_extrema,
+    read_csibridge_force_workbook,
+    stage_source_status,
+)
 from core.project_io import ProjectJsonLoadError, load_project_json_bytes, project_json_fingerprint, project_load_summary, section_persistence_summary, serialize_project_json_bytes
 from core.section_geometry import calculate_section_properties, classify_point_in_section_void, default_coordinate_template, estimate_thin_walled_closed_box_j, normalize_coordinate_rows, read_coordinate_table
 from core.tendon_adoption import (
@@ -1903,7 +1912,13 @@ def page_dashboard(sub: str) -> None:
             mode = "fail" if counts["ERROR"] else ("warn" if counts["WARNING"] else "pass")
             card("QA Gate", "QA Ready" if qa == "Ready" else qa, f"{counts['ERROR']} error(s), {counts['WARNING']} warning(s)", mode)
         with c3:
-            card("FEA Data", "Baseline summary active", "Detailed station-by-station FEA import pending for full envelope checks.")
+            stage_imports = D.get("fea_results", {}).get("stage_imports", {})
+            imported_count = sum(bool(isinstance(stage_imports.get(stage), dict) and stage_imports[stage].get("valid")) for stage in ("uls", "transfer", "service"))
+            station_gate = cross_stage_station_consistency(stage_imports)
+            if imported_count == 3 and station_gate["status"] == "READY":
+                card("FEA Data", "Three-stage import ready", "ULS + Transfer + Final Service SLS · 80 matched section cuts", "pass")
+            else:
+                card("FEA Data", f"{imported_count}/3 stages imported", "Complete Section 5 source import before downstream envelope design.", "warn")
         with c4:
             card("Recommended Action", "Review current workspace", "M2.2: layout balance, status honesty, and FEA wording polish")
 
@@ -1927,7 +1942,7 @@ def page_dashboard(sub: str) -> None:
             "2 Bridge Geometry / Section Properties": (baseline_status(workflow_lookup.get("Geometry", {"Status": "READY"})["Status"]), "baseline"),
             "3 Loads": (app_status("READY"), "app"),
             "4 Prestress Losses": (baseline_status(workflow_lookup.get("Prestress Losses", {"Status": "READY"})["Status"]), "baseline"),
-            "5 FEA Results": ("Baseline Summary", "baseline"),
+            "5 FEA Results": ("Import Ready" if imported_count == 3 and station_gate["status"] == "READY" else "Import Pending", "app"),
             "6 ULS Flexure": ("Baseline PASS", "baseline"),
             "7 ULS Shear / Torsion": (app_status(snap["transverse_check"]["Status_governing"]), "app"),
             "8 SLS Stress": (baseline_status(sls["status"]), "baseline"),
@@ -9546,7 +9561,7 @@ def page_prestress_losses(sub: str) -> None:
         render_prestress_losses_source_gate_panel(compact=True)
 
 
-def page_fea_results(sub: str) -> None:
+def _page_fea_results_legacy(sub: str) -> None:
     st.subheader(get_workspace("5 FEA Results")["title"])
     fea = D["fea_results"]
     l = D["loads"]
@@ -9565,6 +9580,283 @@ def page_fea_results(sub: str) -> None:
         st.dataframe(pd.DataFrame(D["sls_stress"].items(), columns=["SLS baseline item", "Value"]), use_container_width=True, hide_index=True)
     else:
         report_trace_table("5 FEA Results", [("Midspan dashboard", "BG40 R10 baseline summary", "Data hub active", "Baseline Ready"), ("ULS envelope", "User keyed / R10 demand values", "Demand object active", "Baseline Ready"), ("SLS envelope", "R10 baseline", "Station-by-station import pending", "Pending Import")])
+
+
+def _fea_stage_imports() -> dict[str, Any]:
+    fea = D.setdefault("fea_results", {})
+    imports = fea.setdefault("stage_imports", {})
+    for stage in ("uls", "transfer", "service"):
+        if not isinstance(imports.get(stage), dict):
+            imports[stage] = {}
+    return imports
+
+
+def _sync_fea_stage_upload(uploaded: Any, stage: str) -> None:
+    if uploaded is None:
+        return
+    raw = uploaded.getvalue() if hasattr(uploaded, "getvalue") else b""
+    fingerprint = hashlib.sha256(raw).hexdigest() if raw else ""
+    imports = _fea_stage_imports()
+    current = imports.get(stage, {})
+    if fingerprint and current.get("sha256") == fingerprint:
+        return
+    try:
+        imports[stage] = read_csibridge_force_workbook(
+            raw,
+            filename=getattr(uploaded, "name", f"Bridge Forces_{STAGE_LABELS[stage]}.xlsx"),
+            stage=stage,
+        )
+        st.success(
+            f"Imported {STAGE_LABELS[stage]}: {imports[stage]['summary']['rows']:,} raw rows / "
+            f"{imports[stage]['summary']['sect_cuts']} section cuts."
+        )
+    except FEAResultImportError as exc:
+        st.error(f"Could not import {STAGE_LABELS[stage]}: {exc}")
+
+
+def _fea_source_label(source: Any) -> str:
+    if not isinstance(source, dict):
+        return "-"
+    case = str(source.get("OutputCase") or "-")
+    step = str(source.get("StepType") or "Single")
+    row = source.get("SourceRow")
+    row_text = f" · row {int(row)}" if row not in (None, "") else ""
+    return f"{case} / {step}{row_text}"
+
+
+def _fea_envelope_frame(payload: dict[str, Any], components: list[str]) -> pd.DataFrame:
+    units = {"P": "kN", "V2": "kN", "T": "kN·m", "M3": "kN·m"}
+    rows: list[dict[str, Any]] = []
+    for envelope in payload.get("envelopes", []):
+        item: dict[str, Any] = {
+            "SectCutNum": int(envelope["SectCutNum"]),
+            "Distance (m)": float(envelope["Distance"]),
+            "LocType": str(envelope["LocType"]),
+            "Candidate rows": int(envelope.get("CandidateRows", 0)),
+        }
+        for component in components:
+            unit = units[component]
+            item[f"{component} min ({unit})"] = float(envelope[f"{component}_min"])
+            item[f"{component} min source"] = _fea_source_label(envelope.get(f"{component}_min_source"))
+            item[f"{component} max ({unit})"] = float(envelope[f"{component}_max"])
+            item[f"{component} max source"] = _fea_source_label(envelope.get(f"{component}_max_source"))
+        rows.append(item)
+    return pd.DataFrame(rows).sort_values("SectCutNum").reset_index(drop=True) if rows else pd.DataFrame()
+
+
+def _fea_global_extrema_frame(payload: dict[str, Any]) -> pd.DataFrame:
+    units = {"P": "kN", "V2": "kN", "T": "kN·m", "M3": "kN·m"}
+    frame = pd.DataFrame(global_component_extrema(payload.get("records", [])))
+    if frame.empty:
+        return frame
+    frame.insert(1, "Unit", frame["Component"].map(units))
+    return frame
+
+
+def _render_fea_stage_header(stage: str, payload: dict[str, Any]) -> bool:
+    active_span = str(D.get("project", {}).get("bridge_object", ""))
+    status = stage_source_status(payload, active_span)
+    if status["status"] != "READY":
+        st.markdown(
+            f'<div class="warn-box"><b>{STAGE_LABELS[stage]} source:</b> {escape(status["note"])}</div>',
+            unsafe_allow_html=True,
+        )
+        if not payload.get("valid"):
+            st.info("Upload this stage on 5.1 Import / Data Hub before reviewing the envelope.")
+            return False
+    summary = payload.get("summary", {})
+    cols = st.columns(4)
+    with cols[0]:
+        card("SOURCE STATUS", status["status"], status["note"], status["mode"])
+    with cols[1]:
+        card("SECTION CUTS", f"{int(summary.get('sect_cuts', 0))}", f"{int(summary.get('rows', 0)):,} raw candidate rows", "pass")
+    with cols[2]:
+        card("OUTPUT CASES", f"{int(summary.get('output_cases', 0))}", f"Rows/cut {int(summary.get('rows_per_cut_min', 0))}–{int(summary.get('rows_per_cut_max', 0))}", "pass")
+    with cols[3]:
+        card("SOURCE TRACE", str(payload.get("sha256_12") or "-"), str(payload.get("filename") or "-"), "pass")
+    return True
+
+
+def _render_fea_envelope_stage(stage: str, *, default_components: list[str]) -> None:
+    payload = _fea_stage_imports().get(stage, {})
+    if not _render_fea_stage_header(stage, payload):
+        return
+    st.markdown(
+        '<div class="note-box"><b>Critical-row rule:</b> the compact table contains one row per <b>SectCutNum</b>, '
+        'but each P, V2, T, and M3 minimum/maximum retains its own OutputCase and StepType source. '
+        '<b>Do not treat the compact row as a simultaneous force vector.</b> Raw candidate rows are preserved for utilization-based selection in Sections 6–8.</div>',
+        unsafe_allow_html=True,
+    )
+
+    choices = {
+        "Flexure / axial (P, M3)": ["P", "M3"],
+        "Shear / torsion (V2, T)": ["V2", "T"],
+        "All scalar extrema": list(FORCE_COMPONENTS),
+    }
+    default_label = next((label for label, comps in choices.items() if comps == default_components), list(choices)[0])
+    view = st.radio(
+        "Envelope view",
+        list(choices),
+        index=list(choices).index(default_label),
+        horizontal=True,
+        key=f"fea_{stage}_envelope_view",
+    )
+    frame = _fea_envelope_frame(payload, choices[view])
+    st.dataframe(frame, width="stretch", hide_index=True, height=620)
+
+    st.markdown("#### Global source-traced extrema")
+    show_engineering_table(_fea_global_extrema_frame(payload))
+    if _trace_toggle(f"{STAGE_LABELS[stage]} raw candidates / QA", default=False):
+        raw = pd.DataFrame(payload.get("records", []))
+        st.caption(f"Raw source rows retained: {len(raw):,}. These rows are the downstream candidate set; the app does not synthesize P-M3 or V2-T pairs from separate extrema.")
+        st.dataframe(raw, width="stretch", hide_index=True, height=620)
+
+
+def _render_transfer_stage() -> None:
+    payload = _fea_stage_imports().get("transfer", {})
+    if not _render_fea_stage_header("transfer", payload):
+        return
+    st.markdown(
+        '<div class="note-box"><b>Transfer-stage interpretation:</b> this source contains one single-state row per SectCutNum. '
+        'P, V2, T, and M3 in each row therefore remain one traceable Transfer stage result vector; no Max/Min component envelope is manufactured.</div>',
+        unsafe_allow_html=True,
+    )
+    records = pd.DataFrame(payload.get("records", []))
+    if not records.empty:
+        columns = ["SectCutNum", "Distance", "LocType", "OutputCase", "P", "V2", "T", "M3"]
+        display = records[columns].copy()
+        display.columns = ["SectCutNum", "Distance (m)", "LocType", "OutputCase", "P (kN)", "V2 (kN)", "T (kN·m)", "M3 (kN·m)"]
+        st.dataframe(display, width="stretch", hide_index=True, height=620)
+    st.markdown("#### Global transfer-stage extrema")
+    show_engineering_table(_fea_global_extrema_frame(payload))
+
+
+def _render_fea_import_hub() -> None:
+    st.markdown(
+        '<div class="note-box"><b>FEA.5A import policy:</b> upload separate CSiBridge <b>ULS</b>, <b>Transfer Stage</b>, and '
+        '<b>Final Service SLS</b> Bridge Object Forces workbooks. The app imports only P, V2, T, and M3 for design review, '
+        'while preserving every OutputCase/StepType candidate and the original section-cut identity.</div>',
+        unsafe_allow_html=True,
+    )
+    specs = [
+        ("uls", "ULS forces workbook"),
+        ("transfer", "Transfer-stage forces workbook"),
+        ("service", "Final-service SLS workbook"),
+    ]
+    columns = st.columns(3)
+    for column, (stage, label) in zip(columns, specs):
+        with column:
+            uploaded = st.file_uploader(label, type=["xlsx"], key=f"fea_{stage}_workbook_upload")
+            _sync_fea_stage_upload(uploaded, stage)
+            payload = _fea_stage_imports().get(stage, {})
+            status = stage_source_status(payload, str(D.get("project", {}).get("bridge_object", "")))
+            summary = payload.get("summary", {}) if isinstance(payload, dict) else {}
+            value = f"{int(summary.get('sect_cuts', 0))} CUTS" if payload.get("valid") else "NOT IMPORTED"
+            note = status["note"] if payload.get("valid") else "Select the required .xlsx source."
+            card(STAGE_LABELS[stage].upper(), value, note, status["mode"])
+
+    imports = _fea_stage_imports()
+    active_span = str(D.get("project", {}).get("bridge_object", ""))
+    source_rows: list[list[Any]] = []
+    for stage, _ in specs:
+        payload = imports.get(stage, {})
+        status = stage_source_status(payload, active_span)
+        summary = payload.get("summary", {}) if isinstance(payload, dict) else {}
+        source_rows.append(
+            [
+                STAGE_LABELS[stage],
+                payload.get("filename", "-"),
+                payload.get("sha256_12", "-"),
+                ", ".join(payload.get("bridge_objects", [])) or "-",
+                int(summary.get("rows", 0)),
+                int(summary.get("sect_cuts", 0)),
+                int(summary.get("output_cases", 0)),
+                status["status"],
+            ]
+        )
+    show_engineering_table(
+        pd.DataFrame(
+            source_rows,
+            columns=["Stage", "Filename", "SHA-256 (12)", "BridgeObj", "Raw rows", "SectCutNum", "Output cases", "Status"],
+        )
+    )
+
+    consistency = cross_stage_station_consistency(imports)
+    all_ready = all(stage_source_status(imports.get(stage), active_span)["status"] == "READY" for stage, _ in specs)
+    handoff_ready = all_ready and consistency["status"] == "READY"
+    cols = st.columns(3)
+    with cols[0]:
+        card("THREE-STAGE SOURCE GATE", "READY" if all_ready else "PENDING", "ULS + Transfer + Final Service SLS", "pass" if all_ready else "warn")
+    with cols[1]:
+        card("STATION MAP", consistency["status"], consistency["note"], consistency["mode"])
+    with cols[2]:
+        card("DESIGN HANDOFF", "READY" if handoff_ready else "REVIEW", "Candidate rows available to Sections 6–8" if handoff_ready else "Complete and reconcile all three sources", "pass" if handoff_ready else "warn")
+
+
+def _render_fea_source_qa() -> None:
+    imports = _fea_stage_imports()
+    available = [stage for stage in ("uls", "transfer", "service") if imports.get(stage, {}).get("valid")]
+    if not available:
+        st.info("No FEA source is imported. Use 5.1 Import / Data Hub first.")
+        return
+    consistency = cross_stage_station_consistency(imports)
+    st.markdown(
+        f'<div class="note-box"><b>Cross-stage station consistency:</b> {escape(consistency["status"])} — {escape(consistency["note"])}</div>',
+        unsafe_allow_html=True,
+    )
+    if consistency.get("details"):
+        show_engineering_table(pd.DataFrame(consistency["details"]))
+
+    active_span = str(D.get("project", {}).get("bridge_object", ""))
+    trace_rows: list[list[Any]] = []
+    for stage in available:
+        payload = imports[stage]
+        summary = payload.get("summary", {})
+        program = payload.get("program_control", {})
+        status = stage_source_status(payload, active_span)
+        trace_rows.append(
+            [
+                STAGE_LABELS[stage],
+                payload.get("filename", "-"),
+                payload.get("sha256_12", "-"),
+                program.get("ProgramName", "-"),
+                program.get("Version", "-"),
+                program.get("CurrUnits", "-"),
+                int(summary.get("rows", 0)),
+                int(summary.get("sect_cuts", 0)),
+                status["status"],
+            ]
+        )
+    show_engineering_table(
+        pd.DataFrame(
+            trace_rows,
+            columns=["Stage", "Filename", "SHA-256 (12)", "Program", "Version", "Program units", "Raw rows", "Section cuts", "Status"],
+        )
+    )
+    st.markdown(
+        '<div class="warn-box"><b>Envelope limitation:</b> CSiBridge Max/Min combination output may be component-wise. '
+        'The app therefore preserves raw rows and never combines P from one source row with M3, V2, or T from another to create a fictitious simultaneous state.</div>',
+        unsafe_allow_html=True,
+    )
+    selected = st.selectbox("Stage source trace", available, format_func=lambda value: STAGE_LABELS[value], key="fea_qa_stage")
+    payload = imports[selected]
+    show_engineering_table(pd.DataFrame(payload.get("case_summary", [])))
+    if _trace_toggle(f"{STAGE_LABELS[selected]} detailed raw source table", default=False):
+        st.dataframe(pd.DataFrame(payload.get("records", [])), width="stretch", hide_index=True, height=640)
+
+
+def page_fea_results(sub: str) -> None:
+    st.subheader(get_workspace("5 FEA Results")["title"])
+    if sub in {"5.1 Data Hub", "5.1 Import / Data Hub"}:
+        _render_fea_import_hub()
+    elif sub == "5.2 ULS Envelope":
+        _render_fea_envelope_stage("uls", default_components=["P", "M3"])
+    elif sub == "5.3 Transfer Stage":
+        _render_transfer_stage()
+    elif sub in {"5.3 SLS Envelope", "5.4 Final Service SLS"}:
+        _render_fea_envelope_stage("service", default_components=["P", "M3"])
+    else:
+        _render_fea_source_qa()
 
 
 def page_uls_flexure(sub: str) -> None:

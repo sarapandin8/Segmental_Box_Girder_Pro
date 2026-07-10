@@ -38,7 +38,7 @@ def test_project_json_fingerprint_changes_with_content() -> None:
 def test_app_project_json_loader_uses_explicit_button_not_auto_rerun_loop() -> None:
     from pathlib import Path
 
-    app_text = Path(__file__).resolve().parents[1].joinpath("app.py").read_text()
+    app_text = Path(__file__).resolve().parents[1].joinpath("app.py").read_text(encoding="utf-8")
     assert 'st.file_uploader("Load Project JSON", type=["json"], key="project_json_upload")' in app_text
     assert 'st.button("Load uploaded project", key="load_project_json_button"' in app_text
     assert 'json.loads(uploaded.read().decode("utf-8"))' not in app_text

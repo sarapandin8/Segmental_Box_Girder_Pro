@@ -1,3 +1,29 @@
+# Segmental Box Girder Pro — COMMERCIAL.FEA.5A
+
+This milestone adds **COMMERCIAL.FEA.5A — Three-Stage CSiBridge Force Import and Critical Envelope Hub**:
+
+- Adds separate Excel import sources for ULS, Transfer Stage, and Final Service SLS Bridge Object Forces.
+- Validates the CSiBridge sheet name, required columns, SI units, numeric fields, StepType rules, source-row identity, and Before/After section-cut mapping.
+- Imports only the design actions required by this workflow: P, V2, T, and M3.
+- Preserves every raw OutputCase/StepType candidate for later utilization- and stress-based governing selection in Sections 6–8.
+- Builds one compact scalar-envelope row per SectCutNum while retaining separate source case, StepType, and Excel row for every component minimum and maximum.
+- Does not misrepresent component-wise Max/Min envelopes as one simultaneous P-V2-T-M3 force vector.
+- Treats Transfer Stage as a single-state result vector because its source contains one row per SectCutNum.
+- Adds a cross-stage gate requiring ULS, Transfer, and Final Service SLS to share the same SectCutNum/Distance/LocType map and active BridgeObj.
+- Persists raw candidates, compact envelopes, file SHA-256, program metadata, and case summaries through Project JSON Save/Load.
+- Replaces the keyed Section 5 baseline pages with 5.1 Import / Data Hub, 5.2 ULS Envelope, 5.3 Transfer Stage, 5.4 Final Service SLS, and 5.5 QA / Source Trace.
+
+Verified project sources:
+
+- ULS: 2,560 raw rows, 80 section cuts, 18 output cases, 32 rows per cut.
+- Transfer Stage: 80 raw rows, 80 section cuts, one single-state row per cut.
+- Final Service SLS: 720 raw rows, 80 section cuts, 7 output cases, 9 rows per cut.
+- Cross-stage station map: READY, 80 matching section-cut identities.
+
+Schema:
+
+- 0.5.0-commercial-fea5a-three-stage-force-import-envelope-hub
+
 # Segmental Box Girder Pro — COMMERCIAL.TENDON.2.4Q
 
 This milestone adds **COMMERCIAL.TENDON.2.4Q — Source Provenance and Save Label Clarity**:

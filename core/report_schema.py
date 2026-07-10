@@ -60,7 +60,13 @@ WORKSPACES = [
         "id": "fea_results",
         "label": "5 FEA Results",
         "title": "5 Analysis Results",
-        "subpages": ["5.1 Data Hub", "5.2 ULS Envelope", "5.3 SLS Envelope", "QA / Report Preview"],
+        "subpages": [
+            "5.1 Import / Data Hub",
+            "5.2 ULS Envelope",
+            "5.3 Transfer Stage",
+            "5.4 Final Service SLS",
+            "5.5 QA / Source Trace",
+        ],
     },
     {
         "id": "uls_flexure",

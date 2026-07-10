@@ -6,7 +6,7 @@ calculation-engine inputs from M1. Internal UI units are kN, m, MPa, and mm.
 
 BG40_DEFAULT = {
     "meta": {
-        "schema_version": "0.4.111-commercial-tendon24q-source-provenance-save-label-clarity",
+        "schema_version": "0.5.0-commercial-fea5a-three-stage-force-import-envelope-hub",
         "app_name": "Segmental Box Girder Pro",
         "dataset_status": "BG40 baseline loaded; AASHTO LRFD 2020 Section 5 governing concrete design basis and DPT seismic database active",
         "schema_note": "Report-driven workspace/subpage schema for commercial-grade QA, traceability, and future report export.",
@@ -286,7 +286,14 @@ BG40_DEFAULT = {
         "source_note": "Import CSiBridge tendon General / Vertical / Horizontal tables to generate layout figures, then explicitly adopt the tendon model before downstream use.",
     },
     "fea_results": {
-        "source_status": "BG40 R10 baseline keyed values; future milestone will import station-by-station FEA tables.",
+        "source_status": "FEA.5A three-stage CSiBridge import hub; raw candidate rows and component-specific scalar envelopes are stored separately.",
+        "import_schema_version": "1.0",
+        "stage_imports": {
+            "uls": {},
+            "transfer": {},
+            "service": {},
+        },
+        "envelope_interpretation": "One compact row per SectCutNum stores separate min/max sources for P, V2, T, and M3. It is not a simultaneous force vector.",
         "permanent_moment_midspan_knm": 47671.0,
         "prestress_moment_midspan_knm": -79731.0,
         "prestress_axial_midspan_kn": -64305.0,
